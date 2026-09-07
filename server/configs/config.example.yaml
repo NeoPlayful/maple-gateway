@@ -4,7 +4,10 @@ gateway:
   http:
     address: ":80"          # 数据平面 HTTP（Docker 生产），开发常用 :8000
   https:
-    address: ":443"         # 数据平面 HTTPS（Phase 1 默认不启用）
+    enabled: false          # Phase 2 起按需启用；enabled 时需同时提供 cert/key
+    address: ":443"         # 数据平面 HTTPS
+    cert: /etc/maple-gateway/tls.crt
+    key: /etc/maple-gateway/tls.key
 
 management:
   address: ":4000"          # 控制面 API

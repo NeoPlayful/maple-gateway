@@ -23,12 +23,13 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-const cols = `id, service_id, node_id, version, address, port, protocol, weight, status, health, last_seen_at, created_at, updated_at`
+const cols = `id, service_id, deployment_id, version_id, node_id, version, address, port, protocol, weight, status, health, last_seen_at, created_at, updated_at`
 
 func scanInstance(row pgx.Row) (*Instance, error) {
 	var i Instance
-	err := row.Scan(&i.ID, &i.ServiceID, &i.NodeID, &i.Version, &i.Address, &i.Port, &i.Protocol,
-		&i.Weight, &i.Status, &i.Health, &i.LastSeenAt, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(&i.ID, &i.ServiceID, &i.DeploymentID, &i.VersionID, &i.NodeID, &i.Version,
+		&i.Address, &i.Port, &i.Protocol, &i.Weight, &i.Status, &i.Health, &i.LastSeenAt,
+		&i.CreatedAt, &i.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -45,11 +46,16 @@ func (r *Repository) Create(ctx context.Context, in New) (*Instance, error) {
 	if weight == 0 {
 		weight = 1
 	}
+	if err := r.validateMount(ctx, in.ServiceID, in.DeploymentID, in.VersionID, in.NodeID); err != nil {
+		return nil, err
+	}
 	row := r.pool.QueryRow(ctx, `
-		INSERT INTO instances(service_id, node_id, version, address, port, protocol, weight, status, health)
-		VALUES($1, $2, $3, $4, $5, $6, $7, 'enabled', 'unknown')
+		INSERT INTO instances(service_id, deployment_id, version_id, node_id, version,
+			address, port, protocol, weight, status, health)
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, 'enabled', 'unknown')
 		RETURNING `+cols,
-		in.ServiceID, in.NodeID, in.Version, in.Address, in.Port, proto, weight)
+		in.ServiceID, in.DeploymentID, in.VersionID, in.NodeID, in.Version,
+		in.Address, in.Port, proto, weight)
 	i, err := scanInstance(row)
 	if err != nil {
 		return nil, fmt.Errorf("insert instance: %w", err)
@@ -161,34 +167,75 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Inst
 	if in.Health != nil {
 		i.Health = *in.Health
 	}
-	err = r.pool.QueryRow(ctx, `
+	upd, err := scanInstance(r.pool.QueryRow(ctx, `
 		UPDATE instances SET address=$2, port=$3, protocol=$4, weight=$5,
 			status=$6, health=$7, updated_at=now()
 		WHERE id=$1 RETURNING `+cols,
-		id, i.Address, i.Port, i.Protocol, i.Weight, i.Status, i.Health).
-		Scan(&i.ID, &i.ServiceID, &i.NodeID, &i.Version, &i.Address, &i.Port, &i.Protocol,
-			&i.Weight, &i.Status, &i.Health, &i.LastSeenAt, &i.CreatedAt, &i.UpdatedAt)
+		id, i.Address, i.Port, i.Protocol, i.Weight, i.Status, i.Health))
 	if err != nil {
 		return nil, fmt.Errorf("update instance: %w", err)
 	}
-	return i, nil
+	return upd, nil
 }
 
 // SetHealth 更新健康状态并刷新 last_seen。
 func (r *Repository) SetHealth(ctx context.Context, id uuid.UUID, h Health) (*Instance, error) {
-	i, err := r.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	err = r.pool.QueryRow(ctx, `
+	upd, err := scanInstance(r.pool.QueryRow(ctx, `
 		UPDATE instances SET health=$2, last_seen_at=now(), updated_at=now()
 		WHERE id=$1 RETURNING `+cols,
-		id, h).Scan(&i.ID, &i.ServiceID, &i.NodeID, &i.Version, &i.Address, &i.Port, &i.Protocol,
-		&i.Weight, &i.Status, &i.Health, &i.LastSeenAt, &i.CreatedAt, &i.UpdatedAt)
+		id, h))
 	if err != nil {
 		return nil, fmt.Errorf("set instance health: %w", err)
 	}
-	return i, nil
+	return upd, nil
+}
+
+// Mount 调整实例挂载。DeploymentID/VersionID 为 nil 不动，uuid.Nil 解挂（回退直挂 Service）。
+// version 有值但 deployment 无值视为非法。
+func (r *Repository) Mount(ctx context.Context, id uuid.UUID, in Mount) (*Instance, error) {
+	cur, err := r.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var newDep, newVer, newNode *uuid.UUID
+	newDep, newVer, newNode = cur.DeploymentID, cur.VersionID, cur.NodeID
+	if in.DeploymentID != nil {
+		if *in.DeploymentID == uuid.Nil {
+			newDep, newVer = nil, nil // 解挂 deployment 连带清 version
+		} else {
+			newDep = in.DeploymentID
+			if in.VersionID == nil {
+				newVer = nil // 换 deployment 不清 version，但需校验归属
+			}
+		}
+	}
+	if in.VersionID != nil {
+		if *in.VersionID == uuid.Nil {
+			newVer = nil
+		} else {
+			newVer = in.VersionID
+		}
+	}
+	if in.NodeID != nil {
+		if *in.NodeID == uuid.Nil {
+			newNode = nil
+		} else {
+			newNode = in.NodeID
+		}
+	}
+
+	if err := r.validateMount(ctx, cur.ServiceID, newDep, newVer, newNode); err != nil {
+		return nil, err
+	}
+	upd, err := scanInstance(r.pool.QueryRow(ctx, `
+		UPDATE instances SET deployment_id=$2, version_id=$3, node_id=$4, updated_at=now()
+		WHERE id=$1 RETURNING `+cols,
+		id, newDep, newVer, newNode))
+	if err != nil {
+		return nil, fmt.Errorf("mount instance: %w", err)
+	}
+	return upd, nil
 }
 
 // Delete 注销实例。
@@ -214,6 +261,31 @@ func (r *Repository) RoutablePool(ctx context.Context, serviceID uuid.UUID) ([]*
 	}
 	defer rows.Close()
 	return collect(rows)
+}
+
+// validateMount 校验挂载一致性：version 必须属于 deployment；version 有值而 deployment 为空非法；
+// deployment 有值而 version 为空允许（Phase 1 直挂迁移期）。resource 存在性由外键保证。
+func (r *Repository) validateMount(ctx context.Context, serviceID uuid.UUID,
+	deploymentID, versionID, nodeID *uuid.UUID) error {
+	if versionID == nil {
+		return nil
+	}
+	if deploymentID == nil {
+		return pkg.ErrValidation("指定 version_id 时必须同时指定 deployment_id")
+	}
+	var depOfVersion uuid.UUID
+	err := r.pool.QueryRow(ctx,
+		`SELECT deployment_id FROM deployment_versions WHERE id=$1`, *versionID).Scan(&depOfVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return pkg.ErrValidation("版本不存在")
+	}
+	if err != nil {
+		return fmt.Errorf("check version: %w", err)
+	}
+	if depOfVersion != *deploymentID {
+		return pkg.ErrValidation("version_id 不属于该 deployment")
+	}
+	return nil
 }
 
 func collect(rows pgx.Rows) ([]*Instance, error) {

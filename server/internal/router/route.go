@@ -18,6 +18,7 @@ var (
 	ErrTenantSuspended = errors.New("route: tenant suspended or disabled")
 	ErrNoHealthy       = errors.New("route: no healthy instance")
 	ErrInvalidHost     = errors.New("route: invalid host")
+	ErrRateLimited     = errors.New("route: rate limited")
 )
 
 // Target 是一次请求解析出的转发目标（单个 upstream）。
@@ -36,6 +37,20 @@ type PoolMember struct {
 	Endpoint string // host:port
 	Protocol string
 	Weight   int
+}
+
+// MatchView 是策略匹配所需的请求上下文（Header / Path / ClientIP 子集）。
+// 由数据平面从 *http.Request 提取，供支持策略分流的 Resolver 消费。
+type MatchView struct {
+	Header   map[string]string // 原始 header（key 小写）
+	Path     string
+	ClientIP string // 客户端 IP（ip scope 限流用）
+}
+
+// ContextResolver 是可选接口：支持基于请求上下文（Header/Path）分流的 Resolver。
+// Resolver 若实现它，数据平面会传入真实请求信息；否则退化为无上下文 Resolve。
+type ContextResolver interface {
+	ResolveWith(ctx context.Context, host string, mv MatchView) (*Target, error)
 }
 
 // Resolver 把请求的 hostname 解析为转发目标。

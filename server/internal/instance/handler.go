@@ -133,6 +133,23 @@ func (h *Handler) setStatus(c fiber.Ctx, s Status) error {
 	return pkg.OK(c, i)
 }
 
+// Mount POST /api/admin/instances/:id/mount  调整 deployment/version/node 挂载
+func (h *Handler) Mount(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("无效的实例 ID"))
+	}
+	var in Mount
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	i, err := h.repo.Mount(c.Context(), id, in)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, i)
+}
+
 // Health POST /api/admin/instances/:id/health  手动上报健康状态
 func (h *Handler) Health(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))

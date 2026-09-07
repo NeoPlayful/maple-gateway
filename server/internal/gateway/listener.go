@@ -7,17 +7,31 @@ import (
 	"go.uber.org/zap"
 )
 
-// Start 在独立 goroutine 中监听并服务，返回错误通道。
-// 服务正常关闭时错误通道收到 nil。
+// Start 为每个监听器启动独立 goroutine 服务，返回错误通道。
+// 任一监听异常退出即上报；服务正常关闭时错误通道收到 nil。
 func (d *DataPlane) Start() <-chan error {
-	errCh := make(chan error, 1)
-	go func() {
-		d.logger.Info("data plane listening", zap.String("addr", d.httpServer.Addr))
-		if err := d.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-			return
-		}
-		errCh <- nil
-	}()
+	errCh := make(chan error, len(d.listeners))
+	for _, ln := range d.listeners {
+		ln := ln
+		go func() {
+			scheme := "http"
+			if ln.tls {
+				scheme = "https"
+			}
+			d.logger.Info("data plane listening",
+				zap.String("scheme", scheme), zap.String("addr", ln.server.Addr))
+			var err error
+			if ln.tls {
+				err = ln.server.ListenAndServeTLS(ln.cert, ln.key)
+			} else {
+				err = ln.server.ListenAndServe()
+			}
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+				return
+			}
+			errCh <- nil
+		}()
+	}
 	return errCh
 }

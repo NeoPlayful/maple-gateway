@@ -15,14 +15,21 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/config"
+	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/gateway"
 	"github.com/NeoPlayful/maple-gateway/server/internal/health"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
+	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
+	"github.com/NeoPlayful/maple-gateway/server/internal/node"
 	"github.com/NeoPlayful/maple-gateway/server/internal/proxy"
+	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
+	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
+	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
@@ -98,6 +105,14 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}, logger)
 		go hc.Run(ctx)
 	}
+	// Node 心跳看护：超时未心跳的节点置 offline，其上实例随 AutoRebuild 摘除。
+	if db != nil {
+		node.Watchdog(ctx, node.NewRepository(db.Pool), node.WatchdogConfig{
+			Interval: 10 * time.Second,
+			Timeout:  30 * time.Second,
+			Logger:   logger,
+		})
+	}
 
 	logger.Info("maple-gateway starting",
 		zap.String("http_addr", cfg.Gateway.HTTP.Address),
@@ -114,24 +129,46 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		MaxIdleConnsPerHost:   20,
 	})
 
-	// 组装并启动数据平面。
+	// 组装并启动数据平面（HTTP 与 HTTPS 可并行；证书齐全才启用 HTTPS）。
+	httpAddr := ""
+	if cfg.Gateway.HTTP.Enabled {
+		httpAddr = cfg.Gateway.HTTP.Address
+	}
+	httpsAddr, certFile, keyFile := "", "", ""
+	if cfg.Gateway.HTTPS.Enabled && cfg.Gateway.HTTPS.Cert != "" && cfg.Gateway.HTTPS.Key != "" {
+		httpsAddr = cfg.Gateway.HTTPS.Address
+		certFile = cfg.Gateway.HTTPS.Cert
+		keyFile = cfg.Gateway.HTTPS.Key
+	}
+	metricReg := metrics.NewRegistry()
+	accessLog := logs.NewAccessLog(5000)
 	dp := gateway.NewDataPlane(gateway.DataPlaneConfig{
-		Address:           cfg.Gateway.HTTP.Address,
+		Address:           httpAddr,
+		HTTPSAddress:      httpsAddr,
+		CertFile:          certFile,
+		KeyFile:           keyFile,
 		Resolver:          resolver,
 		Transport:         transport,
 		ReadHeaderTimeout: cfg.Proxy.ReadHeaderTimeout,
 		IdleTimeout:       cfg.Proxy.IdleTimeout,
 		MaxHeaderBytes:    cfg.Proxy.MaxHeaderBytes,
 		Logger:            logger,
+		Metrics:           metricReg,
+		AccessLog:         accessLog,
 	})
 	dpErrCh := dp.Start()
 
 	// Management API（数据平面与控制面分离）。
 	var mgmtApp *fiber.App
 	if db != nil {
-		mgmtApp = api.New(api.Deps{Pool: db.Pool, RouteCache: routeCache})
+		setRepo := settings.NewRepository(db.Pool)
+		if err := setRepo.Reload(ctx); err != nil {
+			logger.Warn("settings reload failed", zap.String("err", err.Error()))
+		}
+		mgmtApp = api.New(api.Deps{Pool: db.Pool, RouteCache: routeCache, Metrics: metricReg,
+			AccessLog: accessLog, Settings: setRepo})
 	} else {
-		mgmtApp = api.New(api.Deps{Pool: nil})
+		mgmtApp = api.New(api.Deps{Pool: nil, Metrics: metricReg, AccessLog: accessLog})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))
@@ -224,12 +261,26 @@ func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
 		return staticRes, nil, nil, nil
 	}
 
-	rc := cache.New(
+	nodeRepo := node.NewRepository(db.Pool)
+	rlRepo := ratelimit.NewRepository(db.Pool)
+	rc := cache.NewVersioned(
 		tenant.NewRepository(db.Pool),
 		domain.NewRepository(db.Pool),
 		service.NewRepository(db.Pool),
 		instance.NewRepository(db.Pool),
-	)
+		cache.NewVersionSource(deployment.NewRepository(db.Pool), traffic.NewRepository(db.Pool)),
+	).WithNodeFilter(nodeRepo.RoutableMap).
+		WithLimits(func(ctx context.Context) ([]ratelimit.RateLimit, error) {
+			rows, err := rlRepo.All(ctx)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]ratelimit.RateLimit, 0, len(rows))
+			for _, rl := range rows {
+				out = append(out, *rl)
+			}
+			return out, nil
+		})
 	if err := rc.Rebuild(ctx); err != nil {
 		logger.Warn("route cache rebuild failed, falling back to static routes",
 			zap.String("err", err.Error()))

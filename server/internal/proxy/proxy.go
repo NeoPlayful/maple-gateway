@@ -1,12 +1,18 @@
 package proxy
 
 import (
+	"bufio"
 	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"go.uber.org/zap"
 )
@@ -23,6 +29,8 @@ type Config struct {
 	Resolver  router.Resolver
 	Transport *http.Transport
 	Logger    Logger
+	Metrics   *metrics.Registry // 可空；nil 时不采集数据平面指标
+	AccessLog *logs.AccessLog   // 可空；nil 时不记录访问日志
 }
 
 // Proxy 是数据平面反向代理。
@@ -30,6 +38,8 @@ type Proxy struct {
 	resolver router.Resolver
 	director *httputil.ReverseProxy
 	logger   Logger
+	metrics  *metrics.Registry
+	access   *logs.AccessLog
 }
 
 // New 构造 Proxy。transport 为空时使用默认配置。
@@ -47,12 +57,22 @@ func New(cfg Config) *Proxy {
 	p := &Proxy{
 		resolver: cfg.Resolver,
 		logger:   cfg.Logger,
+		metrics:  cfg.Metrics,
+		access:   cfg.AccessLog,
 	}
 	p.director = &httputil.ReverseProxy{
 		Transport:     transport,
 		FlushInterval: -1, // 立即 flush，保证 SSE / 流式低延迟
 		Rewrite:       p.rewrite,
 		ErrorHandler:  p.handleUpstreamError,
+		ModifyResponse: func(resp *http.Response) error {
+			if p.metrics != nil {
+				p.metrics.Inc("maple_upstream_requests_total", map[string]string{
+					"host": normalizeHostLabel(resp.Request.Host),
+				})
+			}
+			return nil
+		},
 	}
 	return p
 }
@@ -69,14 +89,141 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target, err := p.resolver.Resolve(r.Context(), host)
+	if p.metrics != nil {
+		p.metrics.Inc("maple_active_connections", nil)
+		defer p.metrics.Add("maple_active_connections", -1, nil)
+	}
+	start := time.Now()
+
+	target, err := p.resolve(host, r)
 	if err != nil {
+		if p.metrics != nil {
+			p.metrics.Inc("maple_requests_total", map[string]string{"host": host, "status": "rejected"})
+		}
 		p.handleResolveError(w, r, err)
 		return
 	}
 
+	rec := &statusRecorder{ResponseWriter: w, status: 200}
 	r = r.WithContext(withTarget(r.Context(), target))
-	p.director.ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	p.director.ServeHTTP(rec, r)
+	if p.metrics != nil {
+		p.metrics.Inc("maple_requests_total", map[string]string{
+			"host":   host,
+			"status": itoa(rec.status),
+		})
+		p.metrics.ObserveDuration("maple_request_duration_seconds", elapsed,
+			map[string]string{"host": host})
+	}
+	if p.access != nil {
+		p.access.Append(logs.AccessEntry{
+			Timestamp:  time.Now(),
+			Host:       host,
+			Method:     r.Method,
+			Path:       r.URL.Path,
+			Status:     rec.status,
+			ClientIP:   clientIP(r.RemoteAddr),
+			DurationMS: elapsed.Milliseconds(),
+		})
+	}
+}
+
+func normalizeHostLabel(host string) string {
+	n, err := router.NormalizeHost(host)
+	if err != nil {
+		return host
+	}
+	return n
+}
+
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	neg := i < 0
+	if neg {
+		i = -i
+	}
+	var b [20]byte
+	pos := len(b)
+	for i > 0 {
+		pos--
+		b[pos] = byte('0' + i%10)
+		i /= 10
+	}
+	if neg {
+		pos--
+		b[pos] = '-'
+	}
+	return string(b[pos:])
+}
+
+// statusRecorder 捕获上游响应状态码供指标/访问日志使用。
+// 需透传 Flush/Hijack/ReadFrom 等可选接口，保证 ReverseProxy 流式与升级正常。
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	if s.status == 0 {
+		s.status = 200
+	}
+	return s.ResponseWriter.Write(b)
+}
+
+func (s *statusRecorder) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (s *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := s.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, errors.New("statusRecorder: underlying writer does not support hijacking")
+}
+
+func (s *statusRecorder) ReadFrom(r io.Reader) (int64, error) {
+	if rf, ok := s.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+	return io.Copy(struct{ io.Writer }{s.ResponseWriter}, r)
+}
+
+func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
+// resolve 优先走支持请求上下文的 resolver（策略分流），否则退化为无上下文 Resolve。
+func (p *Proxy) resolve(host string, r *http.Request) (*router.Target, error) {
+	if cr, ok := p.resolver.(router.ContextResolver); ok {
+		return cr.ResolveWith(r.Context(), host, router.MatchView{
+			Header:   headerMap(r.Header),
+			Path:     r.URL.Path,
+			ClientIP: clientIP(r.RemoteAddr),
+		})
+	}
+	return p.resolver.Resolve(r.Context(), host)
+}
+
+// headerMap 取请求头首个值，键小写（匹配规则按小写键精确匹配）。
+func headerMap(h http.Header) map[string]string {
+	if len(h) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(h))
+	for k, vv := range h {
+		if len(vv) > 0 {
+			out[strings.ToLower(k)] = vv[0]
+		}
+	}
+	return out
 }
 
 // rewrite 是 ReverseProxy 的 URL / Header 改写钩子。
@@ -100,6 +247,9 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, err e
 		status = http.StatusForbidden
 	case errors.Is(err, router.ErrTenantSuspended), errors.Is(err, router.ErrNoHealthy):
 		status = http.StatusServiceUnavailable
+	case errors.Is(err, router.ErrRateLimited):
+		status = http.StatusTooManyRequests
+		w.Header().Set("Retry-After", "1")
 	}
 	if p.logger != nil {
 		p.logger.Warn("route resolve rejected",

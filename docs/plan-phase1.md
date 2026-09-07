@@ -882,7 +882,7 @@ MAPLE_REDIS_URL=redis://localhost:6379
 
 # 管理员与认证
 MAPLE_ADMIN_TOKEN=your-admin-bearer-token
-MAPLE_ADMIN_EMAIL=admin@maple.local
+MAPLE_ADMIN_EMAIL=admin@maple.com
 MAPLE_ADMIN_PASSWORD=admin123
 
 # 日志
