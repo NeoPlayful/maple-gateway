@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -71,6 +72,13 @@ type Checker struct {
 	okCount   map[string]int
 	startedAt map[string]time.Time
 	logger    *zap.Logger
+	metrics   *metrics.Registry // 可选；nil 时不采集实例健康指标
+}
+
+// WithMetrics 注入指标注册表（可选）。nil 时不采集。
+func (c *Checker) WithMetrics(m *metrics.Registry) *Checker {
+	c.metrics = m
+	return c
 }
 
 // NewChecker 构造。
@@ -148,6 +156,7 @@ func (c *Checker) probeOne(ctx context.Context, in *instance.Instance) {
 		if oks >= c.cfg.SuccessThreshold && in.Health != instance.HealthHealthy {
 			c.logger.Info("instance recovered", zap.String("instance", key), zap.String("addr", in.Endpoint()))
 			_ = c.repo.SetHealth(ctx, in.ID, instance.HealthHealthy)
+			c.setHealthMetric(in.ID, string(instance.HealthHealthy))
 		}
 	} else {
 		c.mu.Lock()
@@ -162,8 +171,20 @@ func (c *Checker) probeOne(ctx context.Context, in *instance.Instance) {
 				zap.String("addr", in.Endpoint()),
 				zap.Int("fails", fails))
 			_ = c.repo.SetHealth(ctx, in.ID, instance.HealthUnhealthy)
+			c.setHealthMetric(in.ID, string(instance.HealthUnhealthy))
 		}
 	}
+}
+
+// setHealthMetric 更新实例健康 gauge（instance_id + health 标签，值恒 1）。
+func (c *Checker) setHealthMetric(id uuid.UUID, health string) {
+	if c.metrics == nil {
+		return
+	}
+	c.metrics.SetGauge("maple_instance_health", 1, map[string]string{
+		"instance_id": id.String(),
+		"health":      health,
+	})
 }
 
 // probe 执行一次主动检查。

@@ -18,3 +18,11 @@ func targetFromContext(ctx context.Context) *router.Target {
 	t, _ := ctx.Value(targetKey{}).(*router.Target)
 	return t
 }
+
+// stickyFromContext 读取目标上携带的 sticky cookie 下发信息；无则返回 nil。
+func stickyFromContext(ctx context.Context) *router.StickyCookie {
+	if t := targetFromContext(ctx); t != nil {
+		return t.SetSticky
+	}
+	return nil
+}

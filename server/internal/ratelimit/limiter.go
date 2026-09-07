@@ -16,11 +16,11 @@ type Allowance struct {
 
 // bucket 是单 key 的滑动窗口计数状态。
 type bucket struct {
-	window time.Time  // 当前窗口起点
-	count  int        // 当前窗口已计数
-	burst  int        // 突发容量（令牌桶瞬时上限）
-	limit  int        // 窗口配额
-	winSec int        // 窗口秒数
+	window time.Time // 当前窗口起点
+	count  int       // 当前窗口已计数
+	burst  int       // 突发容量（令牌桶瞬时上限）
+	limit  int       // 窗口配额
+	winSec int       // 窗口秒数
 }
 
 // Limiter 内存限流器：每 key 固定窗口计数 + burst 突发容忍。

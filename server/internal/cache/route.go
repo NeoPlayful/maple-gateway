@@ -10,6 +10,7 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
@@ -93,17 +94,24 @@ type Cache struct {
 	mu    sync.RWMutex
 	table *RouteTable
 
-	tenants   *tenant.Repository
-	domains   *domain.Repository
-	services  *service.Repository
-	instances *instance.Repository
-	versions  VersionSource // 可选；nil 时无版本分流
-	loadNodes func(ctx context.Context) (map[uuid.UUID]bool, error) // 可选；nil 时不过滤 offline 节点
+	tenants    *tenant.Repository
+	domains    *domain.Repository
+	services   *service.Repository
+	instances  *instance.Repository
+	versions   VersionSource                                            // 可选；nil 时无版本分流
+	loadNodes  func(ctx context.Context) (map[uuid.UUID]bool, error)    // 可选；nil 时不过滤 offline 节点
 	loadLimits func(ctx context.Context) ([]ratelimit.RateLimit, error) // 可选；nil 时无速率限制
 
 	// 统计与可用性。
-	hits   atomic.Uint64
-	misses atomic.Uint64
+	hits    atomic.Uint64
+	misses  atomic.Uint64
+	metrics *metrics.Registry // 可选；nil 时不采集路由缓存指标
+}
+
+// WithMetrics 注入指标注册表（可选）。nil 时不采集。
+func (c *Cache) WithMetrics(m *metrics.Registry) *Cache {
+	c.metrics = m
+	return c
 }
 
 // New 构造 Cache（Phase 1 语义，不含版本分流）。repos 为 nil 时 Rebuild 将返回错误。
@@ -150,6 +158,13 @@ func (c *Cache) Lookup(host string) *RouteEntry {
 		c.hits.Add(1)
 	} else {
 		c.misses.Add(1)
+	}
+	if c.metrics != nil {
+		if e != nil {
+			c.metrics.Inc("maple_route_cache_hits_total", map[string]string{"host": host})
+		} else {
+			c.metrics.Inc("maple_route_cache_misses_total", map[string]string{"host": host})
+		}
 	}
 	return e
 }

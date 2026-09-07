@@ -11,7 +11,7 @@ import (
 
 // versionSource 默认 VersionSource 实现：从 deployment + traffic repository 加载。
 type versionSource struct {
-	deploy *deployment.Repository
+	deploy  *deployment.Repository
 	traffic *traffic.Repository
 }
 

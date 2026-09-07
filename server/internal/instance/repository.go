@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/security"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -45,6 +46,10 @@ func (r *Repository) Create(ctx context.Context, in New) (*Instance, error) {
 	weight := in.Weight
 	if weight == 0 {
 		weight = 1
+	}
+	// 兜底 SSRF 校验：Create 是唯一入库入口，discovery/admin 均经此，防写库绕过。
+	if err := security.ValidateUpstreamAddress(in.Address); err != nil {
+		return nil, err
 	}
 	if err := r.validateMount(ctx, in.ServiceID, in.DeploymentID, in.VersionID, in.NodeID); err != nil {
 		return nil, err
@@ -166,6 +171,12 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Inst
 	}
 	if in.Health != nil {
 		i.Health = *in.Health
+	}
+	// address 变更同样过 SSRF 校验，堵住 PATCH/discovery 改地址绕过。
+	if in.Address != nil {
+		if err := security.ValidateUpstreamAddress(i.Address); err != nil {
+			return nil, err
+		}
 	}
 	upd, err := scanInstance(r.pool.QueryRow(ctx, `
 		UPDATE instances SET address=$2, port=$3, protocol=$4, weight=$5,

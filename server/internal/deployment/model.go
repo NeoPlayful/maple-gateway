@@ -11,8 +11,8 @@ import (
 type Status string
 
 const (
-	StatusActive Status = "active"
-	StatusPaused Status = "paused"
+	StatusActive  Status = "active"
+	StatusPaused  Status = "paused"
 	StatusStopped Status = "stopped"
 )
 
@@ -20,8 +20,8 @@ const (
 type Strategy string
 
 const (
-	StrategyRolling  Strategy = "rolling"
-	StrategyRecreate Strategy = "recreate"
+	StrategyRolling   Strategy = "rolling"
+	StrategyRecreate  Strategy = "recreate"
 	StrategyBlueGreen Strategy = "blue_green"
 )
 
@@ -45,8 +45,8 @@ type NewDeployment struct {
 
 // UpdateDeployment 可修改字段。
 type UpdateDeployment struct {
-	Name     *string  `json:"name"`
-	Status   *Status  `json:"status"`
+	Name     *string   `json:"name"`
+	Status   *Status   `json:"status"`
 	Strategy *Strategy `json:"strategy"`
 }
 
@@ -76,15 +76,15 @@ type Version struct {
 
 // NewVersion 创建版本输入。
 type NewVersion struct {
-	Version string `json:"version" validate:"required,min=1,max=64"`
-	Image   string `json:"image" validate:"max=255"`
-	Weight  int    `json:"weight" validate:"min=0,max=1000"`
+	Version string        `json:"version" validate:"required,min=1,max=64"`
+	Image   string        `json:"image" validate:"max=255"`
+	Weight  int           `json:"weight" validate:"min=0,max=1000"`
 	Status  VersionStatus `json:"status" validate:"omitempty,oneof=stable standby canary inactive"`
 }
 
 // UpdateVersion 可修改字段。
 type UpdateVersion struct {
-	Image  *string       `json:"image"`
-	Weight *int          `json:"weight"`
+	Image  *string        `json:"image"`
+	Weight *int           `json:"weight"`
 	Status *VersionStatus `json:"status"`
 }

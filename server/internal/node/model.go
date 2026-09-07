@@ -19,16 +19,16 @@ const (
 
 // Node 是一个运行实例的计算节点。
 type Node struct {
-	ID         uuid.UUID   `json:"id"`
-	Name       string      `json:"name"`
-	Host       string      `json:"host"`
-	Region     string      `json:"region,omitempty"`
+	ID         uuid.UUID         `json:"id"`
+	Name       string            `json:"name"`
+	Host       string            `json:"host"`
+	Region     string            `json:"region,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty"`
-	Status     Status      `json:"status"`
-	Weight     int         `json:"weight"`
-	LastSeenAt *time.Time  `json:"last_seen_at,omitempty"`
-	CreatedAt  time.Time   `json:"created_at"`
-	UpdatedAt  time.Time   `json:"updated_at"`
+	Status     Status            `json:"status"`
+	Weight     int               `json:"weight"`
+	LastSeenAt *time.Time        `json:"last_seen_at,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
 // New 携带创建输入。
@@ -42,11 +42,11 @@ type New struct {
 
 // Update 携带可修改字段。
 type Update struct {
-	Host    *string           `json:"host"`
-	Region  *string           `json:"region"`
-	Labels  map[string]string `json:"labels"`
-	Weight  *int              `json:"weight"`
-	Status  *Status           `json:"status"`
+	Host   *string           `json:"host"`
+	Region *string           `json:"region"`
+	Labels map[string]string `json:"labels"`
+	Weight *int              `json:"weight"`
+	Status *Status           `json:"status"`
 }
 
 // Heartbeat 更新节点最后心跳时间。

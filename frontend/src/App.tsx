@@ -4,9 +4,16 @@ import { useAuth } from './stores/auth';
 import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import TenantsPage from './pages/TenantsPage';
+import DomainsPage from './pages/DomainsPage';
+import ServicesPage from './pages/ServicesPage';
+import DeploymentsPage from './pages/DeploymentsPage';
+import InstancesPage from './pages/InstancesPage';
+import NodesPage from './pages/NodesPage';
+import TrafficPage from './pages/TrafficPage';
 import CanaryPage from './pages/CanaryPage';
+import LogsPage from './pages/LogsPage';
 import SettingsPage from './pages/SettingsPage';
-import PlaceholderPage from './pages/PlaceholderPage';
 
 export default function App() {
   const restore = useAuth((s) => s.restore);
@@ -24,29 +31,22 @@ export default function App() {
     );
   }
 
-  const resourcePages = ['tenants', 'domains', 'services', 'deployments', 'instances', 'nodes', 'traffic', 'logs'];
-  const titles: Record<string, string> = {
-    tenants: '租户管理',
-    domains: '域名管理',
-    services: '服务管理',
-    deployments: '部署与版本',
-    instances: '实例管理',
-    nodes: '节点管理',
-    traffic: '流量策略',
-    logs: '日志查询',
-  };
-
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AdminLayout />}>
           <Route index element={<DashboardPage />} />
+          <Route path="/tenants" element={<TenantsPage />} />
+          <Route path="/domains" element={<DomainsPage />} />
+          <Route path="/services" element={<ServicesPage />} />
+          <Route path="/deployments" element={<DeploymentsPage />} />
+          <Route path="/instances" element={<InstancesPage />} />
+          <Route path="/nodes" element={<NodesPage />} />
+          <Route path="/traffic" element={<TrafficPage />} />
           <Route path="/canary" element={<CanaryPage />} />
+          <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          {resourcePages.map((p) => (
-            <Route key={p} path={`/${p}`} element={<PlaceholderPage title={titles[p]} />} />
-          ))}
         </Route>
         <Route path="*" element={<div className="p-6">404</div>} />
       </Routes>

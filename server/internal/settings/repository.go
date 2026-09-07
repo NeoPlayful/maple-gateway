@@ -13,8 +13,8 @@ import (
 
 // Repository 是 settings 数据访问层。
 type Repository struct {
-	pool *pgxpool.Pool
-	mu   sync.RWMutex
+	pool  *pgxpool.Pool
+	mu    sync.RWMutex
 	cache map[string]Entry // section:key → Entry
 }
 

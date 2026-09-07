@@ -28,11 +28,11 @@ const (
 // Match 描述一条策略的匹配规则（对应 traffic_policies.match JSONB）。
 // 多个条件同时满足才命中（AND 语义）；percent 单独成类，不入 AND。
 type Match struct {
-	Header  map[string]string `json:"header,omitempty"`  // header 精确匹配
-	Cookie  map[string]string `json:"cookie,omitempty"`  // cookie 精确匹配
-	Path    string            `json:"path,omitempty"`    // path 前缀匹配
-	PathExact string          `json:"path_exact,omitempty"` // path 精确匹配
-	Percent int               `json:"percent,omitempty"` // 0-100 流量百分比（此策略独享该比例）
+	Header    map[string]string `json:"header,omitempty"`     // header 精确匹配
+	Cookie    map[string]string `json:"cookie,omitempty"`     // cookie 精确匹配
+	Path      string            `json:"path,omitempty"`       // path 前缀匹配
+	PathExact string            `json:"path_exact,omitempty"` // path 精确匹配
+	Percent   int               `json:"percent,omitempty"`    // 0-100 流量百分比（此策略独享该比例）
 }
 
 // Sticky 是会话保持配置。
