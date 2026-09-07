@@ -33,6 +33,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +45,9 @@ func main() {
 		showExample = flag.Bool("print-config", false, "print effective config and exit")
 	)
 	flag.Parse()
+
+	// 从 cwd 加载 .env（不存在则忽略）。已注入的环境变量优先于 .env。
+	_ = godotenv.Load()
 
 	if err := run(*configPath, *routesPath, *migrate, *showExample); err != nil {
 		log.Fatalf("maple-gateway: %v", err)
@@ -72,6 +76,21 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 
 	logger := pkg.Log()
+
+	// Redis（可选组件）：enabled && url 配置时才建立连接并探测；
+	// 连接失败只告警降级，不阻断启动（组件可按需接入）。
+	var redisClient *pkg.Redis
+	if cfg.Redis.Enabled && cfg.Redis.URL != "" {
+		redisClient, err = pkg.NewRedis(ctx, cfg.Redis.URL)
+		if err != nil {
+			logger.Warn("redis connect failed, running without redis",
+				zap.String("err", err.Error()))
+		} else {
+			logger.Info("redis connected",
+				zap.String("url", cfg.Redis.URL))
+			defer redisClient.Close()
+		}
+	}
 
 	// -migrate：执行迁移 + seed 默认管理员后退出。
 	if migrate {

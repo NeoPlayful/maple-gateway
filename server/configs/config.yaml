@@ -28,7 +28,7 @@ database:
   url: "postgres://maple:maple@localhost:5432/maple?sslmode=disable"
 
 redis:
-  enabled: false
+  enabled: true
   url: "redis://localhost:6379/0"
 
 logging:

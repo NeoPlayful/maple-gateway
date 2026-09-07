@@ -136,6 +136,9 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_REDIS_URL"); v != "" {
 		c.Redis.URL = v
 	}
+	if v := os.Getenv("MAPLE_REDIS_ENABLED"); v != "" {
+		c.Redis.Enabled = parseBool(v, c.Redis.Enabled)
+	}
 	if v := os.Getenv("MAPLE_ADMIN_TOKEN"); v != "" {
 		c.Security.AdminToken = v
 	}
