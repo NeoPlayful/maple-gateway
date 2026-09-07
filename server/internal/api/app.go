@@ -5,20 +5,33 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
+	"github.com/NeoPlayful/maple-gateway/server/internal/bluegreen"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
+	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
+	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
+	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
+	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
+	"github.com/NeoPlayful/maple-gateway/server/internal/node"
+	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
+	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/system"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
+	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Deps 是 Management API 所需依赖。
 type Deps struct {
-	Pool       *pgxpool.Pool // nil 表示未接入 DB（禁用 admin 与业务接口）
-	RouteCache *cache.Cache  // 可空；用于 route/cache 查看与手动重建
+	Pool       *pgxpool.Pool       // nil 表示未接入 DB（禁用 admin 与业务接口）
+	RouteCache *cache.Cache        // 可空；用于 route/cache 查看与手动重建
+	Metrics    *metrics.Registry   // 可空；提供 /metrics 导出
+	AccessLog  *logs.AccessLog     // 可空；提供访问日志查询
+	Settings   *settings.Repository // 可空；提供动态 Settings 读写
 }
 
 // New 构造 Fiber app 并注册全部 Management API 路由。
@@ -34,6 +47,13 @@ func New(d Deps) *fiber.App {
 	app.Get("/api/system/health", sys.Health)
 	app.Get("/api/system/live", sys.Live)
 	app.Get("/api/system/ready", sys.Ready)
+	if d.Metrics != nil {
+		reg := d.Metrics
+		app.Get("/metrics", func(c fiber.Ctx) error {
+			c.Type("text/plain; version=0.0.4")
+			return c.SendString(reg.RenderText())
+		})
+	}
 
 	if d.Pool == nil {
 		app.Get("/api/system/ready", sys.Ready)
@@ -52,6 +72,16 @@ func New(d Deps) *fiber.App {
 	// Auth me/logout 也放在认证组内。
 	admin.Get("/auth/me", authH.Me)
 	admin.Post("/auth/logout", authH.Logout)
+
+	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
+	disc := discovery.NewHandler(node.NewRepository(d.Pool), instance.NewRepository(d.Pool))
+	internal := app.Group("/api/internal/discovery", discovery.Middleware())
+	internal.Post("/nodes/register", disc.RegisterNode)
+	internal.Post("/nodes/:id/heartbeat", disc.HeartbeatNode)
+	internal.Post("/instances/register", disc.RegisterInstance)
+	internal.Patch("/instances/:id", disc.UpdateInstance)
+	internal.Delete("/instances/:id", disc.DeleteInstance)
+	internal.Post("/instances/:id/health", disc.ReportHealth)
 
 	// 业务模块 CRUD。
 	tenantH := tenant.NewHandler(tenant.NewRepository(d.Pool))
@@ -96,7 +126,98 @@ func New(d Deps) *fiber.App {
 	ins.Post("/:id/disable", instanceH.Disable)
 	ins.Post("/:id/drain", instanceH.Drain)
 	ins.Post("/:id/undrain", instanceH.Undrain)
+	ins.Post("/:id/mount", instanceH.Mount)
 	ins.Post("/:id/health", instanceH.Health)
+
+	nodeH := node.NewHandler(node.NewRepository(d.Pool))
+	nd := admin.Group("/nodes")
+	nd.Get("/", nodeH.List)
+	nd.Post("/", nodeH.Create)
+	nd.Get("/:id", nodeH.Get)
+	nd.Patch("/:id", nodeH.Update)
+	nd.Delete("/:id", nodeH.Delete)
+	nd.Post("/:id/enable", nodeH.Enable)
+	nd.Post("/:id/disable", nodeH.Disable)
+	nd.Post("/:id/maintenance", nodeH.Maintenance)
+	nd.Post("/:id/heartbeat", nodeH.Heartbeat)
+
+	deployH := deployment.NewHandler(deployment.NewRepository(d.Pool))
+	dpl := admin.Group("/deployments")
+	dpl.Get("/", deployH.ListDeployments)
+	dpl.Post("/", deployH.CreateDeployment)
+	dpl.Get("/:id", deployH.GetDeployment)
+	dpl.Patch("/:id", deployH.UpdateDeployment)
+	dpl.Delete("/:id", deployH.DeleteDeployment)
+	dpl.Post("/:id/pause", deployH.PauseDeployment)
+	dpl.Post("/:id/resume", deployH.ResumeDeployment)
+	dpl.Post("/:id/stop", deployH.StopDeployment)
+	dpl.Get("/:id/versions", deployH.ListVersions)
+	dpl.Post("/:id/versions", deployH.CreateVersion)
+
+	ver := admin.Group("/versions")
+	ver.Get("/:id", deployH.GetVersion)
+	ver.Patch("/:id", deployH.UpdateVersion)
+	ver.Delete("/:id", deployH.DeleteVersion)
+	ver.Post("/:id/default", deployH.SetDefaultVersion)
+
+	trafficH := traffic.NewHandler(traffic.NewRepository(d.Pool))
+	tf := admin.Group("/traffic")
+	tf.Get("/", trafficH.List)
+	tf.Post("/", trafficH.Create)
+	tf.Get("/:id", trafficH.Get)
+	tf.Patch("/:id", trafficH.Update)
+	tf.Delete("/:id", trafficH.Delete)
+	tf.Post("/:id/enable", trafficH.Enable)
+	tf.Post("/:id/disable", trafficH.Disable)
+
+	// Canary 发布控制。
+	canaryH := canary.NewHandler(canary.NewService(canary.NewRepository(d.Pool)))
+	cn := admin.Group("/canary")
+	cn.Get("/", canaryH.List)
+	cn.Post("/", canaryH.Create)
+	cn.Get("/:id", canaryH.Get)
+	cn.Patch("/:id", canaryH.Update)
+	cn.Delete("/:id", canaryH.Delete)
+	cn.Post("/:id/start", canaryH.Start)
+	cn.Post("/:id/pause", canaryH.Pause)
+	cn.Post("/:id/resume", canaryH.Resume)
+	cn.Post("/:id/weight", canaryH.SetWeight)
+	cn.Post("/:id/promote", canaryH.Promote)
+	cn.Post("/:id/rollback", canaryH.Rollback)
+
+	// 限流规则。
+	rlH := ratelimit.NewHandler(ratelimit.NewRepository(d.Pool))
+	rl := admin.Group("/rate-limits")
+	rl.Get("/", rlH.List)
+	rl.Post("/", rlH.Create)
+	rl.Get("/:id", rlH.Get)
+	rl.Patch("/:id", rlH.Update)
+	rl.Delete("/:id", rlH.Delete)
+	rl.Post("/:id/enable", rlH.Enable)
+	rl.Post("/:id/disable", rlH.Disable)
+
+	// 访问日志查询。
+	if d.AccessLog != nil {
+		logH := logs.NewHandler(d.AccessLog)
+		admin.Get("/logs/access", logH.Access)
+	}
+
+	// 动态 Settings。
+	if d.Settings != nil {
+		setH := settings.NewHandler(d.Settings)
+		admin.Get("/settings", setH.Get)
+		admin.Patch("/settings/:section", setH.Update)
+	}
+
+	// Blue/Green 双版本切换。
+	bgH := bluegreen.NewHandler(bluegreen.NewService(bluegreen.NewRepository(d.Pool)))
+	bg := admin.Group("/blue-green")
+	bg.Get("/", bgH.List)
+	bg.Post("/", bgH.Create)
+	bg.Get("/:id", bgH.Get)
+	bg.Delete("/:id", bgH.Delete)
+	bg.Post("/:id/switch", bgH.Switch)
+	bg.Post("/:id/rollback", bgH.Rollback)
 
 	// 路由缓存查看/重建。
 	if d.RouteCache != nil {

@@ -13,3 +13,8 @@ build/
 
 # 日志
 *.log
+
+# Node / 前端
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo

@@ -14,7 +14,7 @@ import (
 func seedDefaultAdmin(ctx context.Context, pool *pgxpool.Pool) error {
 	email := os.Getenv("MAPLE_ADMIN_EMAIL")
 	if email == "" {
-		email = "admin@maple.local"
+		email = "admin@maple.com"
 	}
 	password := os.Getenv("MAPLE_ADMIN_PASSWORD")
 	if password == "" {

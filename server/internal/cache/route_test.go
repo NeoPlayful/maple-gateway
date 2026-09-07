@@ -35,7 +35,7 @@ func TestBuildTable_BasicRoute(t *testing.T) {
 		},
 	}
 
-	table := buildTable(tenants, services, domains, insts)
+	table := buildTable(tenants, services, domains, insts, nil, nil, nil, nil)
 	if table == nil {
 		t.Fatal("expected non-nil table")
 	}
@@ -93,7 +93,7 @@ func TestBuildTable_Filters(t *testing.T) {
 		},
 	}
 
-	table := buildTable([]*tenant.Tenant{activeTenant, suspendedTenant}, services, domains, insts)
+	table := buildTable([]*tenant.Tenant{activeTenant, suspendedTenant}, services, domains, insts, nil, nil, nil, nil)
 	if table == nil {
 		t.Fatal("expected table (some routes present)")
 	}
@@ -131,7 +131,7 @@ func TestBuildTable_NormalizeHost(t *testing.T) {
 	table := buildTable(
 		[]*tenant.Tenant{{ID: tenID, Status: tenant.StatusActive}},
 		[]*service.Service{{ID: svcID, TenantID: tenID, Protocol: "http"}},
-		domains, nil,
+		domains, nil, nil, nil, nil, nil,
 	)
 	if table.Lookup("MIXED.case.example.com") == nil {
 		t.Fatal("lookup should be case-insensitive")

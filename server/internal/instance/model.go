@@ -28,30 +28,34 @@ const (
 
 // Instance 是一个实际运行的 Container 实例。
 type Instance struct {
-	ID         uuid.UUID  `json:"id"`
-	ServiceID  uuid.UUID  `json:"service_id"`
-	NodeID     *uuid.UUID `json:"node_id,omitempty"`
-	Version    string     `json:"version,omitempty"`
-	Address    string     `json:"address"`
-	Port       int        `json:"port"`
-	Protocol   string     `json:"protocol"` // http / https
-	Weight     int        `json:"weight"`
-	Status     Status     `json:"status"`
-	Health     Health     `json:"health"`
-	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	ID           uuid.UUID  `json:"id"`
+	ServiceID    uuid.UUID  `json:"service_id"`
+	DeploymentID *uuid.UUID `json:"deployment_id,omitempty"`
+	VersionID    *uuid.UUID `json:"version_id,omitempty"`
+	NodeID       *uuid.UUID `json:"node_id,omitempty"`
+	Version      string     `json:"version,omitempty"`
+	Address      string     `json:"address"`
+	Port         int        `json:"port"`
+	Protocol     string     `json:"protocol"` // http / https
+	Weight       int        `json:"weight"`
+	Status       Status     `json:"status"`
+	Health       Health     `json:"health"`
+	LastSeenAt   *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
-// New 创建输入。
+// New 创建输入。deployment_id/version_id 为空时按 Phase 1 语义直挂 Service。
 type New struct {
-	ServiceID uuid.UUID  `json:"service_id" validate:"required"`
-	NodeID    *uuid.UUID `json:"node_id"`
-	Version   string     `json:"version"`
-	Address   string     `json:"address" validate:"required"`
-	Port      int        `json:"port" validate:"required,min=1,max=65535"`
-	Protocol  string     `json:"protocol" validate:"omitempty,oneof=http https"`
-	Weight    int        `json:"weight" validate:"min=0,max=1000"`
+	ServiceID    uuid.UUID  `json:"service_id" validate:"required"`
+	DeploymentID *uuid.UUID `json:"deployment_id"`
+	VersionID    *uuid.UUID `json:"version_id"`
+	NodeID       *uuid.UUID `json:"node_id"`
+	Version      string     `json:"version"`
+	Address      string     `json:"address" validate:"required"`
+	Port         int        `json:"port" validate:"required,min=1,max=65535"`
+	Protocol     string     `json:"protocol" validate:"omitempty,oneof=http https"`
+	Weight       int        `json:"weight" validate:"min=0,max=1000"`
 }
 
 // Update 可修改字段。
@@ -62,6 +66,14 @@ type Update struct {
 	Weight   *int    `json:"weight"`
 	Status   *Status `json:"status"`
 	Health   *Health `json:"health"`
+}
+
+// Mount 用于调整实例在 Deployment/Version/Node 上的挂载归属。
+// DeploymentID/VersionID 为 nil 表示不修改；指向 uuid.Nil 表示解挂（回退直挂 Service）。
+type Mount struct {
+	DeploymentID *uuid.UUID `json:"deployment_id"`
+	VersionID    *uuid.UUID `json:"version_id"`
+	NodeID       *uuid.UUID `json:"node_id"`
 }
 
 // Endpoint 返回 host:port。

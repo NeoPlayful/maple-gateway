@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -48,11 +49,8 @@ func (h *Handler) Ready(c fiber.Ctx) error {
 func (h *Handler) Info(c fiber.Ctx) error {
 	return pkg.OK(c, fiber.Map{
 		"name":    "maple-gateway",
-		"version": Version,
+		"version": pkg.Version,
 		"go":      runtime.Version(),
 		"runtime": runtime.GOOS + "/" + runtime.GOARCH,
 	})
 }
-
-// Version 构建版本号，未来通过 ldflags 注入。
-var Version = "0.1.0-dev"

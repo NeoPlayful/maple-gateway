@@ -145,6 +145,18 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_GATEWAY_HTTP_ENABLED"); v != "" {
 		c.Gateway.HTTP.Enabled = parseBool(v, c.Gateway.HTTP.Enabled)
 	}
+	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_ADDR"); v != "" {
+		c.Gateway.HTTPS.Address = v
+	}
+	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_ENABLED"); v != "" {
+		c.Gateway.HTTPS.Enabled = parseBool(v, c.Gateway.HTTPS.Enabled)
+	}
+	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_CERT"); v != "" {
+		c.Gateway.HTTPS.Cert = v
+	}
+	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_KEY"); v != "" {
+		c.Gateway.HTTPS.Key = v
+	}
 }
 
 func parseBool(v string, def bool) bool {
@@ -161,6 +173,14 @@ func (c *Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Management.Address) == "" {
 		return fmt.Errorf("management address must not be empty")
+	}
+	if c.Gateway.HTTPS.Enabled {
+		if strings.TrimSpace(c.Gateway.HTTPS.Address) == "" {
+			return fmt.Errorf("gateway.https.address must not be empty when https enabled")
+		}
+		if c.Gateway.HTTPS.Cert == "" || c.Gateway.HTTPS.Key == "" {
+			return fmt.Errorf("gateway.https.cert and key are required when https enabled")
+		}
 	}
 	return nil
 }
