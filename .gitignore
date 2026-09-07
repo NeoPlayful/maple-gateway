@@ -1,0 +1,15 @@
+# 环境与本地
+.env
+*.local
+
+# Go
+server/bin/
+server/*.exe
+server/*.test
+
+# 构建产物
+dist/
+build/
+
+# 日志
+*.log

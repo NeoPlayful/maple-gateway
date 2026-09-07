@@ -1,0 +1,41 @@
+# Maple Gateway 开发默认配置（本地用）。生产建议用环境变量覆盖。
+
+gateway:
+  http:
+    address: ":8000"        # 开发默认 8000，Docker 内映射 80
+  https:
+    address: ":8443"        # Phase 1 默认不启用 TLS，保留端口位
+
+management:
+  address: ":4000"
+
+health:
+  interval: 10s
+  timeout: 3s
+  failure_threshold: 3
+  success_threshold: 2
+  grace_period: 10s
+
+proxy:
+  read_header_timeout: 10s
+  response_header_timeout: 60s
+  idle_timeout: 120s
+  max_header_bytes: 1048576        # 1MB
+  max_body_bytes: 10485760         # 10MB
+
+database:
+  driver: postgres
+  url: "postgres://maple:maple@localhost:5432/maple?sslmode=disable"
+
+redis:
+  enabled: false
+  url: "redis://localhost:6379/0"
+
+logging:
+  level: info
+  pretty: true
+
+security:
+  admin_token: ""                 # 优先用环境变量 MAPLE_ADMIN_TOKEN
+  trusted_proxies: []             # 如 ["127.0.0.1", "::1"]
+  instance_allow_private: true    # Instance 地址默认允许内网段

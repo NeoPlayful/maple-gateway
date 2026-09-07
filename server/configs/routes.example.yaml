@@ -1,0 +1,17 @@
+# S2 数据平面验证用静态路由（真实配置存 PostgreSQL，S3 起）。
+# Host → upstream。status=disabled 的 Host 会被拒绝(403)。
+entries:
+  shop-a.test:
+    scheme: http
+    address: "127.0.0.1:9101"
+    status: active
+
+  shop-b.test:
+    scheme: http
+    address: "127.0.0.1:9102"
+    status: active
+
+  old-shop.test:
+    scheme: http
+    address: "127.0.0.1:9101"
+    status: disabled

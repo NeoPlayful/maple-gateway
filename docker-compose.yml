@@ -1,0 +1,53 @@
+# Maple Gateway 开发 / 测试编排。
+# maple-gateway 服务依赖 postgres；redis 为可选辅助（Phase 1 可关）。
+# 测试容器 shop-* 仅用于开发验证，模拟真实租户实例（生产由 Container Manager 管理）。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: maple
+      POSTGRES_USER: maple
+      POSTGRES_PASSWORD: maple
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maple -d maple"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    profiles: ["full"]     # 默认不启动，Phase 1 辅助可选
+
+  maple-gateway:
+    build: ./server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MAPLE_DATABASE_URL: postgres://maple:maple@postgres:5432/maple?sslmode=disable
+      MAPLE_ADMIN_TOKEN: dev-admin-token
+      MAPLE_GATEWAY_HTTP_ADDR: ":80"
+      MAPLE_MANAGEMENT_ADDR: ":4000"
+    ports:
+      - "80:80"          # 数据平面
+      - "4000:4000"      # Management API
+    restart: unless-stopped
+
+  # ---- 开发测试容器（模拟租户实例，供数据平面转发验证） ----
+  shop-a:
+    image: nginx:alpine
+    profiles: ["test"]
+  shop-b:
+    image: nginx:alpine
+    profiles: ["test"]
+
+volumes:
+  postgres-data:

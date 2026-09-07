@@ -1,0 +1,28 @@
+[Unit]
+Description=Maple Gateway (Multi-Tenant Reverse Proxy)
+Documentation=file:///etc/maple-gateway/config.yaml
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 数据平面 80/443 + Management 4000
+ExecStart=/usr/local/bin/maple-gateway -config /etc/maple-gateway/config.yaml
+Restart=always
+RestartSec=3
+# 最小资源限制（可按需调整）
+LimitNOFILE=65536
+# 运行用户（生产建议单独 maple 用户）
+User=maple
+Group=maple
+# 环境变量从 EnvironmentFile 注入（含敏感项）
+EnvironmentFile=-/etc/maple-gateway/env
+
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
