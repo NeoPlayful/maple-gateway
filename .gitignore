@@ -11,6 +11,9 @@ server/*.test
 dist/
 build/
 
+# 本地索引
+.codegraph/
+
 # 日志
 *.log
 

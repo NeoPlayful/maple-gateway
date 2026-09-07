@@ -1,5 +1,5 @@
 # Maple Gateway 开发 / 测试编排。
-# maple-gateway 服务依赖 postgres；redis 为可选辅助（Phase 1 可关）。
+# maple-gateway 服务依赖 postgres；redis 同栈运行，供本地/数据面使用。
 # 测试容器 shop-* 仅用于开发验证，模拟真实租户实例（生产由 Container Manager 管理）。
 
 services:
@@ -22,9 +22,10 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: redis
     ports:
       - "6379:6379"
-    profiles: ["full"]     # 默认不启动，Phase 1 辅助可选
+    restart: unless-stopped
 
   maple-gateway:
     build: ./server
