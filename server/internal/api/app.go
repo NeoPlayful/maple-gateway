@@ -8,6 +8,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/bluegreen"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
+	"github.com/NeoPlayful/maple-gateway/server/internal/dashboard"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
@@ -27,10 +28,11 @@ import (
 
 // Deps 是 Management API 所需依赖。
 type Deps struct {
-	Pool       *pgxpool.Pool       // nil 表示未接入 DB（禁用 admin 与业务接口）
-	RouteCache *cache.Cache        // 可空；用于 route/cache 查看与手动重建
-	Metrics    *metrics.Registry   // 可空；提供 /metrics 导出
-	AccessLog  *logs.AccessLog     // 可空；提供访问日志查询
+	Pool       *pgxpool.Pool        // nil 表示未接入 DB（禁用 admin 与业务接口）
+	RouteCache *cache.Cache         // 可空；用于 route/cache 查看与手动重建
+	Metrics    *metrics.Registry    // 可空；提供 /metrics 导出
+	AccessLog  *logs.AccessLog      // 可空；提供访问日志查询
+	ErrLog     *logs.ErrLog         // 可空；提供错误日志查询
 	Settings   *settings.Repository // 可空；提供动态 Settings 读写
 }
 
@@ -196,11 +198,16 @@ func New(d Deps) *fiber.App {
 	rl.Post("/:id/enable", rlH.Enable)
 	rl.Post("/:id/disable", rlH.Disable)
 
-	// 访问日志查询。
-	if d.AccessLog != nil {
-		logH := logs.NewHandler(d.AccessLog)
+	// 访问 / 错误日志查询。
+	if d.AccessLog != nil || d.ErrLog != nil {
+		logH := logs.NewHandler(d.AccessLog, d.ErrLog)
 		admin.Get("/logs/access", logH.Access)
+		admin.Get("/logs/error", logH.Error)
 	}
+
+	// 审计日志查询（DB 落库）。
+	audH := &auditLogsHandler{pool: d.Pool}
+	admin.Get("/logs/audit", audH.List)
 
 	// 动态 Settings。
 	if d.Settings != nil {
@@ -227,6 +234,15 @@ func New(d Deps) *fiber.App {
 		admin.Get("/cache/stats", rc.Stats)
 		admin.Post("/cache/rebuild", rc.Rebuild)
 	}
+
+	// Dashboard 聚合。
+	dash := dashboard.NewHandler(d.Pool, func() (uint64, uint64) {
+		if d.RouteCache == nil {
+			return 0, 0
+		}
+		return d.RouteCache.Stats()
+	})
+	admin.Get("/dashboard/overview", dash.Overview)
 
 	return app
 }

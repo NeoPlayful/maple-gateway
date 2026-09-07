@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
@@ -94,19 +95,59 @@ func TestResolver_StickyCookiePinsInstance(t *testing.T) {
 	c := newStickyVersionedCache(t)
 	r := NewResolver(c)
 
-	// cookie MAPLE_SRV 会话键。
+	// cookie MAPLE_SRV 值 = 实例 ID：直接钉住该实例。
+	pinnedID := fixedID(t, 42).String()
 	got := map[string]bool{}
 	for i := 0; i < 30; i++ {
 		target, err := r.ResolveWith(context.Background(), "ver.example.com", router.MatchView{
-			Header: map[string]string{"x-canary": "beta", "cookie": "MAPLE_SRV=abc123"},
+			Header: map[string]string{"x-canary": "beta", "cookie": "MAPLE_SRV=" + pinnedID},
 		})
 		if err != nil {
 			t.Fatalf("resolve err: %v", err)
 		}
 		got[target.Host] = true
+		if target.Host != "10.0.0.3:9103" {
+			t.Fatalf("cookie did not pin instance 42: %s", target.Host)
+		}
 	}
 	if len(got) != 1 {
 		t.Fatalf("cookie sticky drifted: %v", got)
+	}
+}
+
+func TestResolver_StickyFirstVisitSetsCookie(t *testing.T) {
+	c := newStickyVersionedCache(t)
+	r := NewResolver(c)
+
+	// 无 header/cookie 会话键的首访：选实例并下发 Set-Cookie（值 = 实例 ID）。
+	target, err := r.ResolveWith(context.Background(), "ver.example.com", router.MatchView{
+		Header: map[string]string{"x-canary": "beta"},
+	})
+	if err != nil {
+		t.Fatalf("resolve err: %v", err)
+	}
+	if target.SetSticky == nil {
+		t.Fatal("expected SetSticky cookie on first visit")
+	}
+	if target.SetSticky.Name != "MAPLE_SRV" {
+		t.Fatalf("cookie name = %s, want MAPLE_SRV", target.SetSticky.Name)
+	}
+	if target.SetSticky.Value == "" || target.SetSticky.Value == target.Host {
+		t.Fatalf("cookie value must be instance id, got %q", target.SetSticky.Value)
+	}
+
+	// 用下发的 cookie 值二次请求 → 命中同一实例。
+	again, err := r.ResolveWith(context.Background(), "ver.example.com", router.MatchView{
+		Header: map[string]string{"x-canary": "beta", "cookie": "MAPLE_SRV=" + target.SetSticky.Value},
+	})
+	if err != nil {
+		t.Fatalf("resolve err: %v", err)
+	}
+	if again.Host != target.Host {
+		t.Fatalf("sticky broke across visits: first %s, second %s", target.Host, again.Host)
+	}
+	if again.SetSticky != nil {
+		t.Fatal("second visit with valid cookie should not re-issue cookie")
 	}
 }
 
@@ -146,8 +187,8 @@ func newStickyVersionedCache(t *testing.T) *Cache {
 	policies := map[uuid.UUID][]traffic.Policy{
 		svcID: {{
 			ID: vid(t, 9), ServiceID: svcID, Name: "canary-by-header",
-			Priority: 1,
-			Match:    traffic.Match{Header: map[string]string{"x-canary": "beta"}},
+			Priority:        1,
+			Match:           traffic.Match{Header: map[string]string{"x-canary": "beta"}},
 			TargetVersionID: &v2ID, Status: traffic.StatusEnabled,
 			Sticky: &traffic.Sticky{HeaderName: hh, CookieName: "MAPLE_SRV"},
 		}},
@@ -191,8 +232,8 @@ func TestBuildTable_VersionedRouting(t *testing.T) {
 	policies := map[uuid.UUID][]traffic.Policy{
 		svcID: {{
 			ID: vid(t, 9), ServiceID: svcID, Name: "canary-by-header",
-			Priority: 1,
-			Match:    traffic.Match{Header: map[string]string{"x-canary": "beta"}},
+			Priority:        1,
+			Match:           traffic.Match{Header: map[string]string{"x-canary": "beta"}},
 			TargetVersionID: &v2ID, Status: traffic.StatusEnabled,
 		}},
 	}
@@ -295,8 +336,8 @@ func newTestVersionedCache(t *testing.T) *Cache {
 	policies := map[uuid.UUID][]traffic.Policy{
 		svcID: {{
 			ID: vid(t, 9), ServiceID: svcID, Name: "canary-by-header",
-			Priority: 1,
-			Match:    traffic.Match{Header: map[string]string{"x-canary": "beta"}},
+			Priority:        1,
+			Match:           traffic.Match{Header: map[string]string{"x-canary": "beta"}},
 			TargetVersionID: &v2ID, Status: traffic.StatusEnabled,
 		}},
 	}
@@ -336,5 +377,43 @@ func TestResolver_ZeroWeightVersionGetsNoTraffic(t *testing.T) {
 	}
 	if hits["10.0.0.1:9101"] != 500 {
 		t.Fatalf("stable got %d, want all 500", hits["10.0.0.1:9101"])
+	}
+}
+
+func TestResolver_PercentPolicyBucketsTraffic(t *testing.T) {
+	// percent-only 策略：30% 流量按 IP 定向 v2，其余回落版本权重。
+	c := newTestVersionedCache(t)
+	c.mu.Lock()
+	e := c.table.Lookup("ver.example.com")
+	e.Policies = append(e.Policies, traffic.Policy{
+		ID: vid(t, 10), ServiceID: e.ServiceID, Name: "pct-to-canary",
+		Priority:        5,
+		Match:           traffic.Match{Percent: 30},
+		TargetVersionID: &e.Versions[1].VersionID,
+		Status:          traffic.StatusEnabled,
+	})
+	c.mu.Unlock()
+
+	r := NewResolver(c)
+	v2 := 0
+	const n = 4000
+	// 用大量不同 client IP 构造稳定抽签样本（哈希均匀分散），统计 v2 命中比例。
+	for i := 0; i < n; i++ {
+		ip := fmt.Sprintf("10.%d.%d.%d", (i/65025)%255, (i/255)%255, i%254+1)
+		target, err := r.ResolveWith(context.Background(), "ver.example.com", router.MatchView{
+			Header:   map[string]string{"x-forwarded-for": ip},
+			ClientIP: ip,
+		})
+		if err != nil {
+			t.Fatalf("resolve err: %v", err)
+		}
+		if target.Host == "10.0.0.2:9102" {
+			v2++
+		}
+	}
+	// 30% 定向 v2，其余 70% 按版本权重 10% 也进 v2 → 期望 ≈ 0.3 + 0.7*0.1 = 0.37。
+	ratio := float64(v2) / n
+	if ratio < 0.30 || ratio > 0.45 {
+		t.Fatalf("v2 ratio = %.3f, want ~0.37", ratio)
 	}
 }

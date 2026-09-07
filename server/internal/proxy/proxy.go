@@ -31,6 +31,7 @@ type Config struct {
 	Logger    Logger
 	Metrics   *metrics.Registry // 可空；nil 时不采集数据平面指标
 	AccessLog *logs.AccessLog   // 可空；nil 时不记录访问日志
+	ErrLog    *logs.ErrLog      // 可空；nil 时不记录错误日志
 }
 
 // Proxy 是数据平面反向代理。
@@ -40,6 +41,7 @@ type Proxy struct {
 	logger   Logger
 	metrics  *metrics.Registry
 	access   *logs.AccessLog
+	errLog   *logs.ErrLog
 }
 
 // New 构造 Proxy。transport 为空时使用默认配置。
@@ -59,6 +61,7 @@ func New(cfg Config) *Proxy {
 		logger:   cfg.Logger,
 		metrics:  cfg.Metrics,
 		access:   cfg.AccessLog,
+		errLog:   cfg.ErrLog,
 	}
 	p.director = &httputil.ReverseProxy{
 		Transport:     transport,
@@ -70,6 +73,20 @@ func New(cfg Config) *Proxy {
 				p.metrics.Inc("maple_upstream_requests_total", map[string]string{
 					"host": normalizeHostLabel(resp.Request.Host),
 				})
+			}
+			// sticky 首访：把会话 cookie 随首个响应下发，供后续请求钉住同实例。
+			if sc := stickyFromContext(resp.Request.Context()); sc != nil {
+				ttl := sc.TTLSeconds
+				if ttl <= 0 {
+					ttl = 86400 * 30 // 默认 30 天
+				}
+				cookie := (&http.Cookie{
+					Name:   sc.Name,
+					Value:  sc.Value,
+					Path:   "/",
+					MaxAge: ttl,
+				}).String()
+				resp.Header.Add("Set-Cookie", cookie)
 			}
 			return nil
 		},
@@ -258,6 +275,7 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, err e
 			zap.Int("status", status),
 		)
 	}
+	p.appendErr(r, status, err.Error())
 	http.Error(w, http.StatusText(status), status)
 }
 
@@ -268,7 +286,22 @@ func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, err 
 			zap.String("err", err.Error()),
 		)
 	}
+	p.appendErr(r, http.StatusBadGateway, err.Error())
 	http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+}
+
+// appendErr 写入错误日志缓冲（若启用）。
+func (p *Proxy) appendErr(r *http.Request, status int, msg string) {
+	if p.errLog == nil {
+		return
+	}
+	p.errLog.Append(logs.ErrEntry{
+		Timestamp: time.Now(),
+		Host:      normalizeHostLabel(r.Host),
+		Path:      r.URL.Path,
+		Status:    status,
+		Error:     msg,
+	})
 }
 
 func mustParse(raw string) *url.URL {

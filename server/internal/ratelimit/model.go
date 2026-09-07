@@ -32,19 +32,19 @@ const (
 
 // RateLimit 是一条限流规则。
 type RateLimit struct {
-	ID            uuid.UUID `json:"id"`
-	Scope         Scope     `json:"scope"`
+	ID            uuid.UUID  `json:"id"`
+	Scope         Scope      `json:"scope"`
 	TenantID      *uuid.UUID `json:"tenant_id"`
 	DomainID      *uuid.UUID `json:"domain_id"`
 	ServiceID     *uuid.UUID `json:"service_id"`
-	Name          string    `json:"name"`
-	Limit         int       `json:"limit"`
-	WindowSeconds int       `json:"window_seconds"`
-	Burst         int       `json:"burst"`
-	ResponseCode  int       `json:"response_code"`
-	Status        Status    `json:"status"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	Name          string     `json:"name"`
+	Limit         int        `json:"limit"`
+	WindowSeconds int        `json:"window_seconds"`
+	Burst         int        `json:"burst"`
+	ResponseCode  int        `json:"response_code"`
+	Status        Status     `json:"status"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // NewRateLimit 创建输入。
@@ -62,10 +62,10 @@ type NewRateLimit struct {
 
 // UpdateRateLimit 可修改字段。
 type UpdateRateLimit struct {
-	Name          *string  `json:"name"`
-	Limit         *int     `json:"limit"`
-	WindowSeconds *int     `json:"window_seconds"`
-	Burst         *int     `json:"burst"`
-	ResponseCode  *int     `json:"response_code"`
-	Status        *Status  `json:"status"`
+	Name          *string `json:"name"`
+	Limit         *int    `json:"limit"`
+	WindowSeconds *int    `json:"window_seconds"`
+	Burst         *int    `json:"burst"`
+	ResponseCode  *int    `json:"response_code"`
+	Status        *Status `json:"status"`
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/loadbalancer"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
@@ -22,6 +23,7 @@ type CacheResolver struct {
 	cache    *Cache
 	balancer *loadbalancer.Balancer
 	limiter  *ratelimit.Limiter
+	metrics  *metrics.Registry // 可选；nil 时不采集限流命中指标
 }
 
 // NewResolver 构造。
@@ -31,6 +33,12 @@ func NewResolver(c *Cache) *CacheResolver {
 		balancer: loadbalancer.NewBalancer(),
 		limiter:  ratelimit.NewLimiter(0),
 	}
+}
+
+// WithMetrics 注入指标注册表（可选）。nil 时不采集。
+func (r *CacheResolver) WithMetrics(m *metrics.Registry) *CacheResolver {
+	r.metrics = m
+	return r
 }
 
 // Resolve 实现 router.Resolver：Host → 目标实例。
@@ -80,17 +88,97 @@ func (r *CacheResolver) selectVersioned(e *RouteEntry, rv traffic.RequestView) (
 			// 策略无定向版本：退化为版本权重（如 sticky-only 策略）。
 			return r.pickWeightedVersion(e)
 		}
-		// sticky 策略：用会话键做一致性哈希，保证同会话恒同实例。
+		// sticky 策略：优先按会话键落到同实例，无会话键时选实例并下发 Set-Cookie。
 		if p.Sticky != nil {
-			if key := stickyKey(p.Sticky, rv); key != "" {
-				return r.pickFromVersionSticky(e, *p.TargetVersionID, key)
-			}
+			return r.pickSticky(e, p, *p.TargetVersionID, rv)
 		}
 		return r.pickFromVersion(e, *p.TargetVersionID)
 	}
 
-	// 2. 无策略命中：按版本权重选版本，再实例 LB。
+	// 2. 无显式条件命中：存在 percent-only 策略时按比例抽签定向其版本。
+	if t, ok, err := r.pickPercentPolicy(e, rv); ok || err != nil {
+		return t, err
+	}
+
+	// 3. 无策略命中：按版本权重选版本，再实例 LB。
 	return r.pickWeightedVersion(e)
+}
+
+// pickPercentPolicy 处理只带 percent（无 header/cookie/path 条件）的策略：
+// 用稳定会话键（优先 header/cookie，兜底客户端 IP）做确定性抽签，
+// 哈希值落入 [0, percent) 则定向该策略版本；否则回落到版本权重。
+// 同一会话在窗口内请求应保持同一定向，故同键结果稳定可复现。
+func (r *CacheResolver) pickPercentPolicy(e *RouteEntry, rv traffic.RequestView) (*router.Target, bool, error) {
+	var chosen *traffic.Policy
+	for i := range e.Policies {
+		p := &e.Policies[i]
+		if p.Status != traffic.StatusEnabled || p.TargetVersionID == nil {
+			continue
+		}
+		m := p.Match
+		// 仅当策略无任何显式条件、仅设 percent 时按比例处理。
+		if len(m.Header) > 0 || len(m.Cookie) > 0 || m.Path != "" || m.PathExact != "" || m.Percent <= 0 {
+			continue
+		}
+		if chosen == nil || p.Priority < chosen.Priority {
+			chosen = p
+		}
+	}
+	if chosen == nil {
+		return nil, false, nil
+	}
+
+	key := r.stableSessionKey(e, rv)
+	if key == "" {
+		return nil, false, nil
+	}
+	bucket := hashBucket(key)
+	if bucket < chosen.Match.Percent {
+		t, err := r.pickFromVersion(e, *chosen.TargetVersionID)
+		return t, err == nil, err
+	}
+	return nil, false, nil
+}
+
+// stableSessionKey 构造 percent 抽签的稳定键：优先 sticky header，其次 cookie，兜底客户端 IP。
+func (r *CacheResolver) stableSessionKey(e *RouteEntry, rv traffic.RequestView) string {
+	// 任一命中策略若声明 sticky header，优先用它保证会话一致性。
+	for i := range e.Policies {
+		p := &e.Policies[i]
+		if p.Status != traffic.StatusEnabled || p.Sticky == nil || p.Sticky.HeaderName == "" {
+			continue
+		}
+		if v := rv.Header.Get(p.Sticky.HeaderName); v != "" {
+			return "h:" + v
+		}
+	}
+	// percent 目标版本存在 sticky cookie 时按 cookie 分桶。
+	for i := range e.Policies {
+		p := &e.Policies[i]
+		if p.Status != traffic.StatusEnabled || p.Sticky == nil || p.TargetVersionID == nil {
+			continue
+		}
+		name := p.Sticky.CookieName
+		if name == "" {
+			name = "MAPLE_SRV"
+		}
+		if raw := rv.Header.Get("Cookie"); raw != "" {
+			if v := cookieValue(raw, name); v != "" {
+				return "c:" + v
+			}
+		}
+	}
+	if rv.ClientIP != "" {
+		return "ip:" + rv.ClientIP
+	}
+	return ""
+}
+
+// hashBucket 返回 key 的哈希值映射到 0-99 的桶，用于 percent 抽签。
+func hashBucket(key string) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return int(h.Sum32() % 100)
 }
 
 // enforceLimits 逐条判定路由限流规则；任一规则超限返回 ErrRateLimited。
@@ -105,6 +193,10 @@ func (r *CacheResolver) enforceLimits(e *RouteEntry, rv traffic.RequestView) err
 			burst = l.Limit
 		}
 		if a := r.limiter.Allow(key, l.Limit, l.WindowSeconds, burst, now); !a.Allowed {
+			if r.metrics != nil {
+				r.metrics.Inc("maple_rate_limit_hits_total",
+					map[string]string{"scope": string(l.Scope)})
+			}
 			return router.ErrRateLimited
 		}
 	}
@@ -130,42 +222,83 @@ func (r *CacheResolver) limitKey(e *RouteEntry, l *ratelimit.RateLimit, rv traff
 	}
 }
 
-// stickyKey 从请求提取会话键：优先指定 header，其次指定 cookie。
-func stickyKey(s *traffic.Sticky, rv traffic.RequestView) string {
-	if s.HeaderName != "" {
-		if v := rv.Header.Get(s.HeaderName); v != "" {
-			return v
+// pickSticky 处理 sticky 策略的会话保持。
+//   - header 会话键存在：一致性哈希选实例（同 header 恒同实例）。
+//   - cookie 值存在且命中池内实例：直接钉住该实例。
+//   - 均无：选一个实例并把其实例 ID 作为 cookie 值下发（首访建立会话）。
+func (r *CacheResolver) pickSticky(e *RouteEntry, p *traffic.Policy, versionID uuid.UUID,
+	rv traffic.RequestView) (*router.Target, error) {
+	if p.Sticky == nil {
+		return r.pickFromVersion(e, versionID)
+	}
+
+	pool := r.versionPool(e, versionID)
+	if len(pool) == 0 {
+		return r.pickFallback(e, versionID)
+	}
+
+	// 1) header 会话键：一致性哈希。
+	if p.Sticky.HeaderName != "" {
+		if v := rv.Header.Get(p.Sticky.HeaderName); v != "" {
+			m := stickySelect(pool, "h:"+v)
+			return stickyTarget(e, m, nil), nil
 		}
 	}
-	name := s.CookieName
+
+	// 2) cookie 已存在：值是实例 ID，直接命中即钉住；失效则回落。
+	name := p.Sticky.CookieName
 	if name == "" {
 		name = "MAPLE_SRV"
 	}
 	if raw := rv.Header.Get("Cookie"); raw != "" {
-		if v := cookieValue(raw, name); v != "" {
-			return v
+		if id := cookieValue(raw, name); id != "" {
+			for i := range pool {
+				if pool[i].ID == id {
+					return stickyTarget(e, &pool[i], nil), nil
+				}
+			}
+			// cookie 指向已摘除实例：按权重另选并刷新 cookie。
+			return r.pickFromVersionWithSticky(e, p.Sticky, versionID, name)
 		}
 	}
-	return ""
+
+	// 3) 首访：选实例并下发 cookie（值 = 实例 ID）。
+	return r.pickFromVersionWithSticky(e, p.Sticky, versionID, name)
 }
 
-// pickFromVersionSticky 在目标版本池内用会话键一致性哈希选实例。
-func (r *CacheResolver) pickFromVersionSticky(e *RouteEntry, versionID uuid.UUID, key string) (*router.Target, error) {
-	var pool []router.PoolMember
-	for _, v := range e.Versions {
-		if v.VersionID == versionID {
-			pool = v.Pool
-			break
-		}
-	}
+// pickFromVersionWithSticky 在版本池内选一个实例，并在 Target 上携带下发 cookie。
+func (r *CacheResolver) pickFromVersionWithSticky(e *RouteEntry, s *traffic.Sticky,
+	versionID uuid.UUID, cookieName string) (*router.Target, error) {
+	pool := r.versionPool(e, versionID)
 	if len(pool) == 0 {
 		return r.pickFallback(e, versionID)
 	}
-	m := stickySelect(pool, key)
+	m := r.balancer.Select(e.DomainID.String()+"#inst:"+versionID.String(), pool)
 	if m == nil {
 		return nil, router.ErrNoHealthy
 	}
-	return targetFromMember(e, m), nil
+	return stickyTarget(e, m, &router.StickyCookie{
+		Name:       cookieName,
+		Value:      m.ID,
+		TTLSeconds: s.TTLSeconds,
+	}), nil
+}
+
+// versionPool 取某版本的健康实例池。
+func (r *CacheResolver) versionPool(e *RouteEntry, versionID uuid.UUID) []router.PoolMember {
+	for _, v := range e.Versions {
+		if v.VersionID == versionID {
+			return v.Pool
+		}
+	}
+	return nil
+}
+
+// stickyTarget 构造目标；cookie 非空时携带 Set-Cookie 下发信息。
+func stickyTarget(e *RouteEntry, m *router.PoolMember, c *router.StickyCookie) *router.Target {
+	t := targetFromMember(e, m)
+	t.SetSticky = c
+	return t
 }
 
 // pickWeightedVersion 版本权重层 WRR → 该版本实例池 WRR。
@@ -244,6 +377,12 @@ func matchPolicy(e *RouteEntry, rv traffic.RequestView) *traffic.Policy {
 	var best *traffic.Policy
 	for i := range e.Policies {
 		p := &e.Policies[i]
+		m := p.Match
+		// 无显式条件的策略（空 match 或仅 percent）会恒命中所有请求，
+		// 交由 percent/权重兜底路径处理，不在此处抢占。
+		if len(m.Header) == 0 && len(m.Cookie) == 0 && m.Path == "" && m.PathExact == "" {
+			continue
+		}
 		if !p.Matches(rv) {
 			continue
 		}

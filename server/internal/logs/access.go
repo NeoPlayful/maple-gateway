@@ -23,10 +23,10 @@ type AccessEntry struct {
 
 // AccessLog 是访问日志环形缓冲（线程安全，固定容量）。
 type AccessLog struct {
-	mu    sync.RWMutex
-	ring  []AccessEntry
-	head  int // 下一写入位
-	full  bool
+	mu   sync.RWMutex
+	ring []AccessEntry
+	head int // 下一写入位
+	full bool
 }
 
 // NewAccessLog 构造。cap 为保留的最大条数。
@@ -97,4 +97,90 @@ func (a *AccessLog) Count() int {
 		return len(a.ring)
 	}
 	return a.head
+}
+
+// ErrEntry 是数据平面错误日志记录（upstream / 路由拒绝）。
+type ErrEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Host      string    `json:"host"`
+	Path      string    `json:"path"`
+	Status    int       `json:"status"`
+	Error     string    `json:"error"`
+}
+
+// ErrLog 是错误日志环形缓冲（线程安全，固定容量）。
+type ErrLog struct {
+	mu   sync.RWMutex
+	ring []ErrEntry
+	head int
+	full bool
+}
+
+// NewErrLog 构造。cap 为保留的最大条数。
+func NewErrLog(cap int) *ErrLog {
+	if cap <= 0 {
+		cap = 5000
+	}
+	return &ErrLog{ring: make([]ErrEntry, cap)}
+}
+
+// Append 写入一条错误记录。
+func (e *ErrLog) Append(entry ErrEntry) {
+	e.mu.Lock()
+	e.ring[e.head] = entry
+	e.head = (e.head + 1) % len(e.ring)
+	if e.head == 0 {
+		e.full = true
+	}
+	e.mu.Unlock()
+}
+
+// Query 按时间倒序返回过滤后的错误记录（host / status / from / to + limit/offset）。
+func (e *ErrLog) Query(host string, status int, from, to time.Time, limit, offset int) []ErrEntry {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	n := e.head
+	if e.full {
+		n = len(e.ring)
+	}
+	out := []ErrEntry{}
+	skipped := 0
+	for i := 0; i < n; i++ {
+		idx := (e.head - 1 - i + len(e.ring)) % len(e.ring)
+		entry := e.ring[idx]
+		if entry.Timestamp.IsZero() {
+			continue
+		}
+		if host != "" && entry.Host != host {
+			continue
+		}
+		if status != 0 && entry.Status != status {
+			continue
+		}
+		if !from.IsZero() && entry.Timestamp.Before(from) {
+			continue
+		}
+		if !to.IsZero() && entry.Timestamp.After(to) {
+			continue
+		}
+		if skipped < offset {
+			skipped++
+			continue
+		}
+		if len(out) >= limit {
+			break
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// Count 返回当前已写条数。
+func (e *ErrLog) Count() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.full {
+		return len(e.ring)
+	}
+	return e.head
 }

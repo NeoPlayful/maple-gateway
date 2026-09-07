@@ -14,12 +14,12 @@ import (
 type Phase string
 
 const (
-	PhaseCreated   Phase = "created"
-	PhaseRunning   Phase = "running"
-	PhasePaused    Phase = "paused"
-	PhaseCompleted Phase = "completed"
+	PhaseCreated    Phase = "created"
+	PhaseRunning    Phase = "running"
+	PhasePaused     Phase = "paused"
+	PhaseCompleted  Phase = "completed"
 	PhaseRolledBack Phase = "rolled_back"
-	PhaseFailed    Phase = "failed"
+	PhaseFailed     Phase = "failed"
 )
 
 // Action 是发布事件动作（canary_events.phase 复用该语义）。
@@ -36,19 +36,19 @@ const (
 
 // Release 是一次 Canary 发布记录。
 type Release struct {
-	ID               uuid.UUID `json:"id"`
-	ServiceID        uuid.UUID `json:"service_id"`
-	Name             string    `json:"name"`
-	StableVersionID  uuid.UUID `json:"stable_version_id"`
-	CanaryVersionID  uuid.UUID `json:"canary_version_id"`
-	Phase            Phase     `json:"phase"`
-	CanaryWeight     int       `json:"canary_weight"`
-	TargetWeight     int       `json:"target_weight"`
-	StepWeight       int       `json:"step_weight"`
-	StartedAt        *time.Time `json:"started_at"`
-	FinishedAt       *time.Time `json:"finished_at"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	ServiceID       uuid.UUID  `json:"service_id"`
+	Name            string     `json:"name"`
+	StableVersionID uuid.UUID  `json:"stable_version_id"`
+	CanaryVersionID uuid.UUID  `json:"canary_version_id"`
+	Phase           Phase      `json:"phase"`
+	CanaryWeight    int        `json:"canary_weight"`
+	TargetWeight    int        `json:"target_weight"`
+	StepWeight      int        `json:"step_weight"`
+	StartedAt       *time.Time `json:"started_at"`
+	FinishedAt      *time.Time `json:"finished_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // Event 是发布事件流水。
@@ -75,9 +75,9 @@ type NewRelease struct {
 
 // UpdateRelease 改配置（weight/step 语义由动作执行）。
 type UpdateRelease struct {
-	Name            *string `json:"name"`
-	TargetWeight    *int    `json:"target_weight"`
-	StepWeight      *int    `json:"step_weight"`
+	Name         *string `json:"name"`
+	TargetWeight *int    `json:"target_weight"`
+	StepWeight   *int    `json:"step_weight"`
 }
 
 // WeightInput 调整 canary 权重请求体。

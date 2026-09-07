@@ -14,24 +14,24 @@ import (
 
 // NewInput 是策略创建输入。
 type NewInput struct {
-	ServiceID       uuid.UUID          `json:"service_id" validate:"required"`
-	Name            string             `json:"name" validate:"required,min=1,max=64"`
-	Priority        int                `json:"priority"`
-	Match           *Match             `json:"match"`
-	TargetVersionID *uuid.UUID         `json:"target_version_id"`
-	Weight          int                `json:"weight"`
-	Sticky          *Sticky            `json:"sticky"`
+	ServiceID       uuid.UUID  `json:"service_id" validate:"required"`
+	Name            string     `json:"name" validate:"required,min=1,max=64"`
+	Priority        int        `json:"priority"`
+	Match           *Match     `json:"match"`
+	TargetVersionID *uuid.UUID `json:"target_version_id"`
+	Weight          int        `json:"weight"`
+	Sticky          *Sticky    `json:"sticky"`
 }
 
 // UpdateInput 是策略可修改字段。
 type UpdateInput struct {
-	Name            *string     `json:"name"`
-	Priority        *int        `json:"priority"`
-	Match           *Match      `json:"match"`
-	TargetVersionID *uuid.UUID  `json:"target_version_id"` // uuid.Nil 表示清空定向
-	Weight          *int        `json:"weight"`
-	Sticky          *Sticky     `json:"sticky"`
-	Status          *Status     `json:"status"`
+	Name            *string    `json:"name"`
+	Priority        *int       `json:"priority"`
+	Match           *Match     `json:"match"`
+	TargetVersionID *uuid.UUID `json:"target_version_id"` // uuid.Nil 表示清空定向
+	Weight          *int       `json:"weight"`
+	Sticky          *Sticky    `json:"sticky"`
+	Status          *Status    `json:"status"`
 }
 
 // Repository 是流量策略数据访问层。

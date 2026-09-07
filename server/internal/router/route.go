@@ -25,6 +25,15 @@ var (
 type Target struct {
 	Scheme string // http / https
 	Host   string // host:port（内部实例地址）
+	// SetSticky 非空表示本次响应需下发 Sticky 会话 cookie（首访无会话键时）。
+	SetSticky *StickyCookie
+}
+
+// StickyCookie 描述数据面应写回的会话 cookie。
+type StickyCookie struct {
+	Name       string
+	Value      string
+	TTLSeconds int
 }
 
 func (t *Target) URL() string {

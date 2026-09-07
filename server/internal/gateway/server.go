@@ -40,6 +40,7 @@ type DataPlaneConfig struct {
 	Logger            *zap.Logger
 	Metrics           *metrics.Registry // 可空；nil 时不采集指标
 	AccessLog         *logs.AccessLog   // 可空；nil 时不记录访问日志
+	ErrLog            *logs.ErrLog      // 可空；nil 时不记录错误日志
 }
 
 // NewDataPlane 组装数据平面服务（不启动）。Address 与 HTTPSAddress 至少其一非空。
@@ -50,6 +51,7 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 		Logger:    cfg.Logger,
 		Metrics:   cfg.Metrics,
 		AccessLog: cfg.AccessLog,
+		ErrLog:    cfg.ErrLog,
 	})
 	handler := http.Handler(px)
 

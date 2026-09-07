@@ -101,7 +101,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 
 	// resolver 选择：优先 DB 动态路由（S4），无 DB / 失败时回退静态（S2）。
-	resolver, routeCache, db, err := buildResolver(ctx, cfg, routesPath, logger)
+	metricReg := metrics.NewRegistry()
+	resolver, routeCache, db, err := buildResolver(ctx, cfg, routesPath, logger, metricReg)
 	if err != nil {
 		return err
 	}
@@ -121,7 +122,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			SuccessThreshold: cfg.Health.SuccessThreshold,
 			GracePeriod:      cfg.Health.GracePeriod,
 			Path:             "/health",
-		}, logger)
+		}, logger).WithMetrics(metricReg)
 		go hc.Run(ctx)
 	}
 	// Node 心跳看护：超时未心跳的节点置 offline，其上实例随 AutoRebuild 摘除。
@@ -159,8 +160,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		certFile = cfg.Gateway.HTTPS.Cert
 		keyFile = cfg.Gateway.HTTPS.Key
 	}
-	metricReg := metrics.NewRegistry()
 	accessLog := logs.NewAccessLog(5000)
+	errLog := logs.NewErrLog(2000)
 	dp := gateway.NewDataPlane(gateway.DataPlaneConfig{
 		Address:           httpAddr,
 		HTTPSAddress:      httpsAddr,
@@ -174,6 +175,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		Logger:            logger,
 		Metrics:           metricReg,
 		AccessLog:         accessLog,
+		ErrLog:            errLog,
 	})
 	dpErrCh := dp.Start()
 
@@ -185,9 +187,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			logger.Warn("settings reload failed", zap.String("err", err.Error()))
 		}
 		mgmtApp = api.New(api.Deps{Pool: db.Pool, RouteCache: routeCache, Metrics: metricReg,
-			AccessLog: accessLog, Settings: setRepo})
+			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo})
 	} else {
-		mgmtApp = api.New(api.Deps{Pool: nil, Metrics: metricReg, AccessLog: accessLog})
+		mgmtApp = api.New(api.Deps{Pool: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))
@@ -251,8 +253,9 @@ func runMigration(ctx context.Context, dbURL string) error {
 //
 // 返回的 *cache.Cache 供 Management API（S5）重建/查看路由表用；
 // *pkg.DB 由调用方负责 Close（为 nil 表示未接入 DB）。
+// metricReg 注入路由缓存与解析器的指标埋点；可为 nil。
 func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
-	logger *zap.Logger) (router.Resolver, *cache.Cache, *pkg.DB, error) {
+	logger *zap.Logger, metricReg *metrics.Registry) (router.Resolver, *cache.Cache, *pkg.DB, error) {
 
 	// 兜底静态 resolver（无 DB 或失败时）。
 	staticRes := router.FromMap(nil)
@@ -307,5 +310,8 @@ func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
 		return staticRes, nil, nil, nil
 	}
 	logger.Info("route cache loaded", zap.Int("routes", len(rc.Entries())))
-	return cache.NewResolver(rc), rc, db, nil
+	if metricReg != nil {
+		rc.WithMetrics(metricReg)
+	}
+	return cache.NewResolver(rc).WithMetrics(metricReg), rc, db, nil
 }

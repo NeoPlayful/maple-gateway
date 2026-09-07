@@ -13,25 +13,25 @@ import (
 
 // BGDeployment 是一次 Blue/Green 部署配置（deployment 级唯一）。
 type BGDeployment struct {
-	ID               uuid.UUID `json:"id"`
-	DeploymentID     uuid.UUID `json:"deployment_id"`
-	BlueVersionID    uuid.UUID `json:"blue_version_id"`
-	GreenVersionID   uuid.UUID `json:"green_version_id"`
-	ActiveVersionID  uuid.UUID `json:"active_version_id"`
+	ID               uuid.UUID  `json:"id"`
+	DeploymentID     uuid.UUID  `json:"deployment_id"`
+	BlueVersionID    uuid.UUID  `json:"blue_version_id"`
+	GreenVersionID   uuid.UUID  `json:"green_version_id"`
+	ActiveVersionID  uuid.UUID  `json:"active_version_id"`
 	PreviousActiveID *uuid.UUID `json:"previous_active_id"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
 // Event 是切换历史。
 type Event struct {
-	ID         uuid.UUID  `json:"id"`
-	BGID       uuid.UUID  `json:"bg_id"`
-	Action     string     `json:"action"` // switch / rollback
-	FromActive uuid.UUID  `json:"from_active"`
-	ToActive   uuid.UUID  `json:"to_active"`
-	Detail     string     `json:"detail"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID         uuid.UUID `json:"id"`
+	BGID       uuid.UUID `json:"bg_id"`
+	Action     string    `json:"action"` // switch / rollback
+	FromActive uuid.UUID `json:"from_active"`
+	ToActive   uuid.UUID `json:"to_active"`
+	Detail     string    `json:"detail"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // NewBG 创建输入。
@@ -45,8 +45,8 @@ type NewBG struct {
 // View 带版本/服务名的详情快照。
 type View struct {
 	BGDeployment
-	DeploymentName  string `json:"deployment_name"`
-	BlueVersion     string `json:"blue_version"`
-	GreenVersion    string `json:"green_version"`
-	ActiveVersion   string `json:"active_version"`
+	DeploymentName string `json:"deployment_name"`
+	BlueVersion    string `json:"blue_version"`
+	GreenVersion   string `json:"green_version"`
+	ActiveVersion  string `json:"active_version"`
 }
