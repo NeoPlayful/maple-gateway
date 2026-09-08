@@ -177,6 +177,18 @@ func (f SettingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SettingMutation", m)
 }
 
+// The SettingHistoryFunc type is an adapter to allow the use of ordinary
+// function as SettingHistory mutator.
+type SettingHistoryFunc func(context.Context, *ent.SettingHistoryMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SettingHistoryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SettingHistoryMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SettingHistoryMutation", m)
+}
+
 // The TenantFunc type is an adapter to allow the use of ordinary
 // function as Tenant mutator.
 type TenantFunc func(context.Context, *ent.TenantMutation) (ent.Value, error)

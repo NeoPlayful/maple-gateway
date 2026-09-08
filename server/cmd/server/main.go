@@ -107,6 +107,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	if err != nil {
 		return err
 	}
+	// 数据平面趋势时间桶：周期快照差分，供 Dashboard 趋势接口。15s/窗口，保留 30 分钟。
+	series := metrics.NewTimeSeries(metricReg, metrics.SeriesConfig{Window: 15 * time.Second, Buckets: 120})
+	go series.Run(ctx)
 	if db != nil {
 		defer db.Close()
 	}
@@ -188,9 +191,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			logger.Warn("settings reload failed", zap.String("err", err.Error()))
 		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
-			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo})
+			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series})
 	} else {
-		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog})
+		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))

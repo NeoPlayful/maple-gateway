@@ -244,3 +244,45 @@ func (r *Registry) RenderText() string {
 	r.Render(&sb)
 	return sb.String()
 }
+
+// HistoSnap 是 histogram 的累计快照值（供时间桶差分）。
+type HistoSnap struct {
+	Sum   float64
+	Count int64
+}
+
+// Snapshot 一次性导出当前所有 counter 与 histogram 的累计值。
+// 供时间桶（timeseries）做相邻快照差分，得到某窗口内的增量流量/延迟。
+// gauge 不导出：active_connections 等是瞬态值，趋势由采样点直接记录。
+type Snapshot struct {
+	Counters   map[string]map[string]int64
+	Histograms map[string]map[string]HistoSnap
+}
+
+// Snapshot 采集当前值。
+func (r *Registry) Snapshot() Snapshot {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	s := Snapshot{
+		Counters:   make(map[string]map[string]int64, len(r.counters)),
+		Histograms: make(map[string]map[string]HistoSnap, len(r.histos)),
+	}
+	for name, cs := range r.counters {
+		m := make(map[string]int64, len(cs.m))
+		for k, v := range cs.m {
+			m[k] = atomic.LoadInt64(v)
+		}
+		s.Counters[name] = m
+	}
+	for name, hs := range r.histos {
+		m := make(map[string]HistoSnap, len(hs.m))
+		for k, h := range hs.m {
+			m[k] = HistoSnap{
+				Sum:   atomicLoadFloat(&h.sum),
+				Count: atomic.LoadInt64(&h.count),
+			}
+		}
+		s.Histograms[name] = m
+	}
+	return s
+}

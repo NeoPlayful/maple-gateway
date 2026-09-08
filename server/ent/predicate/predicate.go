@@ -48,6 +48,9 @@ type Service func(*sql.Selector)
 // Setting is the predicate function for setting builders.
 type Setting func(*sql.Selector)
 
+// SettingHistory is the predicate function for settinghistory builders.
+type SettingHistory func(*sql.Selector)
+
 // Tenant is the predicate function for tenant builders.
 type Tenant func(*sql.Selector)
 

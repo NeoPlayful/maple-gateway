@@ -143,3 +143,32 @@ export interface SettingsEntry {
   updated_at: string;
 }
 export type SettingsMap = Record<string, Record<string, SettingsEntry>>;
+
+export interface RateLimit {
+  id: string;
+  scope: string; // global / tenant / domain / service / ip
+  tenant_id?: string | null;
+  domain_id?: string | null;
+  service_id?: string | null;
+  name: string;
+  limit: number;
+  window_seconds: number;
+  burst?: number | null;
+  response_code: number;
+  status: string;
+  created_at: string;
+}
+
+export interface BlueGreenDeployment {
+  id: string;
+  deployment_id: string;
+  blue_version_id: string;
+  green_version_id: string;
+  active_version_id?: string | null;
+  previous_active_id?: string | null;
+  deployment_name?: string;
+  blue_version?: string;
+  green_version?: string;
+  active_version?: string;
+  created_at: string;
+}

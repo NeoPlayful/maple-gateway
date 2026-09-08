@@ -40,6 +40,8 @@ type Tx struct {
 	Service *ServiceClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// SettingHistory is the client for interacting with the SettingHistory builders.
+	SettingHistory *SettingHistoryClient
 	// Tenant is the client for interacting with the Tenant builders.
 	Tenant *TenantClient
 	// TrafficPolicy is the client for interacting with the TrafficPolicy builders.
@@ -189,6 +191,7 @@ func (tx *Tx) init() {
 	tx.RateLimit = NewRateLimitClient(tx.config)
 	tx.Service = NewServiceClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
+	tx.SettingHistory = NewSettingHistoryClient(tx.config)
 	tx.Tenant = NewTenantClient(tx.config)
 	tx.TrafficPolicy = NewTrafficPolicyClient(tx.config)
 }

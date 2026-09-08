@@ -1,0 +1,33 @@
+// settings_history 表：Settings 值历史（供按版本回滚）。
+package schema
+
+import (
+	"encoding/json"
+
+	"entgo.io/ent"
+	"entgo.io/ent/schema/field"
+	"entgo.io/ent/schema/index"
+	"github.com/google/uuid"
+)
+
+// SettingHistory 对应 settings_history 表。无 updated_at，只追加。
+type SettingHistory struct {
+	ent.Schema
+}
+
+func (SettingHistory) Fields() []ent.Field {
+	return []ent.Field{
+		field.UUID("id", uuid.UUID{}).Default(uuid.New).Immutable(),
+		field.String("section").NotEmpty(),
+		field.String("key").NotEmpty(),
+		field.Int("version"),
+		field.JSON("value", json.RawMessage{}),
+		field.Time("created_at"),
+	}
+}
+
+func (SettingHistory) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("section", "key", "version"),
+	}
+}
