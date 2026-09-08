@@ -16,7 +16,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login(email, password);
-      navigate('/', { replace: true });
+      navigate('/admin', { replace: true });
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : '登录失败');
     } finally {

@@ -3,20 +3,20 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../stores/auth';
 
 const nav = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/tenants', label: '租户' },
-  { to: '/domains', label: '域名' },
-  { to: '/services', label: '服务' },
-  { to: '/deployments', label: '发布' },
-  { to: '/instances', label: '实例' },
-  { to: '/nodes', label: '节点' },
-  { to: '/traffic', label: '流量策略' },
-  { to: '/canary', label: 'Canary 发布' },
-  { to: '/blue-green', label: '蓝绿发布' },
-  { to: '/rate-limits', label: '限流' },
-  { to: '/health', label: '健康' },
-  { to: '/logs', label: '日志' },
-  { to: '/settings', label: '设置' },
+  { to: '/admin', label: 'Dashboard', end: true },
+  { to: '/admin/tenants', label: '租户' },
+  { to: '/admin/domains', label: '域名' },
+  { to: '/admin/services', label: '服务' },
+  { to: '/admin/deployments', label: '发布' },
+  { to: '/admin/instances', label: '实例' },
+  { to: '/admin/nodes', label: '节点' },
+  { to: '/admin/traffic', label: '流量策略' },
+  { to: '/admin/canary', label: 'Canary 发布' },
+  { to: '/admin/blue-green', label: '蓝绿发布' },
+  { to: '/admin/rate-limits', label: '限流' },
+  { to: '/admin/health', label: '健康' },
+  { to: '/admin/logs', label: '日志' },
+  { to: '/admin/settings', label: '设置' },
 ];
 
 export default function AdminLayout() {

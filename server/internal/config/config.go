@@ -38,6 +38,8 @@ type HTTPListener struct {
 
 type ManagementConfig struct {
 	Address string `yaml:"address"`
+	// UIDir 管理后台前端构建产物目录（dist）；空则不托管 UI。
+	UIDir string `yaml:"ui_dir"`
 }
 
 type HealthConfig struct {
@@ -129,6 +131,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_MANAGEMENT_ADDR"); v != "" {
 		c.Management.Address = v
+	}
+	if v := os.Getenv("MAPLE_UI_DIR"); v != "" {
+		c.Management.UIDir = v
 	}
 	if v := os.Getenv("MAPLE_DATABASE_URL"); v != "" {
 		c.Database.URL = v
