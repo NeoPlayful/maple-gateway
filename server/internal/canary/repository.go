@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entcanary "github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,13 +16,15 @@ import (
 )
 
 // Repository 是 Canary 发布数据访问层。
+// 普通 CRUD 走 Ent；Transition 事务链（FOR UPDATE 行锁 + 跨表版本写）保留 pgxpool。
 type Repository struct {
+	ent  *ent.Client
 	pool *pgxpool.Pool
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client, pool *pgxpool.Pool) *Repository {
+	return &Repository{ent: client, pool: pool}
 }
 
 const cols = `id, service_id, name, stable_version_id, canary_version_id, phase,
@@ -42,6 +48,24 @@ func noRows(err error, msg string) error {
 	return err
 }
 
+func toModel(e *ent.CanaryRelease) *Release {
+	return &Release{
+		ID:              e.ID,
+		ServiceID:       e.ServiceID,
+		Name:            e.Name,
+		StableVersionID: e.StableVersionID,
+		CanaryVersionID: e.CanaryVersionID,
+		Phase:           Phase(e.Phase),
+		CanaryWeight:    e.CanaryWeight,
+		TargetWeight:    e.TargetWeight,
+		StepWeight:      e.StepWeight,
+		StartedAt:       e.StartedAt,
+		FinishedAt:      e.FinishedAt,
+		CreatedAt:       e.CreatedAt,
+		UpdatedAt:       e.UpdatedAt,
+	}
+}
+
 // Create 创建发布（初始 phase=created, canary_weight=0）。service 内重名冲突。
 func (r *Repository) Create(ctx context.Context, in NewRelease) (*Release, error) {
 	target := in.TargetWeight
@@ -52,13 +76,19 @@ func (r *Repository) Create(ctx context.Context, in NewRelease) (*Release, error
 	if step == 0 {
 		step = 10
 	}
-	row := r.pool.QueryRow(ctx, `
-		INSERT INTO canary_releases(service_id, name, stable_version_id, canary_version_id,
-			phase, canary_weight, target_weight, step_weight)
-		VALUES($1, $2, $3, $4, 'created', 0, $5, $6)
-		RETURNING `+cols,
-		in.ServiceID, in.Name, in.StableVersionID, in.CanaryVersionID, target, step)
-	rel, err := scanRelease(row)
+	now := time.Now()
+	e, err := r.ent.CanaryRelease.Create().
+		SetServiceID(in.ServiceID).
+		SetName(in.Name).
+		SetStableVersionID(in.StableVersionID).
+		SetCanaryVersionID(in.CanaryVersionID).
+		SetPhase(string(PhaseCreated)).
+		SetCanaryWeight(0).
+		SetTargetWeight(target).
+		SetStepWeight(step).
+		SetCreatedAt(now).
+		SetUpdatedAt(now).
+		Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("该服务下已存在同名发布")
@@ -68,90 +98,90 @@ func (r *Repository) Create(ctx context.Context, in NewRelease) (*Release, error
 		}
 		return nil, fmt.Errorf("insert canary release: %w", err)
 	}
-	return rel, nil
+	return toModel(e), nil
 }
 
 // Get 查询发布。
 func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*Release, error) {
-	rel, err := scanRelease(r.pool.QueryRow(ctx, `SELECT `+cols+` FROM canary_releases WHERE id=$1`, id))
-	if e := noRows(err, "发布不存在"); e != nil {
-		return nil, e
-	}
+	e, err := r.ent.CanaryRelease.Get(ctx, id)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("发布不存在")
+		}
 		return nil, fmt.Errorf("get canary release: %w", err)
 	}
-	return rel, nil
+	return toModel(e), nil
 }
 
 // List 分页列出发布，支持 service_id 筛选与 phase 筛选。
 func (r *Repository) List(ctx context.Context, serviceID *uuid.UUID, phase Phase, limit, offset int) ([]*Release, int, error) {
-	var total int
-	if err := r.pool.QueryRow(ctx, `
-		SELECT count(*) FROM canary_releases
-		WHERE ($1::uuid IS NULL OR service_id=$1) AND ($2='' OR phase=$2)`,
-		serviceID, string(phase)).Scan(&total); err != nil {
+	q := r.ent.CanaryRelease.Query()
+	if serviceID != nil {
+		q = q.Where(entcanary.ServiceID(*serviceID))
+	}
+	if phase != "" {
+		q = q.Where(entcanary.PhaseEQ(string(phase)))
+	}
+	total, err := q.Count(ctx)
+	if err != nil {
 		return nil, 0, fmt.Errorf("count canary releases: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM canary_releases
-		WHERE ($1::uuid IS NULL OR service_id=$1) AND ($2='' OR phase=$2)
-		ORDER BY created_at DESC LIMIT $3 OFFSET $4`, serviceID, string(phase), limit, offset)
+	es, err := q.
+		Order(entcanary.ByCreatedAt(sql.OrderDesc())).
+		Limit(limit).
+		Offset(offset).
+		All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list canary releases: %w", err)
 	}
-	defer rows.Close()
-	out := []*Release{}
-	for rows.Next() {
-		rel, err := scanRelease(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		out = append(out, rel)
+	out := make([]*Release, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, total, rows.Err()
+	return out, total, nil
 }
 
 // Update 应用非空更新（name/target_weight/step_weight），不改 phase 与实时权重。
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateRelease) (*Release, error) {
-	rel, err := r.Get(ctx, id)
-	if err != nil {
-		return nil, err
+	if _, err := r.ent.CanaryRelease.Get(ctx, id); err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("发布不存在")
+		}
+		return nil, fmt.Errorf("get canary release for update: %w", err)
 	}
+	upd := r.ent.CanaryRelease.UpdateOneID(id).SetUpdatedAt(time.Now())
 	if in.Name != nil {
-		rel.Name = *in.Name
+		upd = upd.SetName(*in.Name)
 	}
 	if in.TargetWeight != nil {
-		rel.TargetWeight = *in.TargetWeight
+		upd = upd.SetTargetWeight(*in.TargetWeight)
 	}
 	if in.StepWeight != nil {
-		rel.StepWeight = *in.StepWeight
+		upd = upd.SetStepWeight(*in.StepWeight)
 	}
-	upd, err := scanRelease(r.pool.QueryRow(ctx, `
-		UPDATE canary_releases SET name=$2, target_weight=$3, step_weight=$4, updated_at=now()
-		WHERE id=$1 RETURNING `+cols,
-		id, rel.Name, rel.TargetWeight, rel.StepWeight))
+	e, err := upd.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("该服务下已存在同名发布")
 		}
 		return nil, fmt.Errorf("update canary release: %w", err)
 	}
-	return upd, nil
+	return toModel(e), nil
 }
 
 // Delete 删除发布（不改变版本权重；调用方需确认已结束）。
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM canary_releases WHERE id=$1`, id)
+	err := r.ent.CanaryRelease.DeleteOneID(id).Exec(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrNotFound("发布不存在")
+		}
 		return fmt.Errorf("delete canary release: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return pkg.ErrNotFound("发布不存在")
 	}
 	return nil
 }
 
-// ---------- 事务内状态机原子操作 ----------
+// ---------- 事务内状态机原子操作（保留 pgxpool，service 层零改动） ----------
 
 // Transition 开启事务执行状态机动作：行锁发布 → fn(tx, rel) → 提交。
 // fn 内通过包级 helper（setVersionWeight 等）操作版本；返回错误则整单回滚。
@@ -221,16 +251,16 @@ func setVersionStatus(ctx context.Context, tx pgx.Tx, id uuid.UUID, status strin
 func updateReleaseState(ctx context.Context, tx pgx.Tx, id uuid.UUID, phase Phase,
 	canaryWeight int, start, finish bool) (*Release, error) {
 	// $1 显式 ::uuid：动态拼接时 PostgreSQL 无法从 UPDATE...RETURNING 推断参数类型（42P18）。
-	sql := `UPDATE canary_releases SET phase=$2, canary_weight=$3, updated_at=now()`
+	q := `UPDATE canary_releases SET phase=$2, canary_weight=$3, updated_at=now()`
 	args := []any{id, string(phase), canaryWeight}
 	if start {
-		sql += `, started_at=COALESCE(started_at, now())`
+		q += `, started_at=COALESCE(started_at, now())`
 	}
 	if finish {
-		sql += `, finished_at=now()`
+		q += `, finished_at=now()`
 	}
-	sql += ` WHERE id=$1::uuid RETURNING ` + cols
-	rel, err := scanRelease(tx.QueryRow(ctx, sql, args...))
+	q += ` WHERE id=$1::uuid RETURNING ` + cols
+	rel, err := scanRelease(tx.QueryRow(ctx, q, args...))
 	if err != nil {
 		return nil, fmt.Errorf("update canary release state: %w", err)
 	}

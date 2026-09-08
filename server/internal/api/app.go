@@ -22,6 +22,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/system"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -29,6 +30,7 @@ import (
 // Deps 是 Management API 所需依赖。
 type Deps struct {
 	Pool       *pgxpool.Pool        // nil 表示未接入 DB（禁用 admin 与业务接口）
+	Ent        *ent.Client          // 已迁移到 Ent 的模块使用；与 Pool 指向同一库
 	RouteCache *cache.Cache         // 可空；用于 route/cache 查看与手动重建
 	Metrics    *metrics.Registry    // 可空；提供 /metrics 导出
 	AccessLog  *logs.AccessLog      // 可空；提供访问日志查询
@@ -76,7 +78,8 @@ func New(d Deps) *fiber.App {
 	admin.Post("/auth/logout", authH.Logout)
 
 	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
-	disc := discovery.NewHandler(node.NewRepository(d.Pool), instance.NewRepository(d.Pool))
+	// instance 已迁移 Ent；node 仍走 pgxpool。
+	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent, d.Pool))
 	internal := app.Group("/api/internal/discovery", discovery.Middleware())
 	internal.Post("/nodes/register", disc.RegisterNode)
 	internal.Post("/nodes/:id/heartbeat", disc.HeartbeatNode)
@@ -86,7 +89,7 @@ func New(d Deps) *fiber.App {
 	internal.Post("/instances/:id/health", disc.ReportHealth)
 
 	// 业务模块 CRUD。
-	tenantH := tenant.NewHandler(tenant.NewRepository(d.Pool))
+	tenantH := tenant.NewHandler(tenant.NewRepository(d.Ent))
 	t := admin.Group("/tenants")
 	t.Get("/", tenantH.List)
 	t.Post("/", tenantH.Create)
@@ -97,7 +100,7 @@ func New(d Deps) *fiber.App {
 	t.Post("/:id/disable", tenantH.Disable)
 	t.Post("/:id/suspend", tenantH.Suspend)
 
-	domainH := domain.NewHandler(domain.NewRepository(d.Pool))
+	domainH := domain.NewHandler(domain.NewRepository(d.Ent))
 	dm := admin.Group("/domains")
 	dm.Get("/", domainH.List)
 	dm.Post("/", domainH.Create)
@@ -107,7 +110,7 @@ func New(d Deps) *fiber.App {
 	dm.Post("/:id/enable", domainH.Enable)
 	dm.Post("/:id/disable", domainH.Disable)
 
-	serviceH := service.NewHandler(service.NewRepository(d.Pool))
+	serviceH := service.NewHandler(service.NewRepository(d.Ent))
 	sv := admin.Group("/services")
 	sv.Get("/", serviceH.List)
 	sv.Post("/", serviceH.Create)
@@ -117,7 +120,7 @@ func New(d Deps) *fiber.App {
 	sv.Post("/:id/enable", serviceH.Enable)
 	sv.Post("/:id/disable", serviceH.Disable)
 
-	instanceH := instance.NewHandler(instance.NewRepository(d.Pool))
+	instanceH := instance.NewHandler(instance.NewRepository(d.Ent, d.Pool))
 	ins := admin.Group("/instances")
 	ins.Get("/", instanceH.List)
 	ins.Post("/register", instanceH.Register)
@@ -131,7 +134,7 @@ func New(d Deps) *fiber.App {
 	ins.Post("/:id/mount", instanceH.Mount)
 	ins.Post("/:id/health", instanceH.Health)
 
-	nodeH := node.NewHandler(node.NewRepository(d.Pool))
+	nodeH := node.NewHandler(node.NewRepository(d.Ent))
 	nd := admin.Group("/nodes")
 	nd.Get("/", nodeH.List)
 	nd.Post("/", nodeH.Create)
@@ -143,7 +146,7 @@ func New(d Deps) *fiber.App {
 	nd.Post("/:id/maintenance", nodeH.Maintenance)
 	nd.Post("/:id/heartbeat", nodeH.Heartbeat)
 
-	deployH := deployment.NewHandler(deployment.NewRepository(d.Pool))
+	deployH := deployment.NewHandler(deployment.NewRepository(d.Ent))
 	dpl := admin.Group("/deployments")
 	dpl.Get("/", deployH.ListDeployments)
 	dpl.Post("/", deployH.CreateDeployment)
@@ -162,7 +165,7 @@ func New(d Deps) *fiber.App {
 	ver.Delete("/:id", deployH.DeleteVersion)
 	ver.Post("/:id/default", deployH.SetDefaultVersion)
 
-	trafficH := traffic.NewHandler(traffic.NewRepository(d.Pool))
+	trafficH := traffic.NewHandler(traffic.NewRepository(d.Ent))
 	tf := admin.Group("/traffic")
 	tf.Get("/", trafficH.List)
 	tf.Post("/", trafficH.Create)
@@ -173,7 +176,7 @@ func New(d Deps) *fiber.App {
 	tf.Post("/:id/disable", trafficH.Disable)
 
 	// Canary 发布控制。
-	canaryH := canary.NewHandler(canary.NewService(canary.NewRepository(d.Pool)))
+	canaryH := canary.NewHandler(canary.NewService(canary.NewRepository(d.Ent, d.Pool)))
 	cn := admin.Group("/canary")
 	cn.Get("/", canaryH.List)
 	cn.Post("/", canaryH.Create)
@@ -188,7 +191,7 @@ func New(d Deps) *fiber.App {
 	cn.Post("/:id/rollback", canaryH.Rollback)
 
 	// 限流规则。
-	rlH := ratelimit.NewHandler(ratelimit.NewRepository(d.Pool))
+	rlH := ratelimit.NewHandler(ratelimit.NewRepository(d.Ent))
 	rl := admin.Group("/rate-limits")
 	rl.Get("/", rlH.List)
 	rl.Post("/", rlH.Create)
@@ -206,7 +209,7 @@ func New(d Deps) *fiber.App {
 	}
 
 	// 审计日志查询（DB 落库）。
-	audH := &auditLogsHandler{pool: d.Pool}
+	audH := &auditLogsHandler{ent: d.Ent}
 	admin.Get("/logs/audit", audH.List)
 
 	// 动态 Settings。
@@ -217,7 +220,7 @@ func New(d Deps) *fiber.App {
 	}
 
 	// Blue/Green 双版本切换。
-	bgH := bluegreen.NewHandler(bluegreen.NewService(bluegreen.NewRepository(d.Pool)))
+	bgH := bluegreen.NewHandler(bluegreen.NewService(bluegreen.NewRepository(d.Ent, d.Pool)))
 	bg := admin.Group("/blue-green")
 	bg.Get("/", bgH.List)
 	bg.Post("/", bgH.Create)

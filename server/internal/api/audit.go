@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entaudit "github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/gofiber/fiber/v3"
@@ -79,9 +82,9 @@ func nullStr(s string) any {
 	return s
 }
 
-// auditLogsHandler 查询 audit_logs 表（分页 + action/时间过滤）。
+// auditLogsHandler 查询 audit_logs 表（分页 + action/时间过滤，基于 Ent）。
 type auditLogsHandler struct {
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // auditRow 是审计日志查询行。
@@ -116,42 +119,46 @@ func (h *auditLogsHandler) List(c fiber.Ctx) error {
 		return pkg.Err(c, pkg.ErrValidation("to 须为 RFC3339 时间"))
 	}
 
-	var total int
-	if err := h.pool.QueryRow(c.Context(), `
-		SELECT count(*) FROM audit_logs
-		WHERE ($1='' OR action LIKE $1) AND ($2='' OR target_type=$2)
-		  AND ($3::timestamptz IS NULL OR created_at >= $3)
-		  AND ($4::timestamptz IS NULL OR created_at <= $4)`,
-		action+"%", targetType, tsOrNil(from, hasFrom), tsOrNil(to, hasTo)).Scan(&total); err != nil {
-		return pkg.Err(c, err)
+	q := h.ent.AuditLog.Query()
+	if action != "" {
+		q = q.Where(entaudit.ActionHasPrefix(action))
 	}
-
-	rows, err := h.pool.Query(c.Context(), `
-		SELECT id, admin_id, action, target_type, target_id, ip, created_at
-		FROM audit_logs
-		WHERE ($1='' OR action LIKE $1) AND ($2='' OR target_type=$2)
-		  AND ($3::timestamptz IS NULL OR created_at >= $3)
-		  AND ($4::timestamptz IS NULL OR created_at <= $4)
-		ORDER BY created_at DESC LIMIT $5 OFFSET $6`,
-		action+"%", targetType, tsOrNil(from, hasFrom), tsOrNil(to, hasTo), limit, offset)
+	if targetType != "" {
+		q = q.Where(entaudit.TargetTypeEQ(targetType))
+	}
+	if hasFrom {
+		q = q.Where(entaudit.CreatedAtGTE(from))
+	}
+	if hasTo {
+		q = q.Where(entaudit.CreatedAtLTE(to))
+	}
+	total, err := q.Count(c.Context())
 	if err != nil {
 		return pkg.Err(c, err)
 	}
-	defer rows.Close()
-	out := []auditRow{}
-	for rows.Next() {
-		var r auditRow
-		var adminID, targetID, ip *string
-		if err := rows.Scan(&r.ID, &adminID, &r.Action, &r.TargetType, &targetID, &ip, &r.CreatedAt); err != nil {
-			return pkg.Err(c, err)
-		}
-		r.AdminID = adminID
-		r.TargetID = targetID
-		r.IP = ip
-		out = append(out, r)
-	}
-	if err := rows.Err(); err != nil {
+	es, err := q.
+		Order(entaudit.ByCreatedAt(sql.OrderDesc())).
+		Limit(limit).
+		Offset(offset).
+		All(c.Context())
+	if err != nil {
 		return pkg.Err(c, err)
+	}
+	out := make([]auditRow, 0, len(es))
+	for _, e := range es {
+		r := auditRow{
+			ID:         e.ID.String(),
+			Action:     e.Action,
+			TargetType: e.TargetType,
+			CreatedAt:  e.CreatedAt,
+		}
+		if e.AdminID != nil {
+			s := e.AdminID.String()
+			r.AdminID = &s
+		}
+		r.TargetID = e.TargetID
+		r.IP = e.IP
+		out = append(out, r)
 	}
 	return pkg.OKMeta(c, out, fiber.Map{"total": total, "count": len(out), "limit": limit, "offset": offset})
 }
@@ -166,12 +173,4 @@ func parseTimeRFC3339(s string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return t, true
-}
-
-// tsOrNil 把可选时间转为参数值：无值传 nil（配合 $n::timestamptz IS NULL 条件）。
-func tsOrNil(t time.Time, ok bool) any {
-	if !ok {
-		return nil
-	}
-	return t
 }

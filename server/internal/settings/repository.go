@@ -6,66 +6,83 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entsetting "github.com/NeoPlayful/maple-gateway/server/ent/setting"
 )
 
-// Repository 是 settings 数据访问层。
+// Repository 是 settings 数据访问层（DB 走 Ent，读缓存走内存）。
 type Repository struct {
-	pool  *pgxpool.Pool
+	ent   *ent.Client
 	mu    sync.RWMutex
 	cache map[string]Entry // section:key → Entry
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, cache: map[string]Entry{}}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client, cache: map[string]Entry{}}
 }
 
-const cols = `section, key, value, version, updated_at`
-
-func scanEntry(row pgx.Row) (Entry, error) {
-	var e Entry
-	err := row.Scan(&e.Section, &e.Key, &e.Value, &e.Version, &e.UpdatedAt)
-	return e, err
+func toEntry(e *ent.Setting) Entry {
+	return Entry{
+		Section:   Section(e.Section),
+		Key:       e.Key,
+		Value:     e.Value,
+		Version:   e.Version,
+		UpdatedAt: e.UpdatedAt,
+	}
 }
 
 // All 返回全部条目（按 section,key 排序）。
 func (r *Repository) All(ctx context.Context) ([]Entry, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+cols+` FROM settings ORDER BY section, key`)
+	es, err := r.ent.Setting.Query().
+		Order(entsetting.BySection(), entsetting.ByKey()).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("all settings: %w", err)
 	}
-	defer rows.Close()
-	out := []Entry{}
-	for rows.Next() {
-		e, err := scanEntry(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, e)
+	out := make([]Entry, 0, len(es))
+	for _, e := range es {
+		out = append(out, toEntry(e))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
-// Upsert 设置单条：存在则 version+1 更新，否则插入 v1。
+// Upsert 设置单条：存在则 version+1 更新，否则插入 v1（原子，Ent upsert）。
 func (r *Repository) Upsert(ctx context.Context, section Section, key string, value json.RawMessage) (*Entry, error) {
 	if value == nil {
 		value = json.RawMessage("null")
 	}
-	var e Entry
-	err := r.pool.QueryRow(ctx, `
-		INSERT INTO settings(section, key, value, version)
-		VALUES($1, $2, $3, 1)
-		ON CONFLICT (section, key)
-		DO UPDATE SET value=EXCLUDED.value, version=settings.version+1, updated_at=now()
-		RETURNING `+cols,
-		string(section), key, []byte(value)).Scan(&e.Section, &e.Key, &e.Value, &e.Version, &e.UpdatedAt)
+	now := time.Now()
+	err := r.ent.Setting.Create().
+		SetSection(string(section)).
+		SetKey(key).
+		SetValue(value).
+		SetVersion(1).
+		SetUpdatedAt(now).
+		OnConflictColumns("section", "key").
+		Update(func(u *ent.SettingUpsert) {
+			u.UpdateValue()
+			u.AddVersion(1)
+			u.SetUpdatedAt(now)
+		}).
+		Exec(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("upsert setting: %w", err)
 	}
-	return &e, nil
+	// upsert 后按 (section,key) 读回最新 Entry。
+	e, err := r.ent.Setting.Query().
+		Where(
+			entsetting.Section(string(section)),
+			entsetting.Key(key),
+		).
+		Only(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get setting after upsert: %w", err)
+	}
+	ent := toEntry(e)
+	return &ent, nil
 }
 
 // Reload 把 DB 全量载入内存缓存。

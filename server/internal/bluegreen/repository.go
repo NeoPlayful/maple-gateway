@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entbg "github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,13 +16,15 @@ import (
 )
 
 // Repository 是 Blue/Green 数据访问层。
+// 普通 CRUD 走 Ent；Transition 事务链（FOR UPDATE 行锁 + 版本角色翻转）保留 pgxpool。
 type Repository struct {
+	ent  *ent.Client
 	pool *pgxpool.Pool
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client, pool *pgxpool.Pool) *Repository {
+	return &Repository{ent: client, pool: pool}
 }
 
 const cols = `id, deployment_id, blue_version_id, green_version_id, active_version_id,
@@ -34,6 +40,19 @@ func scanBG(row pgx.Row) (*BGDeployment, error) {
 	return &b, nil
 }
 
+func toModel(e *ent.BluegreenDeployment) *BGDeployment {
+	return &BGDeployment{
+		ID:               e.ID,
+		DeploymentID:     e.DeploymentID,
+		BlueVersionID:    e.BlueVersionID,
+		GreenVersionID:   e.GreenVersionID,
+		ActiveVersionID:  e.ActiveVersionID,
+		PreviousActiveID: e.PreviousActiveID,
+		CreatedAt:        e.CreatedAt,
+		UpdatedAt:        e.UpdatedAt,
+	}
+}
+
 // Create 登记 BG 配置（deployment 级唯一）。
 func (r *Repository) Create(ctx context.Context, in NewBG) (*BGDeployment, error) {
 	if in.BlueVersionID == in.GreenVersionID {
@@ -43,13 +62,15 @@ func (r *Repository) Create(ctx context.Context, in NewBG) (*BGDeployment, error
 	if active == uuid.Nil {
 		active = in.BlueVersionID
 	}
-	row := r.pool.QueryRow(ctx, `
-		INSERT INTO bluegreen_deployments(deployment_id, blue_version_id, green_version_id,
-			active_version_id, previous_active_id)
-		VALUES($1, $2, $3, $4, NULL)
-		RETURNING `+cols,
-		in.DeploymentID, in.BlueVersionID, in.GreenVersionID, active)
-	bg, err := scanBG(row)
+	now := time.Now()
+	e, err := r.ent.BluegreenDeployment.Create().
+		SetDeploymentID(in.DeploymentID).
+		SetBlueVersionID(in.BlueVersionID).
+		SetGreenVersionID(in.GreenVersionID).
+		SetActiveVersionID(active).
+		SetCreatedAt(now).
+		SetUpdatedAt(now).
+		Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("该部署已配置 Blue/Green")
@@ -59,56 +80,54 @@ func (r *Repository) Create(ctx context.Context, in NewBG) (*BGDeployment, error
 		}
 		return nil, fmt.Errorf("insert bluegreen: %w", err)
 	}
-	return bg, nil
+	return toModel(e), nil
 }
 
 // Get 查询。
 func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*BGDeployment, error) {
-	bg, err := scanBG(r.pool.QueryRow(ctx, `SELECT `+cols+` FROM bluegreen_deployments WHERE id=$1`, id))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("Blue/Green 配置不存在")
-	}
+	e, err := r.ent.BluegreenDeployment.Get(ctx, id)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("Blue/Green 配置不存在")
+		}
 		return nil, fmt.Errorf("get bluegreen: %w", err)
 	}
-	return bg, nil
+	return toModel(e), nil
 }
 
 // List 分页列出（deploymentID 可选）。
 func (r *Repository) List(ctx context.Context, deploymentID *uuid.UUID, limit, offset int) ([]*BGDeployment, int, error) {
-	var total int
-	if err := r.pool.QueryRow(ctx, `
-		SELECT count(*) FROM bluegreen_deployments WHERE ($1::uuid IS NULL OR deployment_id=$1)`,
-		deploymentID).Scan(&total); err != nil {
+	q := r.ent.BluegreenDeployment.Query()
+	if deploymentID != nil {
+		q = q.Where(entbg.DeploymentID(*deploymentID))
+	}
+	total, err := q.Count(ctx)
+	if err != nil {
 		return nil, 0, fmt.Errorf("count bluegreen: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM bluegreen_deployments
-		WHERE ($1::uuid IS NULL OR deployment_id=$1)
-		ORDER BY created_at DESC LIMIT $2 OFFSET $3`, deploymentID, limit, offset)
+	es, err := q.
+		Order(entbg.ByCreatedAt(sql.OrderDesc())).
+		Limit(limit).
+		Offset(offset).
+		All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list bluegreen: %w", err)
 	}
-	defer rows.Close()
-	out := []*BGDeployment{}
-	for rows.Next() {
-		bg, err := scanBG(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		out = append(out, bg)
+	out := make([]*BGDeployment, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, total, rows.Err()
+	return out, total, nil
 }
 
 // Delete 删除 BG 配置（不改变版本状态）。
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM bluegreen_deployments WHERE id=$1`, id)
+	err := r.ent.BluegreenDeployment.DeleteOneID(id).Exec(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrNotFound("Blue/Green 配置不存在")
+		}
 		return fmt.Errorf("delete bluegreen: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return pkg.ErrNotFound("Blue/Green 配置不存在")
 	}
 	return nil
 }
