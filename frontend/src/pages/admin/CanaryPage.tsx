@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../lib/client';
-import type { CanaryRelease, Deployment, Service, Version } from '../types';
-import { PhaseBadge } from '../components/ui';
+import { useTranslation } from 'react-i18next';
+import { api } from '../../lib/client';
+import type { CanaryRelease, Deployment, Service, Version } from '../../types';
+import { PhaseBadge, ActionBtn } from '../../components/ui';
 
 interface VersionMeta {
   id: string;
@@ -13,6 +14,7 @@ interface VersionMeta {
 }
 
 export default function CanaryPage() {
+  const { t } = useTranslation('admin');
   const [releases, setReleases] = useState<CanaryRelease[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [deploys, setDeploys] = useState<Deployment[]>([]);
@@ -34,9 +36,9 @@ export default function CanaryPage() {
       const list = await api.get<CanaryRelease[]>('/api/admin/canary?limit=50');
       setReleases(list);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '加载失败');
+      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -76,10 +78,10 @@ export default function CanaryPage() {
     setErr('');
     try {
       await api.post(`/api/admin/canary/${id}/${act}`, body);
-      setMsg(`操作 ${act} 成功`);
+      setMsg(t('canary.operateDone', { act }));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '操作失败');
+      setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
@@ -93,74 +95,77 @@ export default function CanaryPage() {
         canary_version_id: canaryId,
         initial_weight: initialWeight,
       });
-      setMsg('创建成功，可在列表 start 开始发布');
+      setMsg(t('canary.createHint'));
       setShowCreate(false);
       setName('');
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '创建失败');
+      setErr(e instanceof Error ? e.message : t('common.createFailed'));
     }
   };
 
   const verName = (id: string) => versions.find((v) => v.id === id)?.version ?? id.slice(0, 8);
   const svcName = (id: string) => services.find((s) => s.id === id)?.name ?? id.slice(0, 8);
 
+  const inputCls =
+    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Canary 发布</h1>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('canary.title')}</h1>
         <button
           onClick={() => setShowCreate((v) => !v)}
-          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
         >
-          {showCreate ? '收起' : '+ 新建 Canary'}
+          {showCreate ? t('common.collapse') : `+ ${t('canary.newRelease')}`}
         </button>
       </div>
-      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>}
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
+      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{msg}</p>}
+      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       {showCreate && (
-        <div className="mb-5 rounded-xl bg-white p-5 shadow-sm">
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-slate-500">服务</label>
-              <select value={svcId} onChange={(e) => loadDeploys(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">选择服务</option>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.service')}</label>
+              <select value={svcId} onChange={(e) => loadDeploys(e.target.value)} className={inputCls}>
+                <option value="">{t('canary.selectService')}</option>
                 {services.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">名称</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="如 v2-canary" className="w-full rounded border px-2 py-1.5 text-sm" />
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.name')}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('canary.namePh')} className={inputCls} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">部署</label>
-              <select value={depId} disabled={!deploys.length} onChange={(e) => loadVersions(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">选择部署</option>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.deploymentName')}</label>
+              <select value={depId} disabled={!deploys.length} onChange={(e) => loadVersions(e.target.value)} className={inputCls}>
+                <option value="">{t('canary.selectDeployment')}</option>
                 {deploys.map((d) => (
                   <option key={d.id} value={d.id}>{d.name} ({d.strategy})</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">初始权重 %</label>
-              <input type="number" min={1} max={100} value={initialWeight} onChange={(e) => setInitialWeight(Number(e.target.value))} className="w-full rounded border px-2 py-1.5 text-sm" />
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('canary.initialWeight')}</label>
+              <input type="number" min={1} max={100} value={initialWeight} onChange={(e) => setInitialWeight(Number(e.target.value))} className={inputCls} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Stable 版本</label>
-              <select value={stableId} onChange={(e) => setStableId(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">选择 stable</option>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('canary.stableVersion')}</label>
+              <select value={stableId} onChange={(e) => setStableId(e.target.value)} className={inputCls}>
+                <option value="">{t('canary.selectStable')}</option>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>{v.version} ({v.status}, w{v.weight})</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Canary 版本</label>
-              <select value={canaryId} onChange={(e) => setCanaryId(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">选择 canary</option>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('canary.canaryVersion')}</label>
+              <select value={canaryId} onChange={(e) => setCanaryId(e.target.value)} className={inputCls}>
+                <option value="">{t('canary.selectCanary')}</option>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>{v.version} ({v.status}, w{v.weight})</option>
                 ))}
@@ -170,31 +175,31 @@ export default function CanaryPage() {
           <button
             disabled={!stableId || !canaryId || stableId === canaryId}
             onClick={create}
-            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-40"
+            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-700 dark:hover:bg-slate-600"
           >
-            创建
+            {t('common.create')}
           </button>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-2">名称</th>
-              <th className="px-4 py-2">服务</th>
-              <th className="px-4 py-2">版本</th>
-              <th className="px-4 py-2">权重</th>
-              <th className="px-4 py-2">阶段</th>
-              <th className="px-4 py-2">操作</th>
+              <th className="px-4 py-2">{t('fields.name')}</th>
+              <th className="px-4 py-2">{t('fields.service')}</th>
+              <th className="px-4 py-2">{t('fields.version')}</th>
+              <th className="px-4 py-2">{t('fields.weight')}</th>
+              <th className="px-4 py-2">{t('fields.phase')}</th>
+              <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
           </thead>
           <tbody>
             {releases.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">暂无 Canary 发布</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('canary.none')}</td></tr>
             )}
             {releases.map((r) => (
-              <tr key={r.id} className="border-b hover:bg-slate-50">
+              <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2 font-medium">{r.name}</td>
                 <td className="px-4 py-2">{svcName(r.service_id)}</td>
                 <td className="px-4 py-2 text-xs">
@@ -205,21 +210,21 @@ export default function CanaryPage() {
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
                     {r.phase === 'created' && (
-                      <ActionBtn onClick={() => action(r.id, 'start')}>开始</ActionBtn>
+                      <ActionBtn onClick={() => action(r.id, 'start')}>{t('canary.start')}</ActionBtn>
                     )}
                     {r.phase === 'running' && (
                       <>
-                        <ActionBtn onClick={() => action(r.id, 'pause')}>暂停</ActionBtn>
-                        <ActionBtn onClick={() => setWeightPrompt(r.id)}>调权重</ActionBtn>
-                        <ActionBtn onClick={() => action(r.id, 'promote')}>晋升</ActionBtn>
-                        <ActionBtn danger onClick={() => action(r.id, 'rollback')}>回滚</ActionBtn>
+                        <ActionBtn onClick={() => action(r.id, 'pause')}>{t('canary.pause')}</ActionBtn>
+                        <ActionBtn onClick={() => setWeightPrompt(r.id)}>{t('canary.adjustWeight')}</ActionBtn>
+                        <ActionBtn onClick={() => action(r.id, 'promote')}>{t('canary.promote')}</ActionBtn>
+                        <ActionBtn danger onClick={() => action(r.id, 'rollback')}>{t('canary.rollback')}</ActionBtn>
                       </>
                     )}
                     {r.phase === 'paused' && (
                       <>
-                        <ActionBtn onClick={() => action(r.id, 'resume')}>恢复</ActionBtn>
-                        <ActionBtn onClick={() => setWeightPrompt(r.id)}>调权重</ActionBtn>
-                        <ActionBtn danger onClick={() => action(r.id, 'rollback')}>回滚</ActionBtn>
+                        <ActionBtn onClick={() => action(r.id, 'resume')}>{t('canary.resume')}</ActionBtn>
+                        <ActionBtn onClick={() => setWeightPrompt(r.id)}>{t('canary.adjustWeight')}</ActionBtn>
+                        <ActionBtn danger onClick={() => action(r.id, 'rollback')}>{t('canary.rollback')}</ActionBtn>
                       </>
                     )}
                   </div>
@@ -233,26 +238,13 @@ export default function CanaryPage() {
   );
 
   async function setWeightPrompt(releaseId: string) {
-    const w = window.prompt('设置 canary 权重 (0-100):', '25');
+    const w = window.prompt(t('canary.weightPrompt'), '25');
     if (w === null) return;
     const n = Number(w);
     if (Number.isNaN(n) || n < 0 || n > 100) {
-      setErr('权重须在 0-100');
+      setErr(t('canary.weightRange'));
       return;
     }
     await action(releaseId, 'weight', { weight: n });
   }
-}
-
-function ActionBtn({ onClick, danger, children }: { onClick: () => void; danger?: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded px-2 py-1 text-xs ${
-        danger ? 'bg-rose-600 text-white hover:bg-rose-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-      }`}
-    >
-      {children}
-    </button>
-  );
 }

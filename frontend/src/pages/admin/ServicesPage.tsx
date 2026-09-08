@@ -1,25 +1,25 @@
-import CrudPage, { PageDef } from '../components/CrudPage';
+import CrudPage, { PageDef } from '../../components/CrudPage';
 
 const def: PageDef = {
-  title: '服务管理',
+  title: 'services.title',
   path: '/api/admin/services',
   columns: [
-    { key: 'name', label: '名称' },
-    { key: 'tenant_id', label: '租户', render: (r) => r.tenant_id?.slice(0, 8) ?? '-' },
-    { key: 'protocol', label: '协议' },
-    { key: 'status', label: '状态', badge: true },
+    { key: 'name', label: 'fields.name' },
+    { key: 'tenant_id', label: 'fields.tenant', render: (r) => r.tenant_id?.slice(0, 8) ?? '-' },
+    { key: 'protocol', label: 'fields.protocol' },
+    { key: 'status', label: 'fields.status', badge: true },
   ],
   createFields: [
     {
       key: 'tenant_id',
-      label: '所属租户',
+      label: 'fields.parentTenant',
       required: true,
       loadOptions: { path: '/api/admin/tenants', valueKey: 'id', labelKey: 'name' },
     },
-    { key: 'name', label: '服务名', required: true, placeholder: '如 storefront' },
+    { key: 'name', label: 'fields.name', required: true, placeholder: 'services.namePh' },
     {
       key: 'protocol',
-      label: '协议',
+      label: 'fields.protocol',
       type: 'select',
       options: [
         { value: 'http', label: 'http' },

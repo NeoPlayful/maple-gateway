@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/client';
-import type { Instance, Service } from '../types';
-import { StatusBadge } from '../components/ui';
+import { useTranslation } from 'react-i18next';
+import { api } from '../../lib/client';
+import type { Instance, Service } from '../../types';
+import { StatusBadge } from '../../components/ui';
 
 export default function HealthPage() {
+  const { t } = useTranslation('admin');
   const [instances, setInstances] = useState<Instance[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [err, setErr] = useState('');
@@ -20,9 +22,9 @@ export default function HealthPage() {
       setLast(new Date().toLocaleTimeString());
       setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '加载失败');
+      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -58,44 +60,44 @@ export default function HealthPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">实例健康</h1>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('health.title')}</h1>
         <div className="flex items-center gap-2 text-xs text-slate-400">
-          <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300">刷新</button>
-          {last && <span>更新于 {last}</span>}
+          <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">{t('common.refresh')}</button>
+          {last && <span>{t('health.updatedAt', { time: last })}</span>}
         </div>
       </div>
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
+      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       {/* 健康汇总 */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-emerald-600">{counts.healthy}</p>
-          <p className="text-xs text-slate-500">健康 healthy</p>
+          <p className="text-xs text-slate-500">{t('health.healthySummary')}</p>
         </div>
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-rose-600">{counts.unhealthy}</p>
-          <p className="text-xs text-slate-500">异常 unhealthy</p>
+          <p className="text-xs text-slate-500">{t('health.unhealthySummary')}</p>
         </div>
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-amber-500">{counts.recovering}</p>
-          <p className="text-xs text-slate-500">恢复 recovering</p>
+          <p className="text-xs text-slate-500">{t('health.recoveringSummary')}</p>
         </div>
-        <div className="rounded-xl bg-white p-4 text-center shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-slate-500">{counts.unknown}</p>
-          <p className="text-xs text-slate-500">未知 unknown</p>
+          <p className="text-xs text-slate-500">{t('health.unknownSummary')}</p>
         </div>
       </div>
 
       {groups.length === 0 && (
-        <p className="rounded-xl bg-white p-8 text-center text-sm text-slate-400">暂无实例</p>
+        <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">{t('instances.none')}</p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {groups.map(([serviceId, insts]) => (
-          <div key={serviceId} className="rounded-xl bg-white p-4 shadow-sm">
+          <div key={serviceId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">{svcName(serviceId)}</p>
-              <p className="text-xs text-slate-400">{insts.length} 实例</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{svcName(serviceId)}</p>
+              <p className="text-xs text-slate-400">{t('health.instanceCount', { count: insts.length })}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {insts.map((inst) => (
@@ -103,10 +105,10 @@ export default function HealthPage() {
                   key={inst.id}
                   className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
                     inst.health === 'healthy'
-                      ? 'border-emerald-200 bg-emerald-50'
+                      ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30'
                       : inst.health === 'unhealthy'
-                        ? 'border-rose-200 bg-rose-50'
-                        : 'border-slate-200 bg-slate-50'
+                        ? 'border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/30'
+                        : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-700/40'
                   }`}
                 >
                   <span className={`h-2 w-2 rounded-full ${
@@ -114,7 +116,7 @@ export default function HealthPage() {
                     : inst.health === 'unhealthy' ? 'bg-rose-500'
                     : 'bg-slate-400'
                   }`} />
-                  <span className="font-mono text-slate-700">{inst.address}:{inst.port}</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">{inst.address}:{inst.port}</span>
                   <StatusBadge value={inst.health} />
                   <StatusBadge value={inst.status} />
                 </div>

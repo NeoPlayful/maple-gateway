@@ -1,12 +1,13 @@
 // 配置驱动的通用资源管理页：列表 + 创建 + 启用/禁用 + 删除。
 // 适用于结构规整的后端 CRUD 资源（tenants/services/domains/deployments/nodes）。
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { list, create, remove, statusAction } from '../lib/modules';
 import { StatusBadge, ActionBtn } from '../components/ui';
 
 export interface FieldDef {
   key: string;
-  label: string;
+  label: string; // i18n key 或原文案
   type?: 'text' | 'number' | 'select' | 'textarea';
   required?: boolean;
   // select 选项：静态数组或从父资源拉取。
@@ -16,7 +17,7 @@ export interface FieldDef {
 }
 
 export interface PageDef {
-  title: string;
+  title: string; // i18n key
   path: string; // /api/admin/<resource>
   listName?: string; // 列表主键 key
   columns: { key: string; label: string; badge?: boolean; render?: (r: any) => string }[];
@@ -26,6 +27,7 @@ export interface PageDef {
 }
 
 export default function CrudPage({ def }: { def: PageDef }) {
+  const { t } = useTranslation('admin');
   const [rows, setRows] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState('');
@@ -38,9 +40,9 @@ export default function CrudPage({ def }: { def: PageDef }) {
       setRows(await list(def.path));
       setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '加载失败');
+      setErr(e instanceof Error ? e.message : t('common.loadFailed', '加载失败'));
     }
-  }, [def.path]);
+  }, [def.path, t]);
 
   const loadParents = useCallback(async () => {
     const out: Record<string, any[]> = {};
@@ -74,23 +76,23 @@ export default function CrudPage({ def }: { def: PageDef }) {
     setMsg('');
     try {
       await statusAction(def.path, id, act);
-      setMsg('操作成功');
+      setMsg(t('common.operateSuccess', '操作成功'));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '操作失败');
+      setErr(e instanceof Error ? e.message : t('common.operateFailed', '操作失败'));
     }
   };
 
   const doDelete = async (id: string) => {
-    if (!window.confirm('确认删除？')) return;
+    if (!window.confirm(t('common.confirmDelete', '确认删除？'))) return;
     setErr('');
     setMsg('');
     try {
       await remove(def.path, id);
-      setMsg('已删除');
+      setMsg(t('common.deleteSuccess', '已删除'));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '删除失败');
+      setErr(e instanceof Error ? e.message : t('common.deleteFailed', '删除失败'));
     }
   };
 
@@ -101,7 +103,7 @@ export default function CrudPage({ def }: { def: PageDef }) {
     for (const f of def.createFields) {
       const v = form[f.key];
       if (f.required && !v) {
-        setErr(`请填写${f.label}`);
+        setErr(t('crud.requiredField', { defaultValue: '请填写{{field}}', field: t(f.label) }));
         return;
       }
       if (v === '' || v === undefined) continue;
@@ -109,12 +111,12 @@ export default function CrudPage({ def }: { def: PageDef }) {
     }
     try {
       await create(def.path, body);
-      setMsg('创建成功');
+      setMsg(t('common.createSuccess', '创建成功'));
       setOpen(false);
       setForm({});
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '创建失败');
+      setErr(e instanceof Error ? e.message : t('common.createFailed', '创建失败'));
     }
   };
 
@@ -132,30 +134,40 @@ export default function CrudPage({ def }: { def: PageDef }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">{def.title}</h1>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t(def.title)}</h1>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
         >
-          {open ? '收起' : `+ 新建${def.title}`}
+          {open ? t('common.collapse', '收起') : `+ ${t('common.new', '新建')}${t(def.title)}`}
         </button>
       </div>
-      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>}
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
+      {msg && (
+        <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          {msg}
+        </p>
+      )}
+      {err && (
+        <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+          {err}
+        </p>
+      )}
 
       {open && (
-        <div className="mb-5 rounded-xl bg-white p-5 shadow-sm">
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {def.createFields.map((f) => (
               <div key={f.key}>
-                <label className="mb-1 block text-xs text-slate-500">{f.label}</label>
+                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+                  {t(f.label)}
+                </label>
                 {f.type === 'select' || f.loadOptions ? (
                   <select
                     value={form[f.key] ?? ''}
                     onChange={(e) => setForm((m) => ({ ...m, [f.key]: e.target.value }))}
-                    className="w-full rounded border px-2 py-1.5 text-sm"
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                   >
-                    <option value="">选择…</option>
+                    <option value="">{t('common.select', '选择…')}</option>
                     {opt(f).map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
@@ -166,14 +178,15 @@ export default function CrudPage({ def }: { def: PageDef }) {
                   <textarea
                     value={form[f.key] ?? ''}
                     onChange={(e) => setForm((m) => ({ ...m, [f.key]: e.target.value }))}
-                    className="w-full rounded border px-2 py-1.5 text-sm"
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                   />
                 ) : (
                   <input
                     type={f.type === 'number' ? 'number' : 'text'}
+                    placeholder={f.placeholder ? t(f.placeholder) : undefined}
                     value={form[f.key] ?? ''}
                     onChange={(e) => setForm((m) => ({ ...m, [f.key]: e.target.value }))}
-                    className="w-full rounded border px-2 py-1.5 text-sm"
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500"
                   />
                 )}
               </div>
@@ -181,38 +194,50 @@ export default function CrudPage({ def }: { def: PageDef }) {
           </div>
           <button
             onClick={submit}
-            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
+            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600"
           >
-            创建
+            {t('common.create', '创建')}
           </button>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
               {def.columns.map((c) => (
                 <th key={c.key} className="px-4 py-2">
-                  {c.label}
+                  {t(c.label)}
                 </th>
               ))}
-              <th className="px-4 py-2">操作</th>
+              <th className="px-4 py-2">{t('common.action', '操作')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={def.columns.length + 1} className="px-4 py-6 text-center text-slate-400">
-                  暂无数据
+                <td
+                  colSpan={def.columns.length + 1}
+                  className="px-4 py-6 text-center text-slate-400 dark:text-slate-500"
+                >
+                  {t('common.none', '暂无数据')}
                 </td>
               </tr>
             )}
             {rows.map((r) => (
-              <tr key={r.id} className="border-b hover:bg-slate-50">
+              <tr
+                key={r.id}
+                className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
+              >
                 {def.columns.map((c) => (
                   <td key={c.key} className="px-4 py-2">
-                    {c.badge ? <StatusBadge value={String(r[c.key])} /> : c.render ? c.render(r) : String(r[c.key] ?? '')}
+                    {c.badge ? (
+                      <StatusBadge value={String(r[c.key])} />
+                    ) : c.render ? (
+                      c.render(r)
+                    ) : (
+                      String(r[c.key] ?? '')
+                    )}
                   </td>
                 ))}
                 <td className="px-4 py-2">
@@ -220,11 +245,11 @@ export default function CrudPage({ def }: { def: PageDef }) {
                     {def.extraActions?.map((ea) =>
                       ea.act ? (
                         <ActionBtn key={ea.label} onClick={() => runAction(r.id, ea.act!)}>
-                          {ea.label}
+                          {t(ea.label)}
                         </ActionBtn>
                       ) : (
                         <ActionBtn key={ea.label} onClick={() => ea.onClick!(r.id)}>
-                          {ea.label}
+                          {t(ea.label)}
                         </ActionBtn>
                       ),
                     )}
@@ -232,14 +257,22 @@ export default function CrudPage({ def }: { def: PageDef }) {
                       def.statusActions!.map((sa) =>
                         sa === 'enable'
                           ? isInactive(r.status)
-                            ? <ActionBtn key={sa} onClick={() => runAction(r.id, sa)}>启用</ActionBtn>
+                            ? (
+                                <ActionBtn key={sa} onClick={() => runAction(r.id, sa)}>
+                                  {t('common.enable', '启用')}
+                                </ActionBtn>
+                              )
                             : null
                           : isActive(r.status)
-                            ? <ActionBtn key={sa} onClick={() => runAction(r.id, sa)}>禁用</ActionBtn>
+                            ? (
+                                <ActionBtn key={sa} onClick={() => runAction(r.id, sa)}>
+                                  {t('common.disable', '禁用')}
+                                </ActionBtn>
+                              )
                             : null,
                       )}
                     <ActionBtn danger onClick={() => doDelete(r.id)}>
-                      删除
+                      {t('common.delete', '删除')}
                     </ActionBtn>
                   </div>
                 </td>

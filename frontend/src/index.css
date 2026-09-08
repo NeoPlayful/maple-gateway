@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 暗色模式用 class 切换：<html class="dark"> 下激活 dark: 变体（theme store 维护）。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* v4 起裸 border/border-b 不再附带颜色，缺省为 currentColor（文字色），
    导致表格分隔线等显示为黑色。这里在 base 层恢复 v3 的浅灰默认边框色；
    utilities 层的 border-slate-* 等显式颜色类优先级更高，仍可正常覆盖。 */

@@ -1,24 +1,26 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './stores/auth';
 import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import TenantsPage from './pages/TenantsPage';
-import DomainsPage from './pages/DomainsPage';
-import ServicesPage from './pages/ServicesPage';
-import DeploymentsPage from './pages/DeploymentsPage';
-import InstancesPage from './pages/InstancesPage';
-import NodesPage from './pages/NodesPage';
-import TrafficPage from './pages/TrafficPage';
-import CanaryPage from './pages/CanaryPage';
-import LogsPage from './pages/LogsPage';
-import SettingsPage from './pages/SettingsPage';
-import RateLimitsPage from './pages/RateLimitsPage';
-import BlueGreenPage from './pages/BlueGreenPage';
-import HealthPage from './pages/HealthPage';
+import DashboardPage from './pages/admin/DashboardPage';
+import TenantsPage from './pages/admin/TenantsPage';
+import DomainsPage from './pages/admin/DomainsPage';
+import ServicesPage from './pages/admin/ServicesPage';
+import DeploymentsPage from './pages/admin/DeploymentsPage';
+import InstancesPage from './pages/admin/InstancesPage';
+import NodesPage from './pages/admin/NodesPage';
+import TrafficPage from './pages/admin/TrafficPage';
+import CanaryPage from './pages/admin/CanaryPage';
+import LogsPage from './pages/admin/LogsPage';
+import SettingsPage from './pages/admin/SettingsPage';
+import RateLimitsPage from './pages/admin/RateLimitsPage';
+import BlueGreenPage from './pages/admin/BlueGreenPage';
+import HealthPage from './pages/admin/HealthPage';
 
 export default function App() {
+  const { t } = useTranslation('admin');
   const restore = useAuth((s) => s.restore);
   const initialized = useAuth((s) => s.initialized);
 
@@ -28,8 +30,8 @@ export default function App() {
 
   if (!initialized) {
     return (
-      <div className="flex h-screen items-center justify-center text-slate-400">
-        加载中…
+      <div className="flex h-screen items-center justify-center text-slate-400 dark:text-slate-500">
+        {t('app.loading', '加载中…')}
       </div>
     );
   }
