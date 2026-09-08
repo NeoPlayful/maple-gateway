@@ -7,10 +7,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entadmin "github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -23,14 +24,14 @@ type Claims struct {
 
 // Service 封装认证逻辑。
 type Service struct {
-	pool   *pgxpool.Pool
+	ent    *ent.Client
 	secret []byte
 	ttl    time.Duration
 }
 
 // NewService 构造认证服务。
-func NewService(pool *pgxpool.Pool, secret []byte, ttl time.Duration) *Service {
-	return &Service{pool: pool, secret: secret, ttl: ttl}
+func NewService(client *ent.Client, secret []byte, ttl time.Duration) *Service {
+	return &Service{ent: client, secret: secret, ttl: ttl}
 }
 
 // Secret 从环境变量读取，缺省用开发默认（生产必须注入 MAPLE_JWT_SECRET）。
@@ -62,31 +63,32 @@ type AdminInfo struct {
 
 // Login 校验邮箱密码，签发 JWT。失败统一返回"邮箱或密码错误"避免账号枚举。
 func (s *Service) Login(ctx context.Context, in LoginInput) (*LoginResult, error) {
-	var (
-		id, email, name, status, hash string
-	)
-	err := s.pool.QueryRow(ctx,
-		`SELECT id::text, email, name, status, password_hash FROM admins WHERE email=$1`,
-		in.Email).Scan(&id, &email, &name, &status, &hash)
-	if errors.Is(err, pgx.ErrNoRows) {
+	a, err := s.ent.Admin.Query().
+		Where(entadmin.EmailEQ(in.Email)).
+		Only(ctx)
+	if ent.IsNotFound(err) {
 		return nil, pkg.ErrUnauthorized("邮箱或密码错误")
 	}
 	if err != nil {
 		return nil, pkg.ErrSystem("查询管理员失败")
 	}
-	if status != "active" {
+	if a.Status != "active" {
 		return nil, pkg.ErrUnauthorized("管理员已被禁用")
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash), []byte(in.Password)); err != nil {
 		return nil, pkg.ErrUnauthorized("邮箱或密码错误")
 	}
 
+	name := a.Name
+	if name == nil {
+		name = stringPtr("")
+	}
 	now := time.Now()
 	claims := Claims{
-		AdminID: id,
-		Email:   email,
+		AdminID: a.ID.String(),
+		Email:   a.Email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   id,
+			Subject:   a.ID.String(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.ttl)),
 		},
@@ -98,25 +100,34 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*LoginResult, error
 
 	return &LoginResult{
 		Token: signed,
-		Admin: AdminInfo{ID: id, Email: email, Name: name},
+		Admin: AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name},
 	}, nil
 }
 
 // AdminByID 查询管理员基础信息（me 接口）。
 func (s *Service) AdminByID(ctx context.Context, id string) (*AdminInfo, error) {
-	var info AdminInfo
-	var status string
-	err := s.pool.QueryRow(ctx,
-		`SELECT id::text, email, name, status FROM admins WHERE id=$1`, id).
-		Scan(&info.ID, &info.Email, &info.Name, &status)
+	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, pkg.ErrUnauthorized("管理员不存在")
 	}
-	if status != "active" {
+	a, err := s.ent.Admin.Get(ctx, uid)
+	if ent.IsNotFound(err) {
+		return nil, pkg.ErrUnauthorized("管理员不存在")
+	}
+	if err != nil {
+		return nil, pkg.ErrSystem("查询管理员失败")
+	}
+	if a.Status != "active" {
 		return nil, pkg.ErrForbidden("管理员已被禁用")
 	}
-	return &info, nil
+	name := a.Name
+	if name == nil {
+		name = stringPtr("")
+	}
+	return &AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name}, nil
 }
+
+func stringPtr(s string) *string { return &s }
 
 // Parse 校验 token 并返回 Claims。
 func (s *Service) Parse(tokenStr string) (*Claims, error) {

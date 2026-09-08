@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // Service 编排 Blue/Green 动作。
@@ -46,62 +46,61 @@ func (s *Service) Create(ctx context.Context, in NewBG) (*BGDeployment, error) {
 
 // ApplyInitial 使 initial_active 立即生效（双版本归属校验 + 翻转）。
 func (s *Service) ApplyInitial(ctx context.Context, id uuid.UUID) (*BGDeployment, error) {
-	return s.repo.Transition(ctx, id, func(ctx context.Context, tx pgx.Tx, bg *BGDeployment) error {
+	return s.repo.Transition(ctx, id, func(ctx context.Context, c *ent.Client, bg *BGDeployment) error {
 		// 校验 blue/green 归属同一部署。
-		blueDep, err := versionDeployment(ctx, tx, bg.BlueVersionID)
+		blueDep, err := versionDeployment(ctx, c, bg.BlueVersionID)
 		if err != nil {
 			return err
 		}
-		greenDep, err := versionDeployment(ctx, tx, bg.GreenVersionID)
+		greenDep, err := versionDeployment(ctx, c, bg.GreenVersionID)
 		if err != nil {
 			return err
 		}
 		if blueDep != bg.DeploymentID || greenDep != bg.DeploymentID {
 			return pkg.ErrValidation("blue/green 版本必须属于该部署")
 		}
-		if err := flipActive(ctx, tx, bg, bg.ActiveVersionID, false); err != nil {
+		if err := flipActive(ctx, c, bg, bg.ActiveVersionID, false); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, bg.ID, "switch", uuid.Nil, bg.ActiveVersionID,
+		return insertEvent(ctx, c, bg.ID, "switch", uuid.Nil, bg.ActiveVersionID,
 			"initial activate: "+bg.ActiveVersionID.String())
 	})
 }
 
 // Switch 切换 active 到目标版本。
 func (s *Service) Switch(ctx context.Context, id uuid.UUID, target uuid.UUID) (*BGDeployment, error) {
-	return s.repo.Transition(ctx, id, func(ctx context.Context, tx pgx.Tx, bg *BGDeployment) error {
+	return s.repo.Transition(ctx, id, func(ctx context.Context, c *ent.Client, bg *BGDeployment) error {
 		if target == bg.ActiveVersionID {
 			return pkg.ErrValidation("target 已是当前 active 版本")
 		}
-		if err := flipActive(ctx, tx, bg, target, true); err != nil {
+		if err := flipActive(ctx, c, bg, target, true); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, bg.ID, "switch", bg.ActiveVersionID, target,
+		return insertEvent(ctx, c, bg.ID, "switch", bg.ActiveVersionID, target,
 			fmt.Sprintf("switch active to %s", target))
 	})
 }
 
 // Rollback 切回上一 active。
 func (s *Service) Rollback(ctx context.Context, id uuid.UUID) (*BGDeployment, error) {
-	return s.repo.Transition(ctx, id, func(ctx context.Context, tx pgx.Tx, bg *BGDeployment) error {
+	return s.repo.Transition(ctx, id, func(ctx context.Context, c *ent.Client, bg *BGDeployment) error {
 		if bg.PreviousActiveID == nil {
 			return pkg.ErrConflict("无上一 active 可回滚")
 		}
 		prev := *bg.PreviousActiveID
-		if err := flipActive(ctx, tx, bg, prev, true); err != nil {
+		if err := flipActive(ctx, c, bg, prev, true); err != nil {
 			return err
 		}
-		return insertEvent(ctx, tx, bg.ID, "rollback", bg.ActiveVersionID, prev,
+		return insertEvent(ctx, c, bg.ID, "rollback", bg.ActiveVersionID, prev,
 			"rollback to previous active "+prev.String())
 	})
 }
 
 // versionDeployment 查询版本所属 deployment。
-func versionDeployment(ctx context.Context, tx pgx.Tx, id uuid.UUID) (uuid.UUID, error) {
-	var dep uuid.UUID
-	err := tx.QueryRow(ctx, `SELECT deployment_id FROM deployment_versions WHERE id=$1::uuid`, id).Scan(&dep)
+func versionDeployment(ctx context.Context, c *ent.Client, id uuid.UUID) (uuid.UUID, error) {
+	v, err := c.DeploymentVersion.Get(ctx, id)
 	if err != nil {
 		return uuid.Nil, pkg.ErrValidation("版本不存在: " + id.String())
 	}
-	return dep, nil
+	return v.DeploymentID, nil
 }

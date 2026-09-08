@@ -9,17 +9,16 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Handler 是系统接口处理器。
 type Handler struct {
-	pool *pgxpool.Pool
+	probe func(ctx context.Context) error
 }
 
-// NewHandler 构造。pool 为 nil 表示无 DB（无 DB 部署时 ready 报 not-ready）。
-func NewHandler(pool *pgxpool.Pool) *Handler {
-	return &Handler{pool: pool}
+// NewHandler 构造。probe 为 nil 表示无 DB（无 DB 部署时 ready 报 not-ready）。
+func NewHandler(probe func(ctx context.Context) error) *Handler {
+	return &Handler{probe: probe}
 }
 
 // Health GET /api/system/health —— 进程存活即 ok。
@@ -34,12 +33,12 @@ func (h *Handler) Live(c fiber.Ctx) error {
 
 // Ready GET /api/system/ready —— DB 就绪才 ready。
 func (h *Handler) Ready(c fiber.Ctx) error {
-	if h.pool == nil {
+	if h.probe == nil {
 		return c.Status(503).JSON(fiber.Map{"status": "not_ready", "reason": "no database"})
 	}
 	ctx, cancel := context.WithTimeout(c.Context(), 2*time.Second)
 	defer cancel()
-	if err := h.pool.Ping(ctx); err != nil {
+	if err := h.probe(ctx); err != nil {
 		return c.Status(503).JSON(fiber.Map{"status": "not_ready", "reason": "database unreachable"})
 	}
 	return c.JSON(fiber.Map{"status": "ready"})

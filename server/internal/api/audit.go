@@ -12,12 +12,12 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/google/uuid"
 )
 
 // auditMiddleware 把 admin 组的写操作（非 GET/HEAD）记入 audit_logs。
 // 记录请求成功（<400）后执行；写操作低频，同步落库即可。
-func auditMiddleware(pool *pgxpool.Pool) fiber.Handler {
+func auditMiddleware(client *ent.Client) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		err := c.Next()
 
@@ -32,17 +32,36 @@ func auditMiddleware(pool *pgxpool.Pool) fiber.Handler {
 		path := c.Path()
 		ctx, cancel := context.WithTimeout(c.Context(), 2*time.Second)
 		defer cancel()
-		_, _ = pool.Exec(ctx,
-			`INSERT INTO audit_logs(admin_id, action, target_type, target_id, ip)
-			 VALUES($1,$2,$3,$4,$5)`,
-			nullStr(auth.AdminID(c)),
-			method+" "+path,
-			resourceFromPath(path),
-			segmentFromPath(path),
-			c.IP(),
-		)
+		_, _ = client.AuditLog.Create().
+			SetNillableAdminID(parseUUIDOpt(auth.AdminID(c))).
+			SetAction(method + " " + path).
+			SetTargetType(resourceFromPath(path)).
+			SetNillableTargetID(optStr(segmentFromPath(path))).
+			SetIP(c.IP()).
+			SetCreatedAt(time.Now()).
+			Save(ctx)
 		return err
 	}
+}
+
+// parseUUIDOpt 把非空字符串解析为 *uuid.UUID；空或非法返回 nil。
+func parseUUIDOpt(s string) *uuid.UUID {
+	if s == "" {
+		return nil
+	}
+	u, err := uuid.Parse(s)
+	if err != nil {
+		return nil
+	}
+	return &u
+}
+
+// optStr 空串返回 nil，否则返回指针。
+func optStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // resourceFromPath 取路径第一资源段，如 /api/admin/tenants/:id → tenants。
@@ -75,12 +94,6 @@ func segmentFromPath(path string) string {
 	return ""
 }
 
-func nullStr(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
 
 // auditLogsHandler 查询 audit_logs 表（分页 + action/时间过滤，基于 Ent）。
 type auditLogsHandler struct {

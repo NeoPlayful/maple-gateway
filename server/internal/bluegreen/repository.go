@@ -2,7 +2,6 @@ package bluegreen
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -11,33 +10,17 @@ import (
 	entbg "github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Repository 是 Blue/Green 数据访问层。
-// 普通 CRUD 走 Ent；Transition 事务链（FOR UPDATE 行锁 + 版本角色翻转）保留 pgxpool。
+// 普通 CRUD 与 Transition 均走 Ent；Transition 以事务内乐观条件更新防并发。
 type Repository struct {
-	ent  *ent.Client
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(client *ent.Client, pool *pgxpool.Pool) *Repository {
-	return &Repository{ent: client, pool: pool}
-}
-
-const cols = `id, deployment_id, blue_version_id, green_version_id, active_version_id,
-	previous_active_id, created_at, updated_at`
-
-func scanBG(row pgx.Row) (*BGDeployment, error) {
-	var b BGDeployment
-	err := row.Scan(&b.ID, &b.DeploymentID, &b.BlueVersionID, &b.GreenVersionID,
-		&b.ActiveVersionID, &b.PreviousActiveID, &b.CreatedAt, &b.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &b, nil
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
 func toModel(e *ent.BluegreenDeployment) *BGDeployment {
@@ -134,34 +117,43 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 // Transition 事务内执行角色翻转动作。
 func (r *Repository) Transition(ctx context.Context, id uuid.UUID,
-	fn func(ctx context.Context, tx pgx.Tx, bg *BGDeployment) error) (*BGDeployment, error) {
-	tx, err := r.pool.Begin(ctx)
+	fn func(ctx context.Context, tc *ent.Client, bg *BGDeployment) error) (*BGDeployment, error) {
+	tx, err := r.ent.Tx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	bg, err := scanBG(tx.QueryRow(ctx,
-		`SELECT `+cols+` FROM bluegreen_deployments WHERE id=$1 FOR UPDATE`, id))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("Blue/Green 配置不存在")
-	}
+	defer func() { _ = tx.Rollback() }()
+	tc := tx.Client()
+
+	bg, err := toBG(tc.BluegreenDeployment.Get(ctx, id))
 	if err != nil {
 		return nil, err
 	}
-	if err := fn(ctx, tx, bg); err != nil {
+	if err := fn(ctx, tc, bg); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return r.Get(ctx, id)
+}
+
+func toBG(e *ent.BluegreenDeployment, err error) (*BGDeployment, error) {
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("Blue/Green 配置不存在")
+		}
+		return nil, err
+	}
+	return toModel(e), nil
 }
 
 // ---------- 事务内 helper ----------
 
 // flipActive 把 bg.active 翻转为 target：active 版本 weight 100 + 状态 active；
 // 另一版本 weight 0 + standby。recordPrev 为 true 时把翻转前的 active 记为 previous（供回滚）。
-func flipActive(ctx context.Context, tx pgx.Tx, bg *BGDeployment, target uuid.UUID, recordPrev bool) error {
+// 乐观条件：WHERE active_version_id=bg.ActiveVersionID，防止基于过期状态并发翻转。
+func flipActive(ctx context.Context, c *ent.Client, bg *BGDeployment, target uuid.UUID, recordPrev bool) error {
 	if target != bg.BlueVersionID && target != bg.GreenVersionID {
 		return pkg.ErrValidation("target 必须是 blue 或 green 版本")
 	}
@@ -169,46 +161,57 @@ func flipActive(ctx context.Context, tx pgx.Tx, bg *BGDeployment, target uuid.UU
 	if target == bg.BlueVersionID {
 		other = bg.GreenVersionID
 	}
-	if err := setVersionRole(ctx, tx, target, "active", 100); err != nil {
+	if err := setVersionRole(ctx, c, target, "active", 100); err != nil {
 		return err
 	}
-	if err := setVersionRole(ctx, tx, other, "standby", 0); err != nil {
+	if err := setVersionRole(ctx, c, other, "standby", 0); err != nil {
 		return err
 	}
+	upd := c.BluegreenDeployment.Update().
+		Where(
+			entbg.ID(bg.ID),
+			entbg.ActiveVersionID(bg.ActiveVersionID),
+		).
+		SetActiveVersionID(target).
+		SetUpdatedAt(time.Now())
 	if recordPrev {
-		if _, err := tx.Exec(ctx, `
-			UPDATE bluegreen_deployments SET active_version_id=$2::uuid,
-				previous_active_id=$3::uuid, updated_at=now()
-			WHERE id=$1::uuid`, bg.ID, target, bg.ActiveVersionID); err != nil {
-			return fmt.Errorf("update bluegreen active: %w", err)
-		}
+		upd = upd.SetPreviousActiveID(bg.ActiveVersionID)
 	} else {
 		// initial 激活：previous 无意义，置 NULL。
-		if _, err := tx.Exec(ctx, `
-			UPDATE bluegreen_deployments SET active_version_id=$2::uuid,
-				previous_active_id=NULL, updated_at=now()
-			WHERE id=$1::uuid`, bg.ID, target); err != nil {
-			return fmt.Errorf("update bluegreen initial active: %w", err)
-		}
+		upd = upd.ClearPreviousActiveID()
+	}
+	n, err := upd.Save(ctx)
+	if err != nil {
+		return fmt.Errorf("update bluegreen active: %w", err)
+	}
+	if n == 0 {
+		return pkg.ErrConflict("Blue/Green active 已被并发变更，请重试")
 	}
 	return nil
 }
 
-func setVersionRole(ctx context.Context, tx pgx.Tx, id uuid.UUID, status string, weight int) error {
-	if _, err := tx.Exec(ctx, `
-		UPDATE deployment_versions SET status=$2, weight=$3, updated_at=now() WHERE id=$1::uuid`,
-		id, status, weight); err != nil {
+func setVersionRole(ctx context.Context, c *ent.Client, id uuid.UUID, status string, weight int) error {
+	if err := c.DeploymentVersion.UpdateOneID(id).
+		SetStatus(status).
+		SetWeight(weight).
+		SetUpdatedAt(time.Now()).
+		Exec(ctx); err != nil {
 		return fmt.Errorf("set version role: %w", err)
 	}
 	return nil
 }
 
 // insertEvent 写切换历史。
-func insertEvent(ctx context.Context, tx pgx.Tx, bgID uuid.UUID, action string,
+func insertEvent(ctx context.Context, c *ent.Client, bgID uuid.UUID, action string,
 	from, to uuid.UUID, detail string) error {
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO bluegreen_events(bg_id, action, from_active, to_active, detail)
-		VALUES($1, $2, $3, $4, $5)`, bgID, action, from, to, detail); err != nil {
+	if err := c.BluegreenEvent.Create().
+		SetBgID(bgID).
+		SetAction(action).
+		SetFromActive(from).
+		SetToActive(to).
+		SetDetail(detail).
+		SetCreatedAt(time.Now()).
+		Exec(ctx); err != nil {
 		return fmt.Errorf("insert bluegreen event: %w", err)
 	}
 	return nil

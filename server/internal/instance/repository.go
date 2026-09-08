@@ -2,7 +2,6 @@ package instance
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -14,21 +13,16 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/security"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Repository 是 Instance 数据访问层。
-// 主 CRUD 走 Ent；validateMount 需跨表查询 deployment_versions（尚未建 Ent schema），仍用 pgxpool。
-// S3 迁移 deployment 后可移除 pool。
 type Repository struct {
-	ent  *ent.Client
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(client *ent.Client, pool *pgxpool.Pool) *Repository {
-	return &Repository{ent: client, pool: pool}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
 // toModel 把 Ent 实体映射为领域模型。
@@ -346,16 +340,14 @@ func (r *Repository) validateMount(ctx context.Context, serviceID uuid.UUID,
 	if deploymentID == nil {
 		return pkg.ErrValidation("指定 version_id 时必须同时指定 deployment_id")
 	}
-	var depOfVersion uuid.UUID
-	err := r.pool.QueryRow(ctx,
-		`SELECT deployment_id FROM deployment_versions WHERE id=$1`, *versionID).Scan(&depOfVersion)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return pkg.ErrValidation("版本不存在")
-	}
+	v, err := r.ent.DeploymentVersion.Get(ctx, *versionID)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrValidation("版本不存在")
+		}
 		return fmt.Errorf("check version: %w", err)
 	}
-	if depOfVersion != *deploymentID {
+	if v.DeploymentID != *deploymentID {
 		return pkg.ErrValidation("version_id 不属于该 deployment")
 	}
 	return nil

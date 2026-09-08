@@ -4,17 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entcanary "github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
+	entinstance "github.com/NeoPlayful/maple-gateway/server/ent/instance"
+	entnode "github.com/NeoPlayful/maple-gateway/server/ent/node"
+	entservice "github.com/NeoPlayful/maple-gateway/server/ent/service"
+	"github.com/google/uuid"
 )
 
-// Repository 提供 Dashboard 只读聚合查询。
+// Repository 提供 Dashboard 只读聚合查询（基于 Ent）。
 type Repository struct {
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
 // Overview 聚合 Dashboard 总览所需数据：计数、实例/节点分布、进行中的 canary。
@@ -34,8 +40,7 @@ func (r *Repository) Overview(ctx context.Context) (Overview, error) {
 	if o.RunningCanary, err = r.runningCanary(ctx); err != nil {
 		return o, err
 	}
-	if o.RunningBG, err = r.countWhere(ctx,
-		`SELECT count(*) FROM bluegreen_deployments WHERE active_version_id IS NOT NULL`); err != nil {
+	if o.RunningBG, err = r.runningBG(ctx); err != nil {
 		return o, err
 	}
 	return o, nil
@@ -46,23 +51,23 @@ func (r *Repository) counts(ctx context.Context) (Counts, error) {
 	var c Counts
 	items := []struct {
 		dst *int
-		sql string
+		q   func(context.Context) (int, error)
 	}{
-		{&c.Tenants, "SELECT count(*) FROM tenants"},
-		{&c.Domains, "SELECT count(*) FROM domains"},
-		{&c.Services, "SELECT count(*) FROM services"},
-		{&c.Instances, "SELECT count(*) FROM instances"},
-		{&c.Nodes, "SELECT count(*) FROM nodes"},
-		{&c.Deployments, "SELECT count(*) FROM deployments"},
-		{&c.Versions, "SELECT count(*) FROM deployment_versions"},
-		{&c.Policies, "SELECT count(*) FROM traffic_policies"},
-		{&c.RateLimits, "SELECT count(*) FROM rate_limits"},
-		{&c.Canary, "SELECT count(*) FROM canary_releases"},
-		{&c.BlueGreen, "SELECT count(*) FROM bluegreen_deployments"},
-		{&c.Admins, "SELECT count(*) FROM admins"},
+		{&c.Tenants, r.ent.Tenant.Query().Count},
+		{&c.Domains, r.ent.Domain.Query().Count},
+		{&c.Services, r.ent.Service.Query().Count},
+		{&c.Instances, r.ent.Instance.Query().Count},
+		{&c.Nodes, r.ent.Node.Query().Count},
+		{&c.Deployments, r.ent.Deployment.Query().Count},
+		{&c.Versions, r.ent.DeploymentVersion.Query().Count},
+		{&c.Policies, r.ent.TrafficPolicy.Query().Count},
+		{&c.RateLimits, r.ent.RateLimit.Query().Count},
+		{&c.Canary, r.ent.CanaryRelease.Query().Count},
+		{&c.BlueGreen, r.ent.BluegreenDeployment.Query().Count},
+		{&c.Admins, r.ent.Admin.Query().Count},
 	}
 	for _, it := range items {
-		n, err := r.countWhere(ctx, it.sql)
+		n, err := it.q(ctx)
 		if err != nil {
 			return c, fmt.Errorf("dashboard counts: %w", err)
 		}
@@ -73,39 +78,45 @@ func (r *Repository) counts(ctx context.Context) (Counts, error) {
 
 // instanceDist 实例总数 / 可路由数（enabled+healthy）/ health 与 status 分布。
 func (r *Repository) instanceDist(ctx context.Context) (Instances, error) {
-	var (
-		d                     Instances
-		hHealthy, hUnhealthy  int
-		hUnknown, hRecovering int
-		sEnabled, sDisabled   int
-		sDraining             int
-	)
+	var d Instances
 	d.ByHealth = map[string]int{}
 	d.ByStatus = map[string]int{}
-	err := r.pool.QueryRow(ctx, `
-		SELECT
-			count(*) AS total,
-			count(*) FILTER (WHERE status='enabled' AND health='healthy') AS routable,
-			count(*) FILTER (WHERE health='healthy'),
-			count(*) FILTER (WHERE health='unhealthy'),
-			count(*) FILTER (WHERE health='unknown'),
-			count(*) FILTER (WHERE health='recovering'),
-			count(*) FILTER (WHERE status='enabled'),
-			count(*) FILTER (WHERE status='disabled'),
-			count(*) FILTER (WHERE status='draining')
-		FROM instances`).Scan(&d.Total, &d.Routable,
-		&hHealthy, &hUnhealthy, &hUnknown, &hRecovering,
-		&sEnabled, &sDisabled, &sDraining)
+
+	total, err := r.ent.Instance.Query().Count(ctx)
 	if err != nil {
-		return d, fmt.Errorf("dashboard instances: %w", err)
+		return d, fmt.Errorf("dashboard instances total: %w", err)
 	}
-	d.ByHealth["healthy"] = hHealthy
-	d.ByHealth["unhealthy"] = hUnhealthy
-	d.ByHealth["unknown"] = hUnknown
-	d.ByHealth["recovering"] = hRecovering
-	d.ByStatus["enabled"] = sEnabled
-	d.ByStatus["disabled"] = sDisabled
-	d.ByStatus["draining"] = sDraining
+	d.Total = total
+
+	routable, err := r.ent.Instance.Query().
+		Where(
+			entinstance.StatusEQ("enabled"),
+			entinstance.HealthEQ("healthy"),
+		).
+		Count(ctx)
+	if err != nil {
+		return d, fmt.Errorf("dashboard instances routable: %w", err)
+	}
+	d.Routable = routable
+
+	for _, h := range []string{"healthy", "unhealthy", "unknown", "recovering"} {
+		n, err := r.ent.Instance.Query().
+			Where(entinstance.HealthEQ(h)).
+			Count(ctx)
+		if err != nil {
+			return d, fmt.Errorf("dashboard instances health %s: %w", h, err)
+		}
+		d.ByHealth[h] = n
+	}
+	for _, s := range []string{"enabled", "disabled", "draining"} {
+		n, err := r.ent.Instance.Query().
+			Where(entinstance.StatusEQ(s)).
+			Count(ctx)
+		if err != nil {
+			return d, fmt.Errorf("dashboard instances status %s: %w", s, err)
+		}
+		d.ByStatus[s] = n
+	}
 	return d, nil
 }
 
@@ -113,53 +124,75 @@ func (r *Repository) instanceDist(ctx context.Context) (Instances, error) {
 func (r *Repository) nodeDist(ctx context.Context) (Nodes, error) {
 	var d Nodes
 	d.ByStatus = map[string]int{}
-	rows, err := r.pool.Query(ctx,
-		`SELECT status, count(*) FROM nodes GROUP BY status`)
-	if err != nil {
+	type row struct {
+		Status string `json:"status"`
+		Count  int    `json:"count"`
+	}
+	var rows []row
+	if err := r.ent.Node.Query().
+		GroupBy(entnode.FieldStatus).
+		Aggregate(func(s *sql.Selector) string { return sql.Count("*") }).
+		Scan(ctx, &rows); err != nil {
 		return d, fmt.Errorf("dashboard nodes: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var status string
-		var n int
-		if err := rows.Scan(&status, &n); err != nil {
-			return d, err
-		}
-		d.Total += n
-		d.ByStatus[status] = n
+	for _, r := range rows {
+		d.Total += r.Count
+		d.ByStatus[r.Status] = r.Count
 	}
-	return d, rows.Err()
+	return d, nil
+}
+
+// runningBG 进行中的 Blue/Green（active 已激活计数）。
+func (r *Repository) runningBG(ctx context.Context) (int, error) {
+	// 语义同旧 SQL：active_version_id IS NOT NULL 的行数。active_version_id 为非空字段时等价于整表行数。
+	n, err := r.ent.BluegreenDeployment.Query().Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("dashboard running bluegreen: %w", err)
+	}
+	return n, nil
 }
 
 // runningCanary 进行中 canary（created/running/paused）精简视图，附服务名。
 func (r *Repository) runningCanary(ctx context.Context) ([]Canary, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT cr.id, cr.service_id, s.name AS service_name, cr.name,
-			cr.phase, cr.canary_weight, cr.target_weight
-		FROM canary_releases cr
-		LEFT JOIN services s ON s.id = cr.service_id
-		WHERE cr.phase IN ('created','running','paused')
-		ORDER BY cr.created_at DESC LIMIT 20`)
+	es, err := r.ent.CanaryRelease.Query().
+		Where(entcanary.PhaseIn("created", "running", "paused")).
+		Order(entcanary.ByCreatedAt(sql.OrderDesc())).
+		Limit(20).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard running canary: %w", err)
 	}
-	defer rows.Close()
-	out := []Canary{}
-	for rows.Next() {
-		var c Canary
-		if err := rows.Scan(&c.ID, &c.ServiceID, &c.ServiceName, &c.Name,
-			&c.Phase, &c.CanaryWeight, &c.TargetWeight); err != nil {
-			return nil, err
-		}
-		out = append(out, c)
+	if len(es) == 0 {
+		return []Canary{}, nil
 	}
-	return out, rows.Err()
-}
 
-func (r *Repository) countWhere(ctx context.Context, sql string) (int, error) {
-	var n int
-	if err := r.pool.QueryRow(ctx, sql).Scan(&n); err != nil {
-		return 0, err
+	// 批量取服务名（service_id → name），等价于 LEFT JOIN services。
+	svcIDs := make([]uuid.UUID, 0, len(es))
+	for _, e := range es {
+		svcIDs = append(svcIDs, e.ServiceID)
 	}
-	return n, nil
+	svcs, err := r.ent.Service.Query().
+		Where(entservice.IDIn(svcIDs...)).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard running canary services: %w", err)
+	}
+	svcName := map[uuid.UUID]string{}
+	for _, s := range svcs {
+		svcName[s.ID] = s.Name
+	}
+
+	out := make([]Canary, 0, len(es))
+	for _, e := range es {
+		out = append(out, Canary{
+			ID:           e.ID.String(),
+			ServiceID:    e.ServiceID.String(),
+			ServiceName:  svcName[e.ServiceID],
+			Name:         e.Name,
+			Phase:        e.Phase,
+			CanaryWeight: e.CanaryWeight,
+			TargetWeight: e.TargetWeight,
+		})
+	}
+	return out, nil
 }

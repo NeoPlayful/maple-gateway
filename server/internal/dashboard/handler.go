@@ -1,9 +1,9 @@
 package dashboard
 
 import (
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // StatFn 返回路由缓存命中/未命中统计（nil 时返回 0）。
@@ -16,9 +16,9 @@ type Handler struct {
 }
 
 // NewHandler 构造。stats 为 nil 时缓存统计填 0。
-func NewHandler(pool *pgxpool.Pool, stats StatFn) *Handler {
+func NewHandler(client *ent.Client, stats StatFn) *Handler {
 	return &Handler{
-		repo:  NewRepository(pool),
+		repo:  NewRepository(client),
 		stats: stats,
 	}
 }
