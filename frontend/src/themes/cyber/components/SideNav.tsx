@@ -1,7 +1,7 @@
 // cyber 风格侧边导航：胶囊激活项、图标置于色块、hover 发光。
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { SideNavProps } from '../../registry';
+import type { SideNavProps } from '../../../lib/themeTypes';
 
 export default function SideNav({ items, header, footer }: SideNavProps) {
   const { t } = useTranslation('admin');

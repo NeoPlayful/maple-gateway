@@ -1,7 +1,7 @@
 // default 风格侧边导航：紧凑扁平、小圆角激活块。
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { SideNavProps } from '../../registry';
+import type { SideNavProps } from '../../../lib/themeTypes';
 
 export default function SideNav({ items, header, footer }: SideNavProps) {
   const { t } = useTranslation('admin');

@@ -1,18 +1,33 @@
 import { create } from 'zustand';
+import { getAvailableThemes, loadThemeCSS } from '../lib/themeRegistry';
 
-export type ThemeName = 'default' | 'cyber';
+// 主题名：已知内置 + 运行期任意字符串（未来主题由 themeRegistry glob 自动发现，不再硬编码枚举）。
+// 若需保留"静态已知主题"的强类型，可只写 'default' | 'cyber'（放宽是为了加主题不改此文件）。
+export type ThemeName = 'default' | 'cyber' | (string & {});
 type Mode = 'light' | 'dark';
 
 // 应用命名空间 key（与 maple_token / maple-lang 同族），不随主题名改变。
 const THEME_KEY = 'maple-theme';
 const MODE_KEY = 'maple-theme-mode';
 
-const THEMES: ThemeName[] = ['default', 'cyber'];
+const FALLBACK_THEME: ThemeName = 'default';
+// 可用主题派生自各主题目录的 theme.css，加主题无需改这里。
+const availableThemes = getAvailableThemes();
 
-function readStored<T extends string>(key: string, valid: readonly T[]): T | null {
+function readStoredTheme(): ThemeName {
   try {
-    const saved = localStorage.getItem(key) as T | null;
-    if (saved && valid.includes(saved)) return saved;
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved && availableThemes.includes(saved as ThemeName)) return saved as ThemeName;
+  } catch {
+    /* ignore */
+  }
+  return FALLBACK_THEME;
+}
+
+function readStoredMode(): Mode | null {
+  try {
+    const saved = localStorage.getItem(MODE_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
   } catch {
     /* ignore */
   }
@@ -46,14 +61,16 @@ interface ThemeState {
   toggleMode: () => void;
 }
 
-const initialTheme = readStored<ThemeName>(THEME_KEY, THEMES) ?? 'default';
-const initialMode = readStored<Mode>(MODE_KEY, ['light', 'dark']) ?? readInitialMode();
+const initialTheme = readStoredTheme();
+const initialMode = readStoredMode() ?? readInitialMode();
 
 export const useTheme = create<ThemeState>((set, get) => ({
   theme: initialTheme,
   mode: initialMode,
 
   setTheme: (theme) => {
+    // 按需注入该主题 theme.css（default 已被 main.tsx 静态常驻，其余首切才加载；Vite 注入幂等）。
+    loadThemeCSS(theme);
     apply(theme, get().mode);
     persist(THEME_KEY, theme);
     set({ theme });
@@ -74,7 +91,8 @@ export const useTheme = create<ThemeState>((set, get) => ({
   },
 }));
 
-// 模块加载即应用一次（在浏览器中），避免首帧闪白。
+// 模块加载即应用一次（浏览器内），避免首帧闪白 / 用了上次主题却停留在 default 样式。
 if (typeof window !== 'undefined') {
+  loadThemeCSS(initialTheme);
   apply(initialTheme, initialMode);
 }

@@ -1,0 +1,6 @@
+{
+  "label": "Default",
+  "labelKey": "settings.themeDefault",
+  "description": "默认风格 — 翠绿强调、紧凑扁平",
+  "colors": ["#059669", "#34d399", "#d1fae5"]
+}

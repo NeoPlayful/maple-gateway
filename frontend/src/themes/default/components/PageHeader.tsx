@@ -1,5 +1,5 @@
 // default 风格页头：朴素一行标题 + 右侧操作区。
-import type { PageHeaderProps } from '../../registry';
+import type { PageHeaderProps } from '../../../lib/themeTypes';
 
 export default function PageHeader({ title, right }: PageHeaderProps) {
   return (

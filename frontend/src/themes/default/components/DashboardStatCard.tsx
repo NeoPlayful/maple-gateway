@@ -1,5 +1,5 @@
 // default 风格统计卡：紧凑扁平，细边 + 浅投影，数字+标签。
-import type { DashboardStatCardProps } from '../../registry';
+import type { DashboardStatCardProps } from '../../../lib/themeTypes';
 
 export default function DashboardStatCard({ label, value, unit }: DashboardStatCardProps) {
   return (
