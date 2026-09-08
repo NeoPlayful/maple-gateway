@@ -25,7 +25,15 @@ func InitLogger(level string, pretty bool) error {
 	} else {
 		encoder = zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
 	}
-	log = zap.New(zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), logAtomic))
+	// 手动组装 core 后补回 zap.Config.Build() 的默认：always caller；
+	// pretty（development）从 Warn、非 pretty（production）从 Error 起附带 stacktrace。
+	stackLevel := zapcore.ErrorLevel
+	if pretty {
+		stackLevel = zapcore.WarnLevel
+	}
+	log = zap.New(zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), logAtomic),
+		zap.AddCaller(),
+		zap.AddStacktrace(stackLevel))
 	zap.ReplaceGlobals(log)
 	return nil
 }
@@ -49,7 +57,9 @@ func Log() *zap.Logger {
 		a := zap.NewAtomicLevelAt(zapcore.InfoLevel)
 		logAtomic = &a
 		encoder := zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
-		log = zap.New(zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), logAtomic))
+		log = zap.New(zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), logAtomic),
+			zap.AddCaller(),
+			zap.AddStacktrace(zapcore.ErrorLevel))
 	}
 	return log
 }

@@ -213,6 +213,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}
 	}()
 
+	// 等 Fiber 打印完启动 banner 后再打进程状态汇总，避免输出顺序错乱。
+	time.Sleep(150 * time.Millisecond)
+	printStartupSummary(cfg.Management.Address, db, redisClient)
+
 	select {
 	case <-ctx.Done():
 		logger.Info("shutdown signal received")
@@ -233,6 +237,31 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	logger.Info("gateway stopped cleanly")
 	return nil
+}
+
+// 启动汇总的颜色码（ANSI 绿色 INFO 前缀，对齐 Shopirea 打印风格）。
+const (
+	colorGreen = "\033[32m"
+	colorReset = "\033[0m"
+)
+
+// printStartupSummary 打印进程启动状态汇总：版本、监听地址、DB/Redis 连接状态。
+// 不依赖全局单例，直接读取 main 里已有的局部变量（nil 即未接入/未连接）。
+func printStartupSummary(addr string, db *pkg.DB, redis *pkg.Redis) {
+	fmt.Println("--------------------------------------------------")
+	fmt.Printf("%sINFO%s %-26s %s\n", colorGreen, colorReset, "Version:", pkg.Version)
+	fmt.Printf("%sINFO%s %-26s %s\n", colorGreen, colorReset, "Management API:", addr)
+	if db != nil {
+		fmt.Printf("%sINFO%s %-26s %s\n", colorGreen, colorReset, "Database:", "connected")
+	} else {
+		fmt.Printf("%sINFO%s %-26s %s\n", colorGreen, colorReset, "Database:", "(not connected)")
+	}
+	if redis != nil {
+		fmt.Printf("%sINFO%s %-26s %s\n", colorGreen, colorReset, "Redis:", "connected")
+	} else {
+		fmt.Printf("%sINFO%s %-26s %s\n", colorGreen, colorReset, "Redis:", "(not connected)")
+	}
+	fmt.Println()
 }
 
 // resolveUIDir 解析前端产物目录：显式配置优先，否则自动探测仓库 frontend/dist，
