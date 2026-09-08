@@ -184,6 +184,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	dpErrCh := dp.Start()
 
 	// Management API（数据平面与控制面分离）。
+	uiDir := resolveUIDir(cfg.Management.UIDir)
+	if uiDir != "" {
+		logger.Info("management ui enabled", zap.String("dir", uiDir))
+	}
 	var mgmtApp *fiber.App
 	if db != nil {
 		setRepo := settings.NewRepository(entClient)
@@ -191,9 +195,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			logger.Warn("settings reload failed", zap.String("err", err.Error()))
 		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
-			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series})
+			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series, UIDir: uiDir})
 	} else {
-		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series})
+		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))
@@ -222,6 +226,24 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	logger.Info("gateway stopped cleanly")
 	return nil
+}
+
+// resolveUIDir 解析前端产物目录：显式配置优先，否则自动探测仓库 frontend/dist，
+// 找不到返回空串（不托管 UI）。
+func resolveUIDir(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	for _, rel := range []string{"frontend/dist", "../frontend/dist"} {
+		if st, err := os.Stat(filepath.Join(rel, "index.html")); err == nil && !st.IsDir() {
+			abs, aerr := filepath.Abs(rel)
+			if aerr != nil {
+				return rel
+			}
+			return abs
+		}
+	}
+	return ""
 }
 
 // runMigration 连接 DB 并执行迁移与 seed。

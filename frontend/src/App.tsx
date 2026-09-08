@@ -38,21 +38,21 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route element={<AdminLayout />}>
+        <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="/tenants" element={<TenantsPage />} />
-          <Route path="/domains" element={<DomainsPage />} />
-          <Route path="/services" element={<ServicesPage />} />
-          <Route path="/deployments" element={<DeploymentsPage />} />
-          <Route path="/instances" element={<InstancesPage />} />
-          <Route path="/nodes" element={<NodesPage />} />
-          <Route path="/traffic" element={<TrafficPage />} />
-          <Route path="/canary" element={<CanaryPage />} />
-          <Route path="/rate-limits" element={<RateLimitsPage />} />
-          <Route path="/blue-green" element={<BlueGreenPage />} />
-          <Route path="/health" element={<HealthPage />} />
-          <Route path="/logs" element={<LogsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="tenants" element={<TenantsPage />} />
+          <Route path="domains" element={<DomainsPage />} />
+          <Route path="services" element={<ServicesPage />} />
+          <Route path="deployments" element={<DeploymentsPage />} />
+          <Route path="instances" element={<InstancesPage />} />
+          <Route path="nodes" element={<NodesPage />} />
+          <Route path="traffic" element={<TrafficPage />} />
+          <Route path="canary" element={<CanaryPage />} />
+          <Route path="rate-limits" element={<RateLimitsPage />} />
+          <Route path="blue-green" element={<BlueGreenPage />} />
+          <Route path="health" element={<HealthPage />} />
+          <Route path="logs" element={<LogsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<div className="p-6">404</div>} />
       </Routes>

@@ -3,6 +3,8 @@ package api
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
@@ -25,11 +27,12 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/static"
 )
 
 // Deps 是 Management API 所需依赖。
 type Deps struct {
-	Ent        *ent.Client            // nil 表示未接入 DB（禁用 admin 与业务接口）
+	Ent        *ent.Client                 // nil 表示未接入 DB（禁用 admin 与业务接口）
 	ReadyDB    func(context.Context) error // DB 就绪探针；nil 表示无 DB（health/ready 报 not-ready）
 	RouteCache *cache.Cache           // 可空；用于 route/cache 查看与手动重建
 	Metrics    *metrics.Registry      // 可空；提供 /metrics 导出
@@ -37,6 +40,7 @@ type Deps struct {
 	ErrLog     *logs.ErrLog           // 可空；提供错误日志查询
 	Settings   *settings.Repository   // 可空；提供动态 Settings 读写
 	Series     dashboard.SeriesReader // 可空；提供 Dashboard 趋势时序数据
+	UIDir      string                 // 可空；管理后台前端产物目录（dist），空则不托管 UI
 }
 
 // New 构造 Fiber app 并注册全部 Management API 路由。
@@ -257,5 +261,27 @@ func New(d Deps) *fiber.App {
 	admin.Get("/dashboard/nodes", dash.Nodes)
 	admin.Get("/dashboard/canary", dash.Canary)
 
+	if d.UIDir != "" {
+		mountUI(app, d.UIDir)
+	}
+
 	return app
+}
+
+// mountUI 把前端构建产物（dist）托管到管理端口：
+//   - /admin 与 /admin/* 命中真实文件则返回，未命中（SPA 深层路由）回退 index.html；
+//   - /login 直接返回 index.html（独立登录页入口，不进入 /admin 守卫层）。
+//
+// dist 目录或 index.html 缺失时静默跳过，保持纯 API 模式。
+func mountUI(app *fiber.App, uiDir string) {
+	indexPath := filepath.Join(uiDir, "index.html")
+	if _, err := os.Stat(indexPath); err != nil {
+		return
+	}
+	indexFS := func(c fiber.Ctx) error {
+		return c.SendFile(indexPath)
+	}
+	// root 为真实目录：static 中间件内部 sanitizePath 会拦截 ../、反斜杠、盘符穿越。
+	app.Use("/admin", static.New(uiDir, static.Config{NotFoundHandler: indexFS}))
+	app.Use("/login", static.New(uiDir, static.Config{NotFoundHandler: indexFS}))
 }
