@@ -114,11 +114,11 @@ export default function BlueGreenPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('bluegreen.title')}</h1>
-        <button onClick={() => setOpen((v) => !v)} className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700">
+        <button onClick={() => setOpen((v) => !v)} className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover">
           {open ? t('common.collapse') : `+ ${t('bluegreen.newDeployment')}`}
         </button>
       </div>
-      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{msg}</p>}
+      {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       {open && (
@@ -184,11 +184,11 @@ export default function BlueGreenPage() {
                 <td className="px-4 py-2 text-sm">{depMeta(r.deployment_id)}</td>
                 <td className="px-4 py-2 text-xs">
                   {verName(r.blue_version_id)}
-                  {isBlueActive(r) && <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">active</span>}
+                  {isBlueActive(r) && <span className="ml-1 rounded bg-th-accent-soft-bg px-1.5 py-0.5 text-xs font-medium text-th-accent-soft-text">active</span>}
                 </td>
                 <td className="px-4 py-2 text-xs">
                   {verName(r.green_version_id)}
-                  {!isBlueActive(r) && <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">active</span>}
+                  {!isBlueActive(r) && <span className="ml-1 rounded bg-th-accent-soft-bg px-1.5 py-0.5 text-xs font-medium text-th-accent-soft-text">active</span>}
                 </td>
                 <td className="px-4 py-2 text-xs font-mono">{activeOf(r)}</td>
                 <td className="px-4 py-2">

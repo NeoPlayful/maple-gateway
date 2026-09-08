@@ -1,11 +1,31 @@
 @import "tailwindcss";
 
-/* 暗色模式用 class 切换：<html class="dark"> 下激活 dark: 变体（theme store 维护）。 */
-@custom-variant dark (&:where(.dark, .dark *));
+@variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
-/* v4 起裸 border/border-b 不再附带颜色，缺省为 currentColor（文字色），
-   导致表格分隔线等显示为黑色。这里在 base 层恢复 v3 的浅灰默认边框色；
-   utilities 层的 border-slate-* 等显式颜色类优先级更高，仍可正常覆盖。 */
+@theme {
+  --color-th-accent: var(--th-accent);
+  --color-th-accent-hover: var(--th-accent-hover);
+  --color-th-accent-text: var(--th-accent-text);
+  --color-th-accent-soft-bg: var(--th-accent-soft-bg);
+  --color-th-accent-soft-text: var(--th-accent-soft-text);
+  --color-th-accent-focus: var(--th-accent-focus);
+  --color-th-brand-text: var(--th-brand-text);
+  --color-th-nav-active-bg: var(--th-nav-active-bg);
+  --color-th-nav-active-text: var(--th-nav-active-text);
+}
+
+:root {
+  --th-accent: #059669;
+  --th-accent-hover: #047857;
+  --th-accent-text: #047857;
+  --th-accent-soft-bg: #d1fae5;
+  --th-accent-soft-text: #047857;
+  --th-accent-focus: #10b981;
+  --th-brand-text: #059669;
+  --th-nav-active-bg: #ecfdf5;
+  --th-nav-active-text: #047857;
+}
+
 @layer base {
   *,
   ::before,
@@ -14,3 +34,12 @@
     border-color: var(--color-slate-200);
   }
 }
+
+/*
+  主题系统（勿在 @import / @theme 前写含 @ 的中文块注释，Tailwind 4.3 解析会报错）：
+  - html[data-theme] 决定主题（maple | cyber），html[data-mode] 决定深浅（由 theme store 维护）。
+  - data-mode="dark" 激活上方 dark: variant，所有既有 dark: slate 双写在暗色下继续生效。
+  - @theme 里的 --color-th-* 令牌会生成 bg-th-accent / text-th-accent 等工具类，
+    其取值代理到各主题 CSS（src/themes/*/theme.css）在 [data-theme=...] 下定义的 --th-*，
+    :root 提供一份 maple 兜底，避免 FOUC。
+*/

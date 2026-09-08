@@ -137,13 +137,13 @@ export default function CrudPage({ def }: { def: PageDef }) {
         <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t(def.title)}</h1>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+          className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
         >
           {open ? t('common.collapse', '收起') : `+ ${t('common.new', '新建')}${t(def.title)}`}
         </button>
       </div>
       {msg && (
-        <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+        <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">
           {msg}
         </p>
       )}
@@ -186,7 +186,7 @@ export default function CrudPage({ def }: { def: PageDef }) {
                     placeholder={f.placeholder ? t(f.placeholder) : undefined}
                     value={form[f.key] ?? ''}
                     onChange={(e) => setForm((m) => ({ ...m, [f.key]: e.target.value }))}
-                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500"
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-th-accent-focus focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500"
                   />
                 )}
               </div>
