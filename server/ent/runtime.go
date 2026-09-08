@@ -20,6 +20,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/schema"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
+	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 	"github.com/google/uuid"
@@ -301,6 +302,20 @@ func init() {
 	settingDescID := settingFields[0].Descriptor()
 	// setting.DefaultID holds the default value on creation for the id field.
 	setting.DefaultID = settingDescID.Default.(func() uuid.UUID)
+	settinghistoryFields := schema.SettingHistory{}.Fields()
+	_ = settinghistoryFields
+	// settinghistoryDescSection is the schema descriptor for section field.
+	settinghistoryDescSection := settinghistoryFields[1].Descriptor()
+	// settinghistory.SectionValidator is a validator for the "section" field. It is called by the builders before save.
+	settinghistory.SectionValidator = settinghistoryDescSection.Validators[0].(func(string) error)
+	// settinghistoryDescKey is the schema descriptor for key field.
+	settinghistoryDescKey := settinghistoryFields[2].Descriptor()
+	// settinghistory.KeyValidator is a validator for the "key" field. It is called by the builders before save.
+	settinghistory.KeyValidator = settinghistoryDescKey.Validators[0].(func(string) error)
+	// settinghistoryDescID is the schema descriptor for id field.
+	settinghistoryDescID := settinghistoryFields[0].Descriptor()
+	// settinghistory.DefaultID holds the default value on creation for the id field.
+	settinghistory.DefaultID = settinghistoryDescID.Default.(func() uuid.UUID)
 	tenantFields := schema.Tenant{}.Fields()
 	_ = tenantFields
 	// tenantDescName is the schema descriptor for name field.

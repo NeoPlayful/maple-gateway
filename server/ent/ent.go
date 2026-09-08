@@ -26,6 +26,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
+	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 )
@@ -102,6 +103,7 @@ func checkColumn(table, column string) error {
 			ratelimit.Table:           ratelimit.ValidColumn,
 			service.Table:             service.ValidColumn,
 			setting.Table:             setting.ValidColumn,
+			settinghistory.Table:      settinghistory.ValidColumn,
 			tenant.Table:              tenant.ValidColumn,
 			trafficpolicy.Table:       trafficpolicy.ValidColumn,
 		})

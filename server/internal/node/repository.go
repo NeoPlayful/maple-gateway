@@ -77,6 +77,20 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Node, error) {
 	return toModel(e), nil
 }
 
+// GetByName 按节点名查询（sync 幂等对账用）。
+func (r *Repository) GetByName(ctx context.Context, name string) (*Node, error) {
+	e, err := r.ent.Node.Query().
+		Where(entnode.NameEQ(name)).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get node by name: %w", err)
+	}
+	return toModel(e), nil
+}
+
 // RoutableMap 返回 node_id → 是否可接收流量（online 才可路由）。
 // 供路由表重建过滤 offline/maintenance/disabled 节点上的实例。
 func (r *Repository) RoutableMap(ctx context.Context) (map[uuid.UUID]bool, error) {

@@ -30,6 +30,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
+	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 )
@@ -67,6 +68,8 @@ type Client struct {
 	Service *ServiceClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// SettingHistory is the client for interacting with the SettingHistory builders.
+	SettingHistory *SettingHistoryClient
 	// Tenant is the client for interacting with the Tenant builders.
 	Tenant *TenantClient
 	// TrafficPolicy is the client for interacting with the TrafficPolicy builders.
@@ -96,6 +99,7 @@ func (c *Client) init() {
 	c.RateLimit = NewRateLimitClient(c.config)
 	c.Service = NewServiceClient(c.config)
 	c.Setting = NewSettingClient(c.config)
+	c.SettingHistory = NewSettingHistoryClient(c.config)
 	c.Tenant = NewTenantClient(c.config)
 	c.TrafficPolicy = NewTrafficPolicyClient(c.config)
 }
@@ -204,6 +208,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		RateLimit:           NewRateLimitClient(cfg),
 		Service:             NewServiceClient(cfg),
 		Setting:             NewSettingClient(cfg),
+		SettingHistory:      NewSettingHistoryClient(cfg),
 		Tenant:              NewTenantClient(cfg),
 		TrafficPolicy:       NewTrafficPolicyClient(cfg),
 	}, nil
@@ -239,6 +244,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		RateLimit:           NewRateLimitClient(cfg),
 		Service:             NewServiceClient(cfg),
 		Setting:             NewSettingClient(cfg),
+		SettingHistory:      NewSettingHistoryClient(cfg),
 		Tenant:              NewTenantClient(cfg),
 		TrafficPolicy:       NewTrafficPolicyClient(cfg),
 	}, nil
@@ -272,7 +278,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
 		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain, c.Instance,
-		c.Node, c.RateLimit, c.Service, c.Setting, c.Tenant, c.TrafficPolicy,
+		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
+		c.TrafficPolicy,
 	} {
 		n.Use(hooks...)
 	}
@@ -284,7 +291,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
 		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain, c.Instance,
-		c.Node, c.RateLimit, c.Service, c.Setting, c.Tenant, c.TrafficPolicy,
+		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
+		c.TrafficPolicy,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -321,6 +329,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Service.mutate(ctx, m)
 	case *SettingMutation:
 		return c.Setting.mutate(ctx, m)
+	case *SettingHistoryMutation:
+		return c.SettingHistory.mutate(ctx, m)
 	case *TenantMutation:
 		return c.Tenant.mutate(ctx, m)
 	case *TrafficPolicyMutation:
@@ -2336,6 +2346,139 @@ func (c *SettingClient) mutate(ctx context.Context, m *SettingMutation) (Value, 
 	}
 }
 
+// SettingHistoryClient is a client for the SettingHistory schema.
+type SettingHistoryClient struct {
+	config
+}
+
+// NewSettingHistoryClient returns a client for the SettingHistory from the given config.
+func NewSettingHistoryClient(c config) *SettingHistoryClient {
+	return &SettingHistoryClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `settinghistory.Hooks(f(g(h())))`.
+func (c *SettingHistoryClient) Use(hooks ...Hook) {
+	c.hooks.SettingHistory = append(c.hooks.SettingHistory, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `settinghistory.Intercept(f(g(h())))`.
+func (c *SettingHistoryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SettingHistory = append(c.inters.SettingHistory, interceptors...)
+}
+
+// Create returns a builder for creating a SettingHistory entity.
+func (c *SettingHistoryClient) Create() *SettingHistoryCreate {
+	mutation := newSettingHistoryMutation(c.config, OpCreate)
+	return &SettingHistoryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SettingHistory entities.
+func (c *SettingHistoryClient) CreateBulk(builders ...*SettingHistoryCreate) *SettingHistoryCreateBulk {
+	return &SettingHistoryCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SettingHistoryClient) MapCreateBulk(slice any, setFunc func(*SettingHistoryCreate, int)) *SettingHistoryCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SettingHistoryCreateBulk{err: fmt.Errorf("calling to SettingHistoryClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SettingHistoryCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SettingHistoryCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SettingHistory.
+func (c *SettingHistoryClient) Update() *SettingHistoryUpdate {
+	mutation := newSettingHistoryMutation(c.config, OpUpdate)
+	return &SettingHistoryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SettingHistoryClient) UpdateOne(sh *SettingHistory) *SettingHistoryUpdateOne {
+	mutation := newSettingHistoryMutation(c.config, OpUpdateOne, withSettingHistory(sh))
+	return &SettingHistoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SettingHistoryClient) UpdateOneID(id uuid.UUID) *SettingHistoryUpdateOne {
+	mutation := newSettingHistoryMutation(c.config, OpUpdateOne, withSettingHistoryID(id))
+	return &SettingHistoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SettingHistory.
+func (c *SettingHistoryClient) Delete() *SettingHistoryDelete {
+	mutation := newSettingHistoryMutation(c.config, OpDelete)
+	return &SettingHistoryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SettingHistoryClient) DeleteOne(sh *SettingHistory) *SettingHistoryDeleteOne {
+	return c.DeleteOneID(sh.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SettingHistoryClient) DeleteOneID(id uuid.UUID) *SettingHistoryDeleteOne {
+	builder := c.Delete().Where(settinghistory.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SettingHistoryDeleteOne{builder}
+}
+
+// Query returns a query builder for SettingHistory.
+func (c *SettingHistoryClient) Query() *SettingHistoryQuery {
+	return &SettingHistoryQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSettingHistory},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SettingHistory entity by its id.
+func (c *SettingHistoryClient) Get(ctx context.Context, id uuid.UUID) (*SettingHistory, error) {
+	return c.Query().Where(settinghistory.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SettingHistoryClient) GetX(ctx context.Context, id uuid.UUID) *SettingHistory {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SettingHistoryClient) Hooks() []Hook {
+	return c.hooks.SettingHistory
+}
+
+// Interceptors returns the client interceptors.
+func (c *SettingHistoryClient) Interceptors() []Interceptor {
+	return c.inters.SettingHistory
+}
+
+func (c *SettingHistoryClient) mutate(ctx context.Context, m *SettingHistoryMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SettingHistoryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SettingHistoryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SettingHistoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SettingHistoryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SettingHistory mutation op: %q", m.Op())
+	}
+}
+
 // TenantClient is a client for the Tenant schema.
 type TenantClient struct {
 	config
@@ -2655,11 +2798,12 @@ type (
 	hooks struct {
 		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
 		CanaryRelease, Deployment, DeploymentVersion, Domain, Instance, Node,
-		RateLimit, Service, Setting, Tenant, TrafficPolicy []ent.Hook
+		RateLimit, Service, Setting, SettingHistory, Tenant, TrafficPolicy []ent.Hook
 	}
 	inters struct {
 		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
 		CanaryRelease, Deployment, DeploymentVersion, Domain, Instance, Node,
-		RateLimit, Service, Setting, Tenant, TrafficPolicy []ent.Interceptor
+		RateLimit, Service, Setting, SettingHistory, Tenant,
+		TrafficPolicy []ent.Interceptor
 	}
 )

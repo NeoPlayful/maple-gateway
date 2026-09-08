@@ -10,6 +10,8 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	entsetting "github.com/NeoPlayful/maple-gateway/server/ent/setting"
+	enthistory "github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
 )
 
 // Repository 是 settings 数据访问层（DB 走 Ent，读缓存走内存）。
@@ -49,13 +51,29 @@ func (r *Repository) All(ctx context.Context) ([]Entry, error) {
 	return out, nil
 }
 
-// Upsert 设置单条：存在则 version+1 更新，否则插入 v1（原子，Ent upsert）。
+// Upsert 设置单条：存在则 version+1 更新，否则插入 v1。
+// 覆盖前把旧 (version, value) 写入 settings_history，支撑按版本回滚。
 func (r *Repository) Upsert(ctx context.Context, section Section, key string, value json.RawMessage) (*Entry, error) {
 	if value == nil {
 		value = json.RawMessage("null")
 	}
+	// 先读当前：若存在，把将被覆盖的旧版本值记入历史。
+	cur, err := r.ent.Setting.Query().
+		Where(
+			entsetting.Section(string(section)),
+			entsetting.Key(key),
+		).
+		Only(ctx)
+	if err != nil && !ent.IsNotFound(err) {
+		return nil, fmt.Errorf("read setting before upsert: %w", err)
+	}
 	now := time.Now()
-	err := r.ent.Setting.Create().
+	if cur != nil {
+		if err := r.appendHistory(ctx, section, key, cur.Version, cur.Value, now); err != nil {
+			return nil, err
+		}
+	}
+	err = r.ent.Setting.Create().
 		SetSection(string(section)).
 		SetKey(key).
 		SetValue(value).
@@ -83,6 +101,79 @@ func (r *Repository) Upsert(ctx context.Context, section Section, key string, va
 	}
 	ent := toEntry(e)
 	return &ent, nil
+}
+
+// appendHistory 把一条 (version,value) 追加进 settings_history。
+func (r *Repository) appendHistory(ctx context.Context, section Section, key string,
+	version int, value json.RawMessage, at time.Time) error {
+	_, err := r.ent.SettingHistory.Create().
+		SetSection(string(section)).
+		SetKey(key).
+		SetVersion(version).
+		SetValue(value).
+		SetCreatedAt(at).
+		Save(ctx)
+	if err != nil {
+		return fmt.Errorf("append setting history: %w", err)
+	}
+	return nil
+}
+
+// History 返回某 section:key 的全部历史（按 version 升序），含当前值摘要。
+func (r *Repository) History(ctx context.Context, section Section, key string) ([]HistoryEntry, error) {
+	hs, err := r.ent.SettingHistory.Query().
+		Where(
+			enthistory.Section(string(section)),
+			enthistory.Key(key),
+		).
+		Order(enthistory.ByVersion()).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list setting history: %w", err)
+	}
+	out := make([]HistoryEntry, 0, len(hs))
+	for _, h := range hs {
+		out = append(out, HistoryEntry{
+			Version:   h.Version,
+			Value:     h.Value,
+			ChangedAt: h.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// Rollback 把某 key 回滚到指定历史 version：取该版本值执行一次 upsert。
+// 返回回滚后的最新 Entry。目标版本须小于当前 version。
+func (r *Repository) Rollback(ctx context.Context, section Section, key string, targetVersion int) (*Entry, error) {
+	cur, err := r.ent.Setting.Query().
+		Where(
+			entsetting.Section(string(section)),
+			entsetting.Key(key),
+		).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound(fmt.Sprintf("配置 %s:%s 不存在", section, key))
+		}
+		return nil, fmt.Errorf("read setting for rollback: %w", err)
+	}
+	if targetVersion >= cur.Version {
+		return nil, pkg.ErrValidation(fmt.Sprintf("回滚版本 %d 须小于当前版本 %d", targetVersion, cur.Version))
+	}
+	hist, err := r.ent.SettingHistory.Query().
+		Where(
+			enthistory.Section(string(section)),
+			enthistory.Key(key),
+			enthistory.Version(targetVersion),
+		).
+		First(ctx)
+	if ent.IsNotFound(err) {
+		return nil, pkg.ErrNotFound(fmt.Sprintf("未找到版本 %d 的历史", targetVersion))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read setting history for rollback: %w", err)
+	}
+	return r.Upsert(ctx, section, key, hist.Value)
 }
 
 // Reload 把 DB 全量载入内存缓存。

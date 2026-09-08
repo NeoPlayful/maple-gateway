@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/client';
+import Sparkline, { type Pt } from '../components/Sparkline';
 
 interface Counts {
   tenants: number;
@@ -38,6 +39,22 @@ interface Overview {
   route_cache_misses: number;
 }
 
+// Dashboard 趋势序列（后端 dashboard/traffic|errors|latency）。
+interface TrafficPoint {
+  time: number;
+  requests: number;
+  errors: number;
+  rate_limit_hits: number;
+  rps: number;
+  error_rate: number;
+}
+interface LatencyPoint {
+  time: number;
+  count: number;
+  avg_ms: number;
+  p95_ms: number;
+}
+
 const phaseText: Record<string, string> = {
   created: '草稿',
   running: '进行中',
@@ -60,6 +77,8 @@ function Card({ label, value, unit }: { label: string; value: number; unit?: str
 
 export default function DashboardPage() {
   const [ov, setOv] = useState<Overview | null>(null);
+  const [traffic, setTraffic] = useState<TrafficPoint[]>([]);
+  const [latency, setLatency] = useState<LatencyPoint[]>([]);
   const [err, setErr] = useState('');
 
   const load = async () => {
@@ -69,13 +88,27 @@ export default function DashboardPage() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : '总览加载失败');
     }
+    try {
+      const [t, l] = await Promise.all([
+        api.get<TrafficPoint[]>('/api/admin/dashboard/traffic?minutes=30'),
+        api.get<LatencyPoint[]>('/api/admin/dashboard/latency?minutes=30'),
+      ]);
+      setTraffic(t);
+      setLatency(l);
+    } catch {
+      /* 趋势不可用时不阻塞总览 */
+    }
   };
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000);
+    const t = setInterval(load, 10000);
     return () => clearInterval(t);
   }, []);
+
+  const reqPts: Pt[] = traffic.map((p) => ({ value: p.requests }));
+  const errPts: Pt[] = traffic.map((p) => ({ value: p.errors }));
+  const p95Pts: Pt[] = latency.map((p) => ({ value: Math.round(p.p95_ms) }));
 
   if (err) {
     return <div className="rounded-xl bg-white p-6 text-sm text-red-600 shadow-sm">{err}</div>;
@@ -180,6 +213,22 @@ export default function DashboardPage() {
               ))}
             </ul>
           )}
+        </div>
+      </div>
+
+      {/* 流量趋势（进程内时间桶，重启清零） */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="mb-3 text-sm font-medium text-slate-600">请求量趋势</p>
+          <Sparkline data={reqPts} color="#0d9488" />
+        </div>
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="mb-3 text-sm font-medium text-slate-600">错误数趋势（5xx+拒绝）</p>
+          <Sparkline data={errPts} color="#e11d48" />
+        </div>
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="mb-3 text-sm font-medium text-slate-600">P95 延迟趋势（毫秒）</p>
+          <Sparkline data={p95Pts} color="#6366f1" suffix=" ms" />
         </div>
       </div>
     </div>

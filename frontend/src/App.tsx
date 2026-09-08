@@ -14,6 +14,9 @@ import TrafficPage from './pages/TrafficPage';
 import CanaryPage from './pages/CanaryPage';
 import LogsPage from './pages/LogsPage';
 import SettingsPage from './pages/SettingsPage';
+import RateLimitsPage from './pages/RateLimitsPage';
+import BlueGreenPage from './pages/BlueGreenPage';
+import HealthPage from './pages/HealthPage';
 
 export default function App() {
   const restore = useAuth((s) => s.restore);
@@ -45,6 +48,9 @@ export default function App() {
           <Route path="/nodes" element={<NodesPage />} />
           <Route path="/traffic" element={<TrafficPage />} />
           <Route path="/canary" element={<CanaryPage />} />
+          <Route path="/rate-limits" element={<RateLimitsPage />} />
+          <Route path="/blue-green" element={<BlueGreenPage />} />
+          <Route path="/health" element={<HealthPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

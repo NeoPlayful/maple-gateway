@@ -45,3 +45,34 @@ func (h *Handler) Logout(c fiber.Ctx) error {
 	// JWT 无状态，Phase 1 不维护黑名单；返回成功由前端清除本地令牌。
 	return pkg.OK(c, map[string]any{"logged_out": true})
 }
+
+// Refresh POST /api/auth/refresh  无状态 JWT 滑动续期。
+func (h *Handler) Refresh(c fiber.Ctx) error {
+	var in RefreshInput
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	if err := pkg.ValidateStruct(in); err != nil {
+		return pkg.Err(c, err)
+	}
+	res, err := h.svc.Refresh(c.Context(), in.Token)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, res)
+}
+
+// ChangePassword POST /api/admin/auth/change-password  改密。
+func (h *Handler) ChangePassword(c fiber.Ctx) error {
+	var in ChangePasswordInput
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	if err := pkg.ValidateStruct(in); err != nil {
+		return pkg.Err(c, err)
+	}
+	if err := h.svc.ChangePassword(c.Context(), AdminID(c), in); err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, map[string]any{"changed": true})
+}

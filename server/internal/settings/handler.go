@@ -80,3 +80,55 @@ func (h *Handler) Update(c fiber.Ctx) error {
 	}
 	return h.Get(c)
 }
+
+// validSection 校验 section 是否受支持。
+func validSection(s string) bool {
+	switch Section(s) {
+	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics:
+		return true
+	}
+	return false
+}
+
+// History GET /api/admin/settings/:section/history?key=
+func (h *Handler) History(c fiber.Ctx) error {
+	section := Section(c.Params("section"))
+	if !validSection(string(section)) {
+		return pkg.Err(c, pkg.ErrValidation("无效的 section"))
+	}
+	key := c.Query("key")
+	if key == "" {
+		return pkg.Err(c, pkg.ErrValidation("缺少 key 参数"))
+	}
+	list, err := h.repo.History(c.Context(), section, key)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, list)
+}
+
+// Rollback PATCH /api/admin/settings/:section/rollback  body {key, version}
+func (h *Handler) Rollback(c fiber.Ctx) error {
+	section := Section(c.Params("section"))
+	if !validSection(string(section)) {
+		return pkg.Err(c, pkg.ErrValidation("无效的 section"))
+	}
+	var in struct {
+		Key     string `json:"key" validate:"required"`
+		Version int    `json:"version" validate:"required,min=1"`
+	}
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	if err := pkg.ValidateStruct(in); err != nil {
+		return pkg.Err(c, err)
+	}
+	ent, err := h.repo.Rollback(c.Context(), section, in.Key, in.Version)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	if err := h.repo.Reload(c.Context()); err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, ent)
+}

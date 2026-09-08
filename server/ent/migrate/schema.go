@@ -431,6 +431,28 @@ var (
 			},
 		},
 	}
+	// SettingHistoriesColumns holds the columns for the "setting_histories" table.
+	SettingHistoriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "section", Type: field.TypeString},
+		{Name: "key", Type: field.TypeString},
+		{Name: "version", Type: field.TypeInt},
+		{Name: "value", Type: field.TypeJSON},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// SettingHistoriesTable holds the schema information for the "setting_histories" table.
+	SettingHistoriesTable = &schema.Table{
+		Name:       "setting_histories",
+		Columns:    SettingHistoriesColumns,
+		PrimaryKey: []*schema.Column{SettingHistoriesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "settinghistory_section_key_version",
+				Unique:  false,
+				Columns: []*schema.Column{SettingHistoriesColumns[1], SettingHistoriesColumns[2], SettingHistoriesColumns[3]},
+			},
+		},
+	}
 	// TenantsColumns holds the columns for the "tenants" table.
 	TenantsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -505,6 +527,7 @@ var (
 		RateLimitsTable,
 		ServicesTable,
 		SettingsTable,
+		SettingHistoriesTable,
 		TenantsTable,
 		TrafficPoliciesTable,
 	}

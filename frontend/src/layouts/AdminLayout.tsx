@@ -12,6 +12,9 @@ const nav = [
   { to: '/nodes', label: '节点' },
   { to: '/traffic', label: '流量策略' },
   { to: '/canary', label: 'Canary 发布' },
+  { to: '/blue-green', label: '蓝绿发布' },
+  { to: '/rate-limits', label: '限流' },
+  { to: '/health', label: '健康' },
   { to: '/logs', label: '日志' },
   { to: '/settings', label: '设置' },
 ];

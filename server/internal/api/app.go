@@ -29,13 +29,14 @@ import (
 
 // Deps 是 Management API 所需依赖。
 type Deps struct {
-	Ent        *ent.Client         // nil 表示未接入 DB（禁用 admin 与业务接口）
+	Ent        *ent.Client            // nil 表示未接入 DB（禁用 admin 与业务接口）
 	ReadyDB    func(context.Context) error // DB 就绪探针；nil 表示无 DB（health/ready 报 not-ready）
-	RouteCache *cache.Cache        // 可空；用于 route/cache 查看与手动重建
-	Metrics    *metrics.Registry   // 可空；提供 /metrics 导出
-	AccessLog  *logs.AccessLog     // 可空；提供访问日志查询
-	ErrLog     *logs.ErrLog        // 可空；提供错误日志查询
-	Settings   *settings.Repository // 可空；提供动态 Settings 读写
+	RouteCache *cache.Cache           // 可空；用于 route/cache 查看与手动重建
+	Metrics    *metrics.Registry      // 可空；提供 /metrics 导出
+	AccessLog  *logs.AccessLog        // 可空；提供访问日志查询
+	ErrLog     *logs.ErrLog           // 可空；提供错误日志查询
+	Settings   *settings.Repository   // 可空；提供动态 Settings 读写
+	Series     dashboard.SeriesReader // 可空；提供 Dashboard 趋势时序数据
 }
 
 // New 构造 Fiber app 并注册全部 Management API 路由。
@@ -67,14 +68,16 @@ func New(d Deps) *fiber.App {
 	authSvc := auth.NewService(d.Ent, auth.Secret(), 24*time.Hour)
 	authH := auth.NewHandler(authSvc)
 	app.Post("/api/auth/login", authH.Login)
+	app.Post("/api/auth/refresh", authH.Refresh)
 
 	// 需要登录的管理面路由（含审计）。
 	admin := app.Group("/api/admin", auth.Middleware(authSvc), auditMiddleware(d.Ent))
 	admin.Get("/system/info", sys.Info)
 
-	// Auth me/logout 也放在认证组内。
+	// Auth me/logout/change-password 也放在认证组内。
 	admin.Get("/auth/me", authH.Me)
 	admin.Post("/auth/logout", authH.Logout)
+	admin.Post("/auth/change-password", authH.ChangePassword)
 
 	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
 	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent))
@@ -85,6 +88,7 @@ func New(d Deps) *fiber.App {
 	internal.Patch("/instances/:id", disc.UpdateInstance)
 	internal.Delete("/instances/:id", disc.DeleteInstance)
 	internal.Post("/instances/:id/health", disc.ReportHealth)
+	internal.Post("/sync", disc.Sync)
 
 	// 业务模块 CRUD。
 	tenantH := tenant.NewHandler(tenant.NewRepository(d.Ent))
@@ -210,11 +214,13 @@ func New(d Deps) *fiber.App {
 	audH := &auditLogsHandler{ent: d.Ent}
 	admin.Get("/logs/audit", audH.List)
 
-	// 动态 Settings。
+	// 动态 Settings（含版本历史与回滚）。
 	if d.Settings != nil {
 		setH := settings.NewHandler(d.Settings)
 		admin.Get("/settings", setH.Get)
 		admin.Patch("/settings/:section", setH.Update)
+		admin.Get("/settings/:section/history", setH.History)
+		admin.Patch("/settings/:section/rollback", setH.Rollback)
 	}
 
 	// Blue/Green 双版本切换。
@@ -236,14 +242,20 @@ func New(d Deps) *fiber.App {
 		admin.Post("/cache/rebuild", rc.Rebuild)
 	}
 
-	// Dashboard 聚合。
+	// Dashboard 聚合：总览 + 趋势/细分。
 	dash := dashboard.NewHandler(d.Ent, func() (uint64, uint64) {
 		if d.RouteCache == nil {
 			return 0, 0
 		}
 		return d.RouteCache.Stats()
-	})
+	}, d.Series)
 	admin.Get("/dashboard/overview", dash.Overview)
+	admin.Get("/dashboard/traffic", dash.Traffic)
+	admin.Get("/dashboard/errors", dash.Errors)
+	admin.Get("/dashboard/latency", dash.Latency)
+	admin.Get("/dashboard/instances", dash.Instances)
+	admin.Get("/dashboard/nodes", dash.Nodes)
+	admin.Get("/dashboard/canary", dash.Canary)
 
 	return app
 }

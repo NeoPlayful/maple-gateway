@@ -31,3 +31,10 @@ type Entry struct {
 	Version   int             `json:"version"`
 	UpdatedAt time.Time       `json:"updated_at"`
 }
+
+// HistoryEntry 是 settings_history 的一条历史版本。
+type HistoryEntry struct {
+	Version   int             `json:"version"`
+	Value     json.RawMessage `json:"value"`
+	ChangedAt time.Time       `json:"changed_at"`
+}

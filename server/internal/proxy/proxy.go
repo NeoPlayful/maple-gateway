@@ -114,9 +114,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	target, err := p.resolve(host, r)
 	if err != nil {
-		if p.metrics != nil {
-			p.metrics.Inc("maple_requests_total", map[string]string{"host": host, "status": "rejected"})
-		}
 		p.handleResolveError(w, r, err)
 		return
 	}
@@ -268,6 +265,7 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, err e
 		status = http.StatusTooManyRequests
 		w.Header().Set("Retry-After", "1")
 	}
+	p.countRequest(r, status)
 	if p.logger != nil {
 		p.logger.Warn("route resolve rejected",
 			zap.String("host", r.Host),
@@ -280,6 +278,7 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, err e
 }
 
 func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, err error) {
+	// 上游 502 由 statusRecorder 经 129 行统一计数，这里不重复计。
 	if p.logger != nil {
 		p.logger.Error("upstream error",
 			zap.String("host", r.Host),
@@ -288,6 +287,21 @@ func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, err 
 	}
 	p.appendErr(r, http.StatusBadGateway, err.Error())
 	http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+}
+
+// countRequest 按真实响应状态累计请求计数（错误分支：路由拒绝 / 上游失败）。
+func (p *Proxy) countRequest(r *http.Request, status int) {
+	if p.metrics == nil {
+		return
+	}
+	host := normalizeHostLabel(r.Host)
+	if host == "" {
+		host = "-"
+	}
+	p.metrics.Inc("maple_requests_total", map[string]string{
+		"host":   host,
+		"status": itoa(status),
+	})
 }
 
 // appendErr 写入错误日志缓冲（若启用）。

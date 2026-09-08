@@ -83,25 +83,89 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*LoginResult, error
 	if name == nil {
 		name = stringPtr("")
 	}
+	signed, err := s.signToken(a.ID.String(), a.Email)
+	if err != nil {
+		return nil, err
+	}
+	return &LoginResult{
+		Token: signed,
+		Admin: AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name},
+	}, nil
+}
+
+// signToken 为指定管理员签发新 JWT。
+func (s *Service) signToken(adminID, email string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		AdminID: a.ID.String(),
-		Email:   a.Email,
+		AdminID: adminID,
+		Email:   email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   a.ID.String(),
+			Subject:   adminID,
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.ttl)),
 		},
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 	if err != nil {
-		return nil, pkg.ErrSystem("签发 Token 失败")
+		return "", pkg.ErrSystem("签发 Token 失败")
 	}
+	return signed, nil
+}
 
-	return &LoginResult{
-		Token: signed,
-		Admin: AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name},
-	}, nil
+// Refresh 校验旧 token 仍有效且管理员可用，返回新 token（无状态 JWT 的滑动续期）。
+func (s *Service) Refresh(ctx context.Context, oldToken string) (*LoginResult, error) {
+	claims, err := s.Parse(oldToken)
+	if err != nil {
+		return nil, err
+	}
+	info, err := s.AdminByID(ctx, claims.AdminID)
+	if err != nil {
+		return nil, err
+	}
+	token, err := s.signToken(claims.AdminID, info.Email)
+	if err != nil {
+		return nil, err
+	}
+	return &LoginResult{Token: token, Admin: *info}, nil
+}
+
+// RefreshInput 刷新入参。
+type RefreshInput struct {
+	Token string `json:"token" validate:"required"`
+}
+
+// ChangePasswordInput 改密入参。
+type ChangePasswordInput struct {
+	OldPassword string `json:"old_password" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=8"`
+}
+
+// ChangePassword 校验旧密码并更新为新密码。JWT 无状态，成功后前端重登即可。
+func (s *Service) ChangePassword(ctx context.Context, adminID string, in ChangePasswordInput) error {
+	uid, err := uuid.Parse(adminID)
+	if err != nil {
+		return pkg.ErrUnauthorized("管理员不存在")
+	}
+	a, err := s.ent.Admin.Get(ctx, uid)
+	if ent.IsNotFound(err) {
+		return pkg.ErrUnauthorized("管理员不存在")
+	}
+	if err != nil {
+		return pkg.ErrSystem("查询管理员失败")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash), []byte(in.OldPassword)); err != nil {
+		return pkg.ErrUnauthorized("旧密码错误")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return pkg.ErrSystem("密码加密失败")
+	}
+	if _, err := s.ent.Admin.UpdateOneID(uid).
+		SetPasswordHash(string(hash)).
+		Save(ctx); err != nil {
+		return pkg.ErrSystem("更新密码失败")
+	}
+	return nil
 }
 
 // AdminByID 查询管理员基础信息（me 接口）。
