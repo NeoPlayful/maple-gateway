@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entadmin "github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // seedDefaultAdmin 创建默认管理员（幂等：已存在则跳过）。
 // 邮箱/密码来自环境变量，缺省用开发默认值。
-func seedDefaultAdmin(ctx context.Context, pool *pgxpool.Pool) error {
+func seedDefaultAdmin(ctx context.Context, client *ent.Client) error {
 	email := os.Getenv("MAPLE_ADMIN_EMAIL")
 	if email == "" {
 		email = "admin@maple.com"
@@ -21,9 +23,8 @@ func seedDefaultAdmin(ctx context.Context, pool *pgxpool.Pool) error {
 		password = "admin123"
 	}
 
-	var exists bool
-	if err := pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM admins WHERE email=$1)`, email).Scan(&exists); err != nil {
+	exists, err := client.Admin.Query().Where(entadmin.EmailEQ(email)).Exist(ctx)
+	if err != nil {
 		return fmt.Errorf("check admin exists: %w", err)
 	}
 	if exists {
@@ -34,9 +35,15 @@ func seedDefaultAdmin(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO admins(email, password_hash, name, status) VALUES($1, $2, 'admin', 'active')`,
-		email, string(hash)); err != nil {
+	now := time.Now()
+	if _, err := client.Admin.Create().
+		SetEmail(email).
+		SetPasswordHash(string(hash)).
+		SetName("admin").
+		SetStatus("active").
+		SetCreatedAt(now).
+		SetUpdatedAt(now).
+		Save(ctx); err != nil {
 		return fmt.Errorf("insert admin: %w", err)
 	}
 	return nil

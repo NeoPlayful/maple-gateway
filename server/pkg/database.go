@@ -12,9 +12,10 @@ import (
 )
 
 // DB 持有 PostgreSQL 连接。
-// 双连接并存（Ent 迁移过渡期）：
-//   - Pool 为 pgx 原生连接池，供尚未迁移到 Ent 的 repository 使用；
-//   - SQL  为 database/sql 连接（pgx stdlib 驱动），供 Ent 客户端使用。
+// 业务数据访问统一走 Ent（底层为 SQL 的 pgx stdlib driver）。
+//   - SQL  为 database/sql 连接（pgx stdlib 驱动），供 Ent 客户端使用；
+//   - Pool 仅保留给迁移工具（pkg/migrate.go 需在事务内执行多语句 SQL 文件），
+//     不再向业务层 repository 暴露。
 type DB struct {
 	Pool *pgxpool.Pool
 	SQL  *sql.DB

@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
@@ -24,17 +25,16 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Deps 是 Management API 所需依赖。
 type Deps struct {
-	Pool       *pgxpool.Pool        // nil 表示未接入 DB（禁用 admin 与业务接口）
-	Ent        *ent.Client          // 已迁移到 Ent 的模块使用；与 Pool 指向同一库
-	RouteCache *cache.Cache         // 可空；用于 route/cache 查看与手动重建
-	Metrics    *metrics.Registry    // 可空；提供 /metrics 导出
-	AccessLog  *logs.AccessLog      // 可空；提供访问日志查询
-	ErrLog     *logs.ErrLog         // 可空；提供错误日志查询
+	Ent        *ent.Client         // nil 表示未接入 DB（禁用 admin 与业务接口）
+	ReadyDB    func(context.Context) error // DB 就绪探针；nil 表示无 DB（health/ready 报 not-ready）
+	RouteCache *cache.Cache        // 可空；用于 route/cache 查看与手动重建
+	Metrics    *metrics.Registry   // 可空；提供 /metrics 导出
+	AccessLog  *logs.AccessLog     // 可空；提供访问日志查询
+	ErrLog     *logs.ErrLog        // 可空；提供错误日志查询
 	Settings   *settings.Repository // 可空；提供动态 Settings 读写
 }
 
@@ -47,7 +47,7 @@ func New(d Deps) *fiber.App {
 	})
 
 	// 系统接口（无需认证）。
-	sys := system.NewHandler(d.Pool)
+	sys := system.NewHandler(d.ReadyDB)
 	app.Get("/api/system/health", sys.Health)
 	app.Get("/api/system/live", sys.Live)
 	app.Get("/api/system/ready", sys.Ready)
@@ -59,18 +59,17 @@ func New(d Deps) *fiber.App {
 		})
 	}
 
-	if d.Pool == nil {
-		app.Get("/api/system/ready", sys.Ready)
+	if d.Ent == nil {
 		return app
 	}
 
 	// 认证。
-	authSvc := auth.NewService(d.Pool, auth.Secret(), 24*time.Hour)
+	authSvc := auth.NewService(d.Ent, auth.Secret(), 24*time.Hour)
 	authH := auth.NewHandler(authSvc)
 	app.Post("/api/auth/login", authH.Login)
 
 	// 需要登录的管理面路由（含审计）。
-	admin := app.Group("/api/admin", auth.Middleware(authSvc), auditMiddleware(d.Pool))
+	admin := app.Group("/api/admin", auth.Middleware(authSvc), auditMiddleware(d.Ent))
 	admin.Get("/system/info", sys.Info)
 
 	// Auth me/logout 也放在认证组内。
@@ -78,8 +77,7 @@ func New(d Deps) *fiber.App {
 	admin.Post("/auth/logout", authH.Logout)
 
 	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
-	// instance 已迁移 Ent；node 仍走 pgxpool。
-	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent, d.Pool))
+	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent))
 	internal := app.Group("/api/internal/discovery", discovery.Middleware())
 	internal.Post("/nodes/register", disc.RegisterNode)
 	internal.Post("/nodes/:id/heartbeat", disc.HeartbeatNode)
@@ -120,7 +118,7 @@ func New(d Deps) *fiber.App {
 	sv.Post("/:id/enable", serviceH.Enable)
 	sv.Post("/:id/disable", serviceH.Disable)
 
-	instanceH := instance.NewHandler(instance.NewRepository(d.Ent, d.Pool))
+	instanceH := instance.NewHandler(instance.NewRepository(d.Ent))
 	ins := admin.Group("/instances")
 	ins.Get("/", instanceH.List)
 	ins.Post("/register", instanceH.Register)
@@ -176,7 +174,7 @@ func New(d Deps) *fiber.App {
 	tf.Post("/:id/disable", trafficH.Disable)
 
 	// Canary 发布控制。
-	canaryH := canary.NewHandler(canary.NewService(canary.NewRepository(d.Ent, d.Pool)))
+	canaryH := canary.NewHandler(canary.NewService(canary.NewRepository(d.Ent)))
 	cn := admin.Group("/canary")
 	cn.Get("/", canaryH.List)
 	cn.Post("/", canaryH.Create)
@@ -220,7 +218,7 @@ func New(d Deps) *fiber.App {
 	}
 
 	// Blue/Green 双版本切换。
-	bgH := bluegreen.NewHandler(bluegreen.NewService(bluegreen.NewRepository(d.Ent, d.Pool)))
+	bgH := bluegreen.NewHandler(bluegreen.NewService(bluegreen.NewRepository(d.Ent)))
 	bg := admin.Group("/blue-green")
 	bg.Get("/", bgH.List)
 	bg.Post("/", bgH.Create)
@@ -239,7 +237,7 @@ func New(d Deps) *fiber.App {
 	}
 
 	// Dashboard 聚合。
-	dash := dashboard.NewHandler(d.Pool, func() (uint64, uint64) {
+	dash := dashboard.NewHandler(d.Ent, func() (uint64, uint64) {
 		if d.RouteCache == nil {
 			return 0, 0
 		}

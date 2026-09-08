@@ -116,7 +116,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	// 主动健康检查：探测异常实例并更新 DB health，AutoRebuild 随之摘除/恢复。
 	if db != nil {
-		hc := health.NewChecker(health.NewInstanceRepo(instance.NewRepository(entClient, db.Pool)), health.Config{
+		hc := health.NewChecker(health.NewInstanceRepo(instance.NewRepository(entClient)), health.Config{
 			Interval:         cfg.Health.Interval,
 			Timeout:          cfg.Health.Timeout,
 			FailureThreshold: cfg.Health.FailureThreshold,
@@ -187,10 +187,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		if err := setRepo.Reload(ctx); err != nil {
 			logger.Warn("settings reload failed", zap.String("err", err.Error()))
 		}
-		mgmtApp = api.New(api.Deps{Pool: db.Pool, Ent: entClient, RouteCache: routeCache, Metrics: metricReg,
+		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo})
 	} else {
-		mgmtApp = api.New(api.Deps{Pool: nil, Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog})
+		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))
@@ -241,7 +241,8 @@ func runMigration(ctx context.Context, dbURL string) error {
 	if err := mig.Run(appCtx); err != nil {
 		return err
 	}
-	if err := seedDefaultAdmin(appCtx, db.Pool); err != nil {
+	entClient := pkg.NewEntClient(db)
+	if err := seedDefaultAdmin(appCtx, entClient); err != nil {
 		return err
 	}
 	pkg.Log().Info("migrations applied, admin seeded")
@@ -291,7 +292,7 @@ func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
 		tenant.NewRepository(entClient),
 		domain.NewRepository(entClient),
 		service.NewRepository(entClient),
-		instance.NewRepository(entClient, db.Pool),
+		instance.NewRepository(entClient),
 		cache.NewVersionSource(deployment.NewRepository(entClient), traffic.NewRepository(entClient)),
 	).WithNodeFilter(nodeRepo.RoutableMap).
 		WithLimits(func(ctx context.Context) ([]ratelimit.RateLimit, error) {

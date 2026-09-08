@@ -5,6 +5,7 @@ package ent
 import (
 	"encoding/json"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
@@ -28,6 +29,24 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	adminFields := schema.Admin{}.Fields()
+	_ = adminFields
+	// adminDescEmail is the schema descriptor for email field.
+	adminDescEmail := adminFields[1].Descriptor()
+	// admin.EmailValidator is a validator for the "email" field. It is called by the builders before save.
+	admin.EmailValidator = adminDescEmail.Validators[0].(func(string) error)
+	// adminDescPasswordHash is the schema descriptor for password_hash field.
+	adminDescPasswordHash := adminFields[2].Descriptor()
+	// admin.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
+	admin.PasswordHashValidator = adminDescPasswordHash.Validators[0].(func(string) error)
+	// adminDescStatus is the schema descriptor for status field.
+	adminDescStatus := adminFields[4].Descriptor()
+	// admin.DefaultStatus holds the default value on creation for the status field.
+	admin.DefaultStatus = adminDescStatus.Default.(string)
+	// adminDescID is the schema descriptor for id field.
+	adminDescID := adminFields[0].Descriptor()
+	// admin.DefaultID holds the default value on creation for the id field.
+	admin.DefaultID = adminDescID.Default.(func() uuid.UUID)
 	auditlogFields := schema.AuditLog{}.Fields()
 	_ = auditlogFields
 	// auditlogDescAction is the schema descriptor for action field.
