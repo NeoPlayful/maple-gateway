@@ -308,6 +308,19 @@
     "currentTheme": "Current",
     "mode": "Mode",
     "lightMode": "Light",
-    "darkMode": "Dark"
+    "darkMode": "Dark",
+    "section": {
+      "gateway": "Gateway",
+      "proxy": "Proxy",
+      "health": "Health",
+      "security": "Security",
+      "logging": "Logging",
+      "metrics": "Metrics"
+    },
+    "appearanceSaving": "Saving…",
+    "appearanceSaved": "Saved — applies to all visitors",
+    "appearanceSaveFailed": "Save failed, please retry",
+    "appearanceUnsaved": "You have unsaved changes",
+    "logDebug": "Debug logging (verbose)"
   }
 }

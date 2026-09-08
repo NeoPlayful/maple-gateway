@@ -54,7 +54,7 @@
     "failed": "失败"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "概览",
     "tenants": "租户",
     "domains": "域名",
     "services": "服务",
@@ -62,7 +62,7 @@
     "instances": "实例",
     "nodes": "节点",
     "traffic": "流量策略",
-    "canary": "Canary 发布",
+    "canary": "金丝雀发布",
     "blueGreen": "蓝绿发布",
     "rateLimits": "限流",
     "health": "健康",
@@ -159,16 +159,16 @@
     "confirmDelete": "确认删除该蓝绿部署？"
   },
   "canary": {
-    "title": "Canary 发布",
-    "newRelease": "新建 Canary",
+    "title": "金丝雀发布",
+    "newRelease": "新建金丝雀",
     "selectService": "选择服务",
     "namePh": "如 v2-canary",
     "selectDeployment": "选择部署",
     "initialWeight": "初始权重 %",
     "stableVersion": "Stable 版本",
-    "canaryVersion": "Canary 版本",
+    "canaryVersion": "金丝雀版本",
     "selectStable": "选择 stable",
-    "selectCanary": "选择 canary",
+    "selectCanary": "选择金丝雀",
     "operateDone": "操作 {{act}} 成功",
     "createHint": "创建成功，可在列表 start 开始发布",
     "start": "开始",
@@ -177,12 +177,12 @@
     "promote": "晋升",
     "adjustWeight": "调权重",
     "rollback": "回滚",
-    "weightPrompt": "设置 canary 权重 (0-100):",
+    "weightPrompt": "设置金丝雀权重 (0-100):",
     "weightRange": "权重须在 0-100",
-    "none": "暂无 Canary 发布"
+    "none": "暂无金丝雀发布"
   },
   "dashboard": {
-    "title": "Dashboard",
+    "title": "概览",
     "errOverview": "总览加载失败",
     "deploymentsVersions": "部署/版本",
     "instanceHealth": "实例健康",
@@ -192,7 +192,7 @@
     "cacheHit": "路由缓存命中 {{hits}}",
     "cacheMiss": "未命中 {{misses}}",
     "running": "BG {{count}} 进行中",
-    "runningCanary": "进行中的 Canary",
+    "runningCanary": "进行中的金丝雀",
     "noRunning": "暂无进行中的发布",
     "trendRequests": "请求量趋势",
     "trendErrors": "错误数趋势（5xx+拒绝）",
@@ -308,6 +308,19 @@
     "currentTheme": "当前",
     "mode": "模式",
     "lightMode": "亮色",
-    "darkMode": "暗色"
+    "darkMode": "暗色",
+    "section": {
+      "gateway": "网关",
+      "proxy": "代理",
+      "health": "健康检查",
+      "security": "安全",
+      "logging": "日志",
+      "metrics": "指标"
+    },
+    "appearanceSaving": "保存中…",
+    "appearanceSaved": "已保存，对所有访问者生效",
+    "appearanceSaveFailed": "保存失败，请重试",
+    "appearanceUnsaved": "有未保存的修改",
+    "logDebug": "调试日志（详细输出）"
   }
 }

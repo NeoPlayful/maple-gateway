@@ -2,10 +2,9 @@ import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../stores/auth';
-import TopBar from '../components/TopBar';
 import { nav } from '../nav';
 import { version } from '../../package.json';
-import { SideNav } from '../themes';
+import { SideNav, TopBar } from '../themes';
 
 export default function AdminLayout() {
   const { t } = useTranslation('admin');

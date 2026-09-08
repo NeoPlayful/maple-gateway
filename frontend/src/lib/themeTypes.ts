@@ -24,3 +24,10 @@ export interface PageHeaderProps {
   title: string;
   right?: ReactNode;
 }
+
+/**
+ * TopBar 契约：自治组件（方案 A）。主题实现自行读取 auth/theme/i18n/路由，
+ * 并自持语言、深浅、用户三组下拉的 open 状态与互斥逻辑，故不接收 props。
+ * 未来若需注入未读角标等外部数据，在此扩展字段。
+ */
+export interface TopBarProps {}

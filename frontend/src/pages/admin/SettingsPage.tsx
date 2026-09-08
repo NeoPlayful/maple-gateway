@@ -37,6 +37,10 @@ export default function SettingsPage() {
     for (const [k, v] of Object.entries(current)) {
       m[k] = typeof v.value === 'object' ? JSON.stringify(v.value) : String(v.value);
     }
+    // 日志分区的 debug 开关恒提供一行（默认关）：DB 尚无该键时也渲染，保证开关始终可见可操作。
+    if (section === 'logging' && !('debug' in m)) {
+      m.debug = 'false';
+    }
     setDraft(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, data]);
@@ -80,7 +84,7 @@ export default function SettingsPage() {
                 : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             }`}
           >
-            {s === 'appearance' ? t('settings.theme') : s}
+            {s === 'appearance' ? t('settings.theme') : t(`settings.section.${s}`, s)}
           </button>
         ))}
       </div>
@@ -90,21 +94,33 @@ export default function SettingsPage() {
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          {Object.keys(current).length === 0 && (
+          {Object.keys(draft).length === 0 && (
             <p className="py-4 text-sm text-slate-400 dark:text-slate-500">{t('settings.emptyHint')}</p>
           )}
-          {Object.entries(draft).map(([k, v]) => (
-            <div key={k} className="mb-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
-              <label className="w-56 shrink-0 text-sm text-slate-600 dark:text-slate-300">{k}
-                <span className="ml-1 text-xs text-slate-400">v{current[k]?.version ?? 1}</span>
-              </label>
-              <input
-                value={v}
-                onChange={(e) => setDraft((m) => ({ ...m, [k]: e.target.value }))}
-                className="flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 font-mono text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-              />
-            </div>
-          ))}
+          {Object.entries(draft).map(([k, v]) => {
+            const isDebug = section === 'logging' && k === 'debug';
+            return (
+              <div key={k} className="mb-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+                <label className="w-56 shrink-0 text-sm text-slate-600 dark:text-slate-300">{isDebug ? t('settings.logDebug') : k}
+                  <span className="ml-1 text-xs text-slate-400">v{current[k]?.version ?? 1}</span>
+                </label>
+                {isDebug ? (
+                  <input
+                    type="checkbox"
+                    checked={v === 'true'}
+                    onChange={(e) => setDraft((m) => ({ ...m, [k]: e.target.checked ? 'true' : 'false' }))}
+                    className="h-4 w-4 accent-th-accent"
+                  />
+                ) : (
+                  <input
+                    value={v}
+                    onChange={(e) => setDraft((m) => ({ ...m, [k]: e.target.value }))}
+                    className="flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 font-mono text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                )}
+              </div>
+            );
+          })}
           <div className="mt-4 flex gap-3">
             <button onClick={save} className="rounded bg-th-accent px-4 py-1.5 text-sm text-white hover:bg-th-accent-hover">
               {t('common.save')}

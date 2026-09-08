@@ -1,4 +1,4 @@
-// 外观设置卡片：主题 + 深浅，即时生效，存 localStorage。
+// 外观设置卡片：主题 + 深浅即时本地预览，底部"保存主题设置"按钮把选择写入后端（站点级）。
 // 主题卡片由 themeRegistry 扫描各主题目录的 theme.json 数据驱动，加主题零改动。
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../stores/theme';
@@ -6,13 +6,24 @@ import { getAvailableThemes, getThemeMeta } from '../lib/themeRegistry';
 
 export default function AppearanceSettings() {
   const { t } = useTranslation('admin');
-  const { theme, mode, setTheme, setMode } = useTheme();
+  const theme = useTheme((s) => s.theme);
+  const mode = useTheme((s) => s.mode);
+  const saveStatus = useTheme((s) => s.saveStatus);
+  const setTheme = useTheme((s) => s.setTheme);
+  const setMode = useTheme((s) => s.setMode);
+  const saveToServer = useTheme((s) => s.saveToServer);
+  const isDirty = useTheme((s) => s.isDirty);
   const themeNames = getAvailableThemes();
+
+  const dirty = isDirty();
 
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('settings.appearance')}</h2>
+        {dirty && (
+          <span className="text-xs text-amber-600 dark:text-amber-400">{t('settings.appearanceUnsaved')}</span>
+        )}
       </div>
 
       {/* 主题卡片：每主题一行（labelKey 优先，缺省用 label），色板取 theme.json colors */}
@@ -67,6 +78,27 @@ export default function AppearanceSettings() {
             {m === 'light' ? t('settings.lightMode') : t('settings.darkMode')}
           </button>
         ))}
+      </div>
+
+      {/* 保存条 */}
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          onClick={saveToServer}
+          disabled={!dirty || saveStatus === 'saving'}
+          className={`rounded px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed ${
+            dirty && saveStatus !== 'saving'
+              ? 'bg-th-accent text-white hover:bg-th-accent-hover'
+              : 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500'
+          }`}
+        >
+          {saveStatus === 'saving' ? t('settings.appearanceSaving') : t('common.save')}
+        </button>
+        {saveStatus === 'saved' && (
+          <span className="text-xs text-th-accent-text">{t('settings.appearanceSaved')}</span>
+        )}
+        {saveStatus === 'error' && (
+          <span className="text-xs text-rose-600 dark:text-rose-400">{t('settings.appearanceSaveFailed')}</span>
+        )}
       </div>
     </div>
   );
