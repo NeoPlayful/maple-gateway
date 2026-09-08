@@ -1,4 +1,5 @@
 // API 客户端：统一 {code, message, data, meta} 响应解包、Bearer 注入、401 处理。
+import i18n from '../i18n';
 const TOKEN_KEY = 'maple_token';
 
 export function getToken(): string | null {
@@ -49,16 +50,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (resp.status === 401) {
     clearToken();
     if (!location.pathname.startsWith('/login')) location.href = '/login';
-    throw new ApiError('UNAUTHORIZED', '登录已失效', 401);
+    throw new ApiError('UNAUTHORIZED', i18n.t('auth.sessionExpired', { ns: 'admin' }), 401);
   }
   let json: ApiResp<T>;
   try {
     json = await resp.json();
   } catch {
-    throw new ApiError('PARSE_ERROR', `响应解析失败 (${resp.status})`, resp.status);
+    throw new ApiError('PARSE_ERROR', i18n.t('auth.parseError', { ns: 'admin', status: resp.status }), resp.status);
   }
   if (json.code !== 'OK') {
-    throw new ApiError(json.code || 'ERROR', json.message || '请求失败', resp.status);
+    throw new ApiError(json.code || 'ERROR', json.message || i18n.t('auth.requestFailed', { ns: 'admin' }), resp.status);
   }
   return json.data;
 }

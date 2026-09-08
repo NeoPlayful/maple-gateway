@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { list, create, statusAction } from '../lib/modules';
-import type { Service, Deployment, Instance as Inst, Version, Node } from '../types';
-import { StatusBadge, ActionBtn, Field } from '../components/ui';
+import { useTranslation } from 'react-i18next';
+import { list, create, statusAction } from '../../lib/modules';
+import type { Service, Deployment, Instance as Inst, Version, Node } from '../../types';
+import { StatusBadge, ActionBtn, Field } from '../../components/ui';
 
 export default function InstancesPage() {
+  const { t } = useTranslation('admin');
   const [rows, setRows] = useState<Inst[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [deploys, setDeploys] = useState<Deployment[]>([]);
@@ -27,9 +29,9 @@ export default function InstancesPage() {
       setRows(await list('/api/admin/instances'));
       setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '加载失败');
+      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -73,17 +75,17 @@ export default function InstancesPage() {
     setMsg('');
     try {
       await statusAction('/api/admin/instances', id, a);
-      setMsg('操作成功');
+      setMsg(t('common.operateSuccess'));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '操作失败');
+      setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
   const submit = async () => {
     setErr('');
     if (!serviceId || !address) {
-      setErr('请填写服务与地址');
+      setErr(t('instances.errFill'));
       return;
     }
     try {
@@ -96,7 +98,7 @@ export default function InstancesPage() {
         port: Number(port),
         weight: Number(weight) || 1,
       });
-      setMsg('注册成功');
+      setMsg(t('instances.registerSuccess'));
       setOpen(false);
       setAddress('');
       setServiceId('');
@@ -105,95 +107,98 @@ export default function InstancesPage() {
       setNodeId('');
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '注册失败');
+      setErr(e instanceof Error ? e.message : t('instances.registerFailed'));
     }
   };
+
+  const inputCls =
+    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">实例管理</h1>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('instances.title')}</h1>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+          className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
         >
-          {open ? '收起' : '+ 注册实例'}
+          {open ? t('common.collapse') : `+ ${t('instances.registerNew')}`}
         </button>
       </div>
-      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>}
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
+      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{msg}</p>}
+      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       {open && (
-        <div className="mb-5 rounded-xl bg-white p-5 shadow-sm">
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Field label="所属服务">
-              <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">选择服务</option>
+            <Field label={t('instances.parentService')}>
+              <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={inputCls}>
+                <option value="">{t('canary.selectService')}</option>
                 {services.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="部署 (可选)">
-              <select value={depId} onChange={(e) => loadVersions(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">直挂 Service</option>
+            <Field label={t('instances.deploymentOptional')}>
+              <select value={depId} onChange={(e) => loadVersions(e.target.value)} className={inputCls}>
+                <option value="">{t('instances.directService')}</option>
                 {deploys.filter((d) => d.service_id === serviceId).map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="版本 (可选)">
-              <select value={verId} disabled={!depId} onChange={(e) => setVerId(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">选择版本</option>
+            <Field label={t('instances.versionOptional')}>
+              <select value={verId} disabled={!depId} onChange={(e) => setVerId(e.target.value)} className={inputCls}>
+                <option value="">{t('bluegreen.selectVersion')}</option>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>{v.version}</option>
                 ))}
               </select>
             </Field>
-            <Field label="节点 (可选)">
-              <select value={nodeId} onChange={(e) => setNodeId(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm">
-                <option value="">本机</option>
+            <Field label={t('instances.nodeOptional')}>
+              <select value={nodeId} onChange={(e) => setNodeId(e.target.value)} className={inputCls}>
+                <option value="">{t('instances.localhost')}</option>
                 {nodes.map((n) => (
                   <option key={n.id} value={n.id}>{n.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="地址 (IP)">
-              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="如 10.0.0.5" className="w-full rounded border px-2 py-1.5 text-sm" />
+            <Field label={t('instances.addressIp')}>
+              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t('instances.addressPh')} className={inputCls} />
             </Field>
-            <Field label="端口">
-              <input type="number" value={port} onChange={(e) => setPort(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm" />
+            <Field label={t('fields.port')}>
+              <input type="number" value={port} onChange={(e) => setPort(e.target.value)} className={inputCls} />
             </Field>
-            <Field label="权重">
-              <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className="w-full rounded border px-2 py-1.5 text-sm" />
+            <Field label={t('fields.weight')}>
+              <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls} />
             </Field>
           </div>
-          <button onClick={submit} className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700">
-            注册
+          <button onClick={submit} className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">
+            {t('instances.register')}
           </button>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-2">服务</th>
-              <th className="px-4 py-2">地址</th>
-              <th className="px-4 py-2">节点</th>
-              <th className="px-4 py-2">健康</th>
-              <th className="px-4 py-2">状态</th>
-              <th className="px-4 py-2">操作</th>
+              <th className="px-4 py-2">{t('fields.service')}</th>
+              <th className="px-4 py-2">{t('fields.address')}</th>
+              <th className="px-4 py-2">{t('fields.node')}</th>
+              <th className="px-4 py-2">{t('fields.health')}</th>
+              <th className="px-4 py-2">{t('fields.status')}</th>
+              <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">暂无实例</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
               </tr>
             )}
             {rows.map((r) => (
-              <tr key={r.id} className="border-b hover:bg-slate-50">
+              <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2">
                   {svcName(r.service_id)}
                   <span className="ml-1 text-xs text-slate-400">{r.version}</span>
@@ -204,10 +209,10 @@ export default function InstancesPage() {
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
-                    {r.status !== 'enabled' && <ActionBtn onClick={() => act(r.id, 'enable')}>启用</ActionBtn>}
-                    {r.status === 'enabled' && <ActionBtn onClick={() => act(r.id, 'disable')}>禁用</ActionBtn>}
-                    {r.status === 'enabled' && <ActionBtn onClick={() => act(r.id, 'drain')}>排空</ActionBtn>}
-                    {r.status === 'draining' && <ActionBtn onClick={() => act(r.id, 'undrain')}>取消排空</ActionBtn>}
+                    {r.status !== 'enabled' && <ActionBtn onClick={() => act(r.id, 'enable')}>{t('common.enable')}</ActionBtn>}
+                    {r.status === 'enabled' && <ActionBtn onClick={() => act(r.id, 'disable')}>{t('common.disable')}</ActionBtn>}
+                    {r.status === 'enabled' && <ActionBtn onClick={() => act(r.id, 'drain')}>{t('instances.drain')}</ActionBtn>}
+                    {r.status === 'draining' && <ActionBtn onClick={() => act(r.id, 'undrain')}>{t('instances.undrain')}</ActionBtn>}
                   </div>
                 </td>
               </tr>

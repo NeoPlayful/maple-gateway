@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../lib/client';
-import { create, remove } from '../lib/modules';
-import type { BlueGreenDeployment, Deployment, Service, Version } from '../types';
-import { ActionBtn } from '../components/ui';
+import { useTranslation } from 'react-i18next';
+import { api } from '../../lib/client';
+import { create, remove } from '../../lib/modules';
+import type { BlueGreenDeployment, Deployment, Service, Version } from '../../types';
+import { ActionBtn } from '../../components/ui';
 
 export default function BlueGreenPage() {
+  const { t } = useTranslation('admin');
   const [rows, setRows] = useState<BlueGreenDeployment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [deploys, setDeploys] = useState<Deployment[]>([]);
@@ -24,9 +26,9 @@ export default function BlueGreenPage() {
       setRows(d);
       setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '加载失败');
+      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -62,7 +64,7 @@ export default function BlueGreenPage() {
   const doCreate = async () => {
     setErr('');
     if (!depId || !blueId || !greenId || blueId === greenId) {
-      setErr('请选择部署与两个不同版本');
+      setErr(t('bluegreen.errPickDeploy'));
       return;
     }
     try {
@@ -71,11 +73,11 @@ export default function BlueGreenPage() {
         blue_version_id: blueId,
         green_version_id: greenId,
       });
-      setMsg('创建成功（初始激活 blue）');
+      setMsg(t('bluegreen.createSuccess'));
       setOpen(false);
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '创建失败');
+      setErr(e instanceof Error ? e.message : t('common.createFailed'));
     }
   };
 
@@ -84,10 +86,10 @@ export default function BlueGreenPage() {
     setErr('');
     try {
       await api.post(`/api/admin/blue-green/${id}/${act}`, body);
-      setMsg(`操作 ${act} 成功`);
+      setMsg(t('bluegreen.operateDone', { act }));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '操作失败');
+      setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
@@ -105,48 +107,49 @@ export default function BlueGreenPage() {
   const isBlueActive = (r: BlueGreenDeployment) =>
     r.active_version_id === r.blue_version_id || !r.active_version_id;
 
-  const inputCls = 'w-full rounded border px-2 py-1.5 text-sm';
+  const inputCls =
+    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Blue/Green 发布</h1>
-        <button onClick={() => setOpen((v) => !v)} className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700">
-          {open ? '收起' : '+ 新建蓝绿部署'}
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('bluegreen.title')}</h1>
+        <button onClick={() => setOpen((v) => !v)} className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700">
+          {open ? t('common.collapse') : `+ ${t('bluegreen.newDeployment')}`}
         </button>
       </div>
-      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</p>}
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
+      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{msg}</p>}
+      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       {open && (
-        <div className="mb-5 rounded-xl bg-white p-5 shadow-sm">
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-xs text-slate-500">服务</label>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.service')}</label>
               <select value={svcId} onChange={(e) => loadDeploys(e.target.value)} className={inputCls}>
-                <option value="">选择服务</option>
+                <option value="">{t('bluegreen.selectService')}</option>
                 {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">部署</label>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.deploymentName')}</label>
               <select value={depId} disabled={!svcId} onChange={(e) => loadVersions(e.target.value)} className={inputCls}>
-                <option value="">选择部署</option>
+                <option value="">{t('bluegreen.selectDeployment')}</option>
                 {deploys.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div />
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Blue 版本（初始 active）</label>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('bluegreen.blueVersion')}</label>
               <select value={blueId} disabled={!depId} onChange={(e) => setBlueId(e.target.value)} className={inputCls}>
-                <option value="">选择版本</option>
+                <option value="">{t('bluegreen.selectVersion')}</option>
                 {versions.map((v) => <option key={v.id} value={v.id}>{v.version}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Green 版本</label>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('bluegreen.greenVersion')}</label>
               <select value={greenId} disabled={!depId} onChange={(e) => setGreenId(e.target.value)} className={inputCls}>
-                <option value="">选择版本</option>
+                <option value="">{t('bluegreen.selectVersion')}</option>
                 {versions.map((v) => <option key={v.id} value={v.id}>{v.version}</option>)}
               </select>
             </div>
@@ -154,50 +157,50 @@ export default function BlueGreenPage() {
           <button
             disabled={!blueId || !greenId || blueId === greenId}
             onClick={doCreate}
-            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-40"
+            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-700 dark:hover:bg-slate-600"
           >
-            创建
+            {t('common.create')}
           </button>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
-          <thead className="border-b bg-slate-50 text-left text-xs text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-2">部署</th>
+              <th className="px-4 py-2">{t('fields.deploymentName')}</th>
               <th className="px-4 py-2">Blue</th>
               <th className="px-4 py-2">Green</th>
-              <th className="px-4 py-2">当前 Active</th>
-              <th className="px-4 py-2">操作</th>
+              <th className="px-4 py-2">{t('bluegreen.currentActive')}</th>
+              <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">暂无蓝绿部署</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('bluegreen.none')}</td></tr>
             )}
             {rows.map((r) => (
-              <tr key={r.id} className="border-b hover:bg-slate-50">
+              <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2 text-sm">{depMeta(r.deployment_id)}</td>
                 <td className="px-4 py-2 text-xs">
                   {verName(r.blue_version_id)}
-                  {isBlueActive(r) && <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700">active</span>}
+                  {isBlueActive(r) && <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">active</span>}
                 </td>
                 <td className="px-4 py-2 text-xs">
                   {verName(r.green_version_id)}
-                  {!isBlueActive(r) && <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700">active</span>}
+                  {!isBlueActive(r) && <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">active</span>}
                 </td>
                 <td className="px-4 py-2 text-xs font-mono">{activeOf(r)}</td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
                     {isBlueActive(r) && greenIdOf(r) && (
-                      <ActionBtn onClick={() => action(r.id, 'switch', { target_version_id: r.green_version_id })}>切到 Green</ActionBtn>
+                      <ActionBtn onClick={() => action(r.id, 'switch', { target_version_id: r.green_version_id })}>{t('bluegreen.switchToGreen')}</ActionBtn>
                     )}
                     {!isBlueActive(r) && (
-                      <ActionBtn onClick={() => action(r.id, 'switch', { target_version_id: r.blue_version_id })}>切到 Blue</ActionBtn>
+                      <ActionBtn onClick={() => action(r.id, 'switch', { target_version_id: r.blue_version_id })}>{t('bluegreen.switchToBlue')}</ActionBtn>
                     )}
-                    <ActionBtn onClick={() => action(r.id, 'rollback')}>回滚</ActionBtn>
-                    <ActionBtn danger onClick={async () => { if (!window.confirm('确认删除该蓝绿部署？')) return; await remove('/api/admin/blue-green', r.id); await load(); }}>删除</ActionBtn>
+                    <ActionBtn onClick={() => action(r.id, 'rollback')}>{t('common.rollback')}</ActionBtn>
+                    <ActionBtn danger onClick={async () => { if (!window.confirm(t('bluegreen.confirmDelete'))) return; await remove('/api/admin/blue-green', r.id); await load(); }}>{t('common.delete')}</ActionBtn>
                   </div>
                 </td>
               </tr>
