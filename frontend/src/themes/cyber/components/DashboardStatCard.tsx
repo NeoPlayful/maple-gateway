@@ -1,5 +1,5 @@
 // cyber 风格统计卡：大圆角 + 主色辉光边 + hover 抬升，科技感数据块。
-import type { DashboardStatCardProps } from '../../registry';
+import type { DashboardStatCardProps } from '../../../lib/themeTypes';
 
 export default function DashboardStatCard({ label, value, unit }: DashboardStatCardProps) {
   return (

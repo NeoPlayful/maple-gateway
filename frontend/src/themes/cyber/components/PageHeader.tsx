@@ -1,5 +1,5 @@
 // cyber 风格页头：主色饰条 + 渐变标题，强调式页头。
-import type { PageHeaderProps } from '../../registry';
+import type { PageHeaderProps } from '../../../lib/themeTypes';
 
 export default function PageHeader({ title, right }: PageHeaderProps) {
   return (
