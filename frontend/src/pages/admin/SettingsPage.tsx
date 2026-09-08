@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
+import AppearanceSettings from '../../components/AppearanceSettings';
 
 type KV = { value: unknown; version: number; updated_at: string };
 type SettingsMap = Record<string, Record<string, KV>>;
@@ -63,8 +64,14 @@ export default function SettingsPage() {
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">{t('settings.title')}</h1>
-      {msg && <p className="mb-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{msg}</p>}
+      {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
+
+      {/* 外观/主题设置 */}
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <AppearanceSettings />
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-2">
         {sections.map((s) => (
           <button
@@ -97,7 +104,7 @@ export default function SettingsPage() {
           </div>
         ))}
         <div className="mt-4 flex gap-3">
-          <button onClick={save} className="rounded bg-emerald-600 px-4 py-1.5 text-sm text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700">
+          <button onClick={save} className="rounded bg-th-accent px-4 py-1.5 text-sm text-white hover:bg-th-accent-hover">
             {t('common.save')}
           </button>
           <button onClick={load} className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">

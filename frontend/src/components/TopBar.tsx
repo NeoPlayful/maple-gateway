@@ -17,7 +17,7 @@ export default function TopBar() {
   const { t, i18n } = useTranslation('admin');
   const navigate = useNavigate();
   const { admin, logout } = useAuth();
-  const { mode, toggle } = useTheme();
+  const { mode, toggleMode } = useTheme();
   const [userOpen, setUserOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const userRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,7 @@ export default function TopBar() {
                   }}
                   className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${
                     lang === code
-                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      ? 'font-medium text-th-accent-text'
                       : 'text-slate-700 dark:text-slate-200'
                   }`}
                 >
@@ -73,9 +73,9 @@ export default function TopBar() {
           )}
         </div>
 
-        {/* 主题切换 */}
+        {/* 深浅切换 */}
         <button
-          onClick={toggle}
+          onClick={toggleMode}
           className="flex items-center rounded-md p-2 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           title={mode === 'dark' ? t('topbar.switchToLight', '切换亮色') : t('topbar.switchToDark', '切换暗色')}
         >
@@ -92,7 +92,7 @@ export default function TopBar() {
               }}
               className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-th-accent-soft-bg text-xs font-semibold text-th-accent-soft-text">
                 {admin.name?.charAt(0)?.toUpperCase() ?? 'A'}
               </span>
               <span className="hidden max-w-32 truncate sm:inline">{admin.name}</span>

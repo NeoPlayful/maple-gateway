@@ -300,6 +300,13 @@
     "title": "Settings",
     "saved": "Saved and hot-reloaded",
     "saveFailed": "Save failed",
-    "emptyHint": "No config for this section yet. Fill in below and save to add."
+    "emptyHint": "No config for this section yet. Fill in below and save to add.",
+    "appearance": "Appearance & theme",
+    "themeMaple": "Maple green",
+    "themeCyber": "Cyber cyan",
+    "currentTheme": "Current",
+    "mode": "Mode",
+    "lightMode": "Light",
+    "darkMode": "Dark"
   }
 }

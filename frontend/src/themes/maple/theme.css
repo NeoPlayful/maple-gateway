@@ -1,0 +1,30 @@
+/* ============================================
+   Theme: maple — 枫叶绿（默认主题）
+   Description: 枫叶 / 森林绿强调，延续 v0.1.x 品牌色
+   ============================================ */
+
+/* 亮色 */
+[data-theme="maple"] {
+  --th-accent: #059669;        /* emerald-600 */
+  --th-accent-hover: #047857;  /* emerald-700 */
+  --th-accent-text: #047857;   /* emerald-700 on light */
+  --th-accent-soft-bg: #d1fae5;/* emerald-100 */
+  --th-accent-soft-text: #047857;/* emerald-700 */
+  --th-accent-focus: #10b981;  /* emerald-500 focus border */
+  --th-brand-text: #059669;    /* logo emerald-600 */
+  --th-nav-active-bg: #ecfdf5; /* emerald-50 */
+  --th-nav-active-text: #047857;/* emerald-700 */
+}
+
+/* 暗色 */
+[data-theme="maple"][data-mode="dark"] {
+  --th-accent: #10b981;        /* emerald-500: 白字按钮可用 */
+  --th-accent-hover: #059669;  /* emerald-600 */
+  --th-accent-text: #6ee7b7;   /* emerald-300 */
+  --th-accent-soft-bg: rgba(16, 185, 129, 0.25); /* emerald-900/50-ish */
+  --th-accent-soft-text: #6ee7b7;
+  --th-accent-focus: #34d399;
+  --th-brand-text: #34d399;    /* emerald-400 */
+  --th-nav-active-bg: rgba(16, 185, 129, 0.2);
+  --th-nav-active-text: #6ee7b7;
+}

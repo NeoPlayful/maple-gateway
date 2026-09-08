@@ -40,7 +40,7 @@ export default function LoginPage() {
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-th-accent-focus dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
             type="email"
             required
           />
@@ -50,7 +50,7 @@ export default function LoginPage() {
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-th-accent-focus dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
             type="password"
             required
           />
@@ -58,7 +58,7 @@ export default function LoginPage() {
         {err && <p className="mb-3 text-sm text-red-600">{err}</p>}
         <button
           disabled={busy}
-          className="w-full rounded bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+          className="w-full rounded bg-th-accent py-2 text-sm font-medium text-white hover:bg-th-accent-hover disabled:opacity-50"
         >
           {busy ? t('auth.loggingIn') : t('auth.login')}
         </button>
