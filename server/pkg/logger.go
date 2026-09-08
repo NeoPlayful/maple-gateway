@@ -1,33 +1,32 @@
 package pkg
 
 import (
+	"os"
 	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var log *zap.Logger
+var (
+	log       *zap.Logger
+	logAtomic *zap.AtomicLevel
+)
 
 // InitLogger 初始化全局 logger。pretty=true 时输出人类可读格式。
 func InitLogger(level string, pretty bool) error {
 	lvl := levelToZap(level)
+	a := zap.NewAtomicLevelAt(lvl)
+	logAtomic = &a
 
-	var cfg zap.Config
+	var encoder zapcore.Encoder
 	if pretty {
-		cfg = zap.NewDevelopmentConfig()
+		encoder = zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
 	} else {
-		cfg = zap.NewProductionConfig()
+		encoder = zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
 	}
-	cfg.Level = zap.NewAtomicLevelAt(lvl)
-	cfg.OutputPaths = []string{"stdout"}
-
-	l, err := cfg.Build()
-	if err != nil {
-		return err
-	}
-	log = l
-	zap.ReplaceGlobals(l)
+	log = zap.New(zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), logAtomic))
+	zap.ReplaceGlobals(log)
 	return nil
 }
 
@@ -47,11 +46,25 @@ func levelToZap(level string) zapcore.Level {
 // Log 返回全局 logger；未初始化时回退到 stdout 的 production logger。
 func Log() *zap.Logger {
 	if log == nil {
-		cfg := zap.NewProductionConfig()
-		cfg.OutputPaths = []string{"stdout"}
-		log, _ = cfg.Build()
+		a := zap.NewAtomicLevelAt(zapcore.InfoLevel)
+		logAtomic = &a
+		encoder := zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
+		log = zap.New(zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), logAtomic))
 	}
 	return log
+}
+
+// SetLogLevel 运行时切换全局日志输出级别（无需重启进程）。
+// debug=true 打开详细日志（Debug 及以上）；false 恢复默认 Info 级别。
+func SetLogLevel(debug bool) {
+	if logAtomic == nil {
+		return
+	}
+	if debug {
+		logAtomic.SetLevel(zapcore.DebugLevel)
+	} else {
+		logAtomic.SetLevel(zapcore.InfoLevel)
+	}
 }
 
 // SyncLogger 在进程退出前调用，刷新缓冲。

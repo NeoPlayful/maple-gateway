@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/internal/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/config"
@@ -30,7 +31,6 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
-	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
@@ -193,6 +193,13 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		setRepo := settings.NewRepository(entClient)
 		if err := setRepo.Reload(ctx); err != nil {
 			logger.Warn("settings reload failed", zap.String("err", err.Error()))
+		} else {
+			// 启动即补 logging.debug 默认行（幂等），保证设置页日志分区恒有开关可显示。
+			if err := settings.EnsureDefaultDebug(ctx, setRepo); err != nil {
+				logger.Warn("ensure default settings failed", zap.String("err", err.Error()))
+			}
+			// 启动即应用已存的 logging.debug 开关。
+			settings.SyncLogLevel(setRepo)
 		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series, UIDir: uiDir})

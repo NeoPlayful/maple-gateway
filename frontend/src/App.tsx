@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './stores/auth';
+import { useTheme } from './stores/theme';
 import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
@@ -27,6 +28,13 @@ export default function App() {
   useEffect(() => {
     restore();
   }, [restore]);
+
+  // 登录恢复完成后，从后端拉取站点级外观（主题/模式）做跨浏览器同步；
+  // 未登录时 readFromServer 内部直接跳过。restore 内 admin 与 initialized 同批 set，故在此判断可靠。
+  const readServerTheme = useTheme((s) => s.readFromServer);
+  useEffect(() => {
+    if (initialized) readServerTheme();
+  }, [initialized, readServerTheme]);
 
   if (!initialized) {
     return (

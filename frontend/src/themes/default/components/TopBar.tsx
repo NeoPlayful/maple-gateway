@@ -1,3 +1,4 @@
+// default 风格顶栏：白底细边框、扁平按钮、标准 slate 下拉面板。
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -9,11 +10,12 @@ import {
   SunIcon,
   LanguageIcon,
 } from '@heroicons/react/24/outline';
-import { useAuth } from '../stores/auth';
-import { useTheme } from '../stores/theme';
-import { changeSiteLanguage } from '../i18n';
+import { useAuth } from '../../../stores/auth';
+import { useTheme } from '../../../stores/theme';
+import { changeSiteLanguage } from '../../../i18n';
+import type { TopBarProps } from '../../../lib/themeTypes';
 
-export default function TopBar() {
+export default function TopBar(_props: TopBarProps) {
   const { t, i18n } = useTranslation('admin');
   const navigate = useNavigate();
   const { admin, logout } = useAuth();

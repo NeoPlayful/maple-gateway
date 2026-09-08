@@ -15,12 +15,13 @@ type Section string
 
 // 预定义 section（对应 plan 11.3 端点）。
 const (
-	SectionGateway  Section = "gateway"
-	SectionProxy    Section = "proxy"
-	SectionHealth   Section = "health"
-	SectionSecurity Section = "security"
-	SectionLogging  Section = "logging"
-	SectionMetrics  Section = "metrics"
+	SectionGateway    Section = "gateway"
+	SectionProxy      Section = "proxy"
+	SectionHealth     Section = "health"
+	SectionSecurity   Section = "security"
+	SectionLogging    Section = "logging"
+	SectionMetrics    Section = "metrics"
+	SectionAppearance Section = "appearance"
 )
 
 // Entry 是一条配置键值。

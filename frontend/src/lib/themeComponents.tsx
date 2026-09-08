@@ -7,6 +7,7 @@ import type {
   DashboardStatCardProps,
   SideNavProps,
   PageHeaderProps,
+  TopBarProps,
 } from './themeTypes';
 
 // default 主题保证实现全部契约组件，故 getThemeComponent 必然命中；非空断言仅消除 undefined。
@@ -28,5 +29,11 @@ export function SideNav(props: SideNavProps) {
 export function PageHeader(props: PageHeaderProps) {
   const { theme } = useTheme();
   const Comp = pick<PageHeaderProps>(theme, 'PageHeader');
+  return <Comp {...props} />;
+}
+
+export function TopBar(props: TopBarProps) {
+  const { theme } = useTheme();
+  const Comp = pick<TopBarProps>(theme, 'TopBar');
   return <Comp {...props} />;
 }

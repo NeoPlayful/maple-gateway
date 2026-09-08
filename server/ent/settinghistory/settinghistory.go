@@ -23,7 +23,7 @@ const (
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// Table holds the table name of the settinghistory in the database.
-	Table = "setting_histories"
+	Table = "settings_history"
 )
 
 // Columns holds all SQL columns for settinghistory fields.

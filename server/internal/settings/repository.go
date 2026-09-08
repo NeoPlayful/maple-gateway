@@ -226,6 +226,19 @@ func (r *Repository) GetInt(section Section, key string, def int) int {
 	return v
 }
 
+// GetBool 读布尔值（如 logging.debug）。不存在或非法返回 def。
+func (r *Repository) GetBool(section Section, key string, def bool) bool {
+	e, ok := r.Get(section, key)
+	if !ok {
+		return def
+	}
+	var v bool
+	if err := json.Unmarshal(e.Value, &v); err != nil {
+		return def
+	}
+	return v
+}
+
 // GetSection 返回某 section 的全部键值（供管理端读）。
 func (r *Repository) GetSection(section Section) []Entry {
 	r.mu.RLock()
