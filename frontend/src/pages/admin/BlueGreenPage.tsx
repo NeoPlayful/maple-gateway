@@ -4,6 +4,7 @@ import { api } from '../../lib/client';
 import { create, remove } from '../../lib/modules';
 import type { BlueGreenDeployment, Deployment, Service, Version } from '../../types';
 import { ActionBtn } from '../../components/ui';
+import { PageHeader } from '../../themes';
 
 export default function BlueGreenPage() {
   const { t } = useTranslation('admin');
@@ -112,12 +113,14 @@ export default function BlueGreenPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('bluegreen.title')}</h1>
-        <button onClick={() => setOpen((v) => !v)} className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover">
-          {open ? t('common.collapse') : `+ ${t('bluegreen.newDeployment')}`}
-        </button>
-      </div>
+      <PageHeader
+        title={t('bluegreen.title')}
+        right={
+          <button onClick={() => setOpen((v) => !v)} className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover">
+            {open ? t('common.collapse') : `+ ${t('bluegreen.newDeployment')}`}
+          </button>
+        }
+      />
       {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 

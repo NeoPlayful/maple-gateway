@@ -1,9 +1,9 @@
-// 外观设置卡片：主题（maple/cyber）+ 深浅（light/dark），即时生效，存 localStorage。
+// 外观设置卡片：主题（default/cyber）+ 深浅（light/dark），即时生效，存 localStorage。
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ThemeName } from '../stores/theme';
 
 const themeOptions: { key: ThemeName; labelKey: string; swatch: string[] }[] = [
-  { key: 'maple', labelKey: 'settings.themeMaple', swatch: ['#059669', '#34d399', '#d1fae5'] },
+  { key: 'default', labelKey: 'settings.themeDefault', swatch: ['#059669', '#34d399', '#d1fae5'] },
   { key: 'cyber', labelKey: 'settings.themeCyber', swatch: ['#0891b2', '#22d3ee', '#cffafe'] },
 ];
 

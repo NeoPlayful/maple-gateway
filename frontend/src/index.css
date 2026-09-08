@@ -37,9 +37,9 @@
 
 /*
   主题系统（勿在 @import / @theme 前写含 @ 的中文块注释，Tailwind 4.3 解析会报错）：
-  - html[data-theme] 决定主题（maple | cyber），html[data-mode] 决定深浅（由 theme store 维护）。
+  - html[data-theme] 决定主题（default | cyber），html[data-mode] 决定深浅（由 theme store 维护）。
   - data-mode="dark" 激活上方 dark: variant，所有既有 dark: slate 双写在暗色下继续生效。
   - @theme 里的 --color-th-* 令牌会生成 bg-th-accent / text-th-accent 等工具类，
     其取值代理到各主题 CSS（src/themes/*/theme.css）在 [data-theme=...] 下定义的 --th-*，
-    :root 提供一份 maple 兜底，避免 FOUC。
+    :root 提供一份 default 兜底，避免 FOUC。
 */

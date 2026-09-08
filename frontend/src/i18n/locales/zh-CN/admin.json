@@ -298,11 +298,12 @@
   },
   "settings": {
     "title": "系统设置",
+    "theme": "主题",
     "saved": "已保存并热生效",
     "saveFailed": "保存失败",
     "emptyHint": "该 section 暂无配置，填写下方并保存以新增。",
     "appearance": "外观与主题",
-    "themeMaple": "枫叶绿",
+    "themeDefault": "默认",
     "themeCyber": "科技青蓝",
     "currentTheme": "当前",
     "mode": "模式",
