@@ -4,7 +4,7 @@ import App from './App';
 import './i18n';
 import './stores/theme';
 import './index.css';
-import './themes/maple/theme.css';
+import './themes/default/theme.css';
 import './themes/cyber/theme.css';
 
 createRoot(document.getElementById('root')!).render(

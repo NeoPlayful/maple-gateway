@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import Sparkline, { type Pt } from '../../components/Sparkline';
+import { DashboardStatCard, PageHeader } from '../../themes';
 
 interface Counts {
   tenants: number;
@@ -54,18 +55,6 @@ interface LatencyPoint {
   count: number;
   avg_ms: number;
   p95_ms: number;
-}
-
-function Card({ label, value, unit }: { label: string; value: number; unit?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">
-        {value}
-        {unit && <span className="ml-1 text-base font-normal text-slate-400">{unit}</span>}
-      </p>
-    </div>
-  );
 }
 
 export default function DashboardPage() {
@@ -129,25 +118,27 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.title')}</h1>
-        <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">
-          {t('common.refresh')}
-        </button>
-      </div>
+      <PageHeader
+        title={t('dashboard.title')}
+        right={
+          <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">
+            {t('common.refresh')}
+          </button>
+        }
+      />
 
       {/* 资源计数 */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <Card label={t('nav.tenants')} value={c.tenants} />
-        <Card label={t('nav.domains')} value={c.domains} />
-        <Card label={t('nav.services')} value={c.services} />
-        <Card label={t('dashboard.deploymentsVersions')} value={c.deployments} unit={`/ ${c.versions}`} />
-        <Card label={t('nav.instances')} value={c.instances} />
-        <Card label={t('nav.nodes')} value={c.nodes} />
-        <Card label={t('nav.traffic')} value={c.traffic_policies} />
-        <Card label={t('nav.rateLimits')} value={c.rate_limits} />
-        <Card label="Canary" value={c.canary} />
-        <Card label="Blue/Green" value={c.blue_green} />
+        <DashboardStatCard label={t('nav.tenants')} value={c.tenants} />
+        <DashboardStatCard label={t('nav.domains')} value={c.domains} />
+        <DashboardStatCard label={t('nav.services')} value={c.services} />
+        <DashboardStatCard label={t('dashboard.deploymentsVersions')} value={c.deployments} unit={`/ ${c.versions}`} />
+        <DashboardStatCard label={t('nav.instances')} value={c.instances} />
+        <DashboardStatCard label={t('nav.nodes')} value={c.nodes} />
+        <DashboardStatCard label={t('nav.traffic')} value={c.traffic_policies} />
+        <DashboardStatCard label={t('nav.rateLimits')} value={c.rate_limits} />
+        <DashboardStatCard label="Canary" value={c.canary} />
+        <DashboardStatCard label="Blue/Green" value={c.blue_green} />
       </div>
 
       {/* 运行状态 */}

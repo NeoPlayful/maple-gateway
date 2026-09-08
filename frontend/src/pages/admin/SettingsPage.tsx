@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import AppearanceSettings from '../../components/AppearanceSettings';
+import { PageHeader } from '../../themes';
 
 type KV = { value: unknown; version: number; updated_at: string };
 type SettingsMap = Record<string, Record<string, KV>>;
 
 const sections = ['gateway', 'proxy', 'health', 'security', 'logging', 'metrics'];
+const tabs = ['appearance', ...sections];
 
 export default function SettingsPage() {
   const { t } = useTranslation('admin');
   const [data, setData] = useState<SettingsMap>({});
-  const [section, setSection] = useState('proxy');
+  const [section, setSection] = useState('appearance');
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
@@ -63,17 +65,12 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">{t('settings.title')}</h1>
+      <PageHeader title={t('settings.title')} />
       {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
-      {/* 外观/主题设置 */}
-      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <AppearanceSettings />
-      </div>
-
       <div className="mb-4 flex flex-wrap gap-2">
-        {sections.map((s) => (
+        {tabs.map((s) => (
           <button
             key={s}
             onClick={() => setSection(s)}
@@ -83,35 +80,41 @@ export default function SettingsPage() {
                 : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             }`}
           >
-            {s}
+            {s === 'appearance' ? t('settings.theme') : s}
           </button>
         ))}
       </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        {Object.keys(current).length === 0 && (
-          <p className="py-4 text-sm text-slate-400 dark:text-slate-500">{t('settings.emptyHint')}</p>
-        )}
-        {Object.entries(draft).map(([k, v]) => (
-          <div key={k} className="mb-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
-            <label className="w-56 shrink-0 text-sm text-slate-600 dark:text-slate-300">{k}
-              <span className="ml-1 text-xs text-slate-400">v{current[k]?.version ?? 1}</span>
-            </label>
-            <input
-              value={v}
-              onChange={(e) => setDraft((m) => ({ ...m, [k]: e.target.value }))}
-              className="flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 font-mono text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-            />
-          </div>
-        ))}
-        <div className="mt-4 flex gap-3">
-          <button onClick={save} className="rounded bg-th-accent px-4 py-1.5 text-sm text-white hover:bg-th-accent-hover">
-            {t('common.save')}
-          </button>
-          <button onClick={load} className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
-            {t('common.refresh')}
-          </button>
+      {section === 'appearance' ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <AppearanceSettings />
         </div>
-      </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          {Object.keys(current).length === 0 && (
+            <p className="py-4 text-sm text-slate-400 dark:text-slate-500">{t('settings.emptyHint')}</p>
+          )}
+          {Object.entries(draft).map(([k, v]) => (
+            <div key={k} className="mb-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <label className="w-56 shrink-0 text-sm text-slate-600 dark:text-slate-300">{k}
+                <span className="ml-1 text-xs text-slate-400">v{current[k]?.version ?? 1}</span>
+              </label>
+              <input
+                value={v}
+                onChange={(e) => setDraft((m) => ({ ...m, [k]: e.target.value }))}
+                className="flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 font-mono text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+              />
+            </div>
+          ))}
+          <div className="mt-4 flex gap-3">
+            <button onClick={save} className="rounded bg-th-accent px-4 py-1.5 text-sm text-white hover:bg-th-accent-hover">
+              {t('common.save')}
+            </button>
+            <button onClick={load} className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
+              {t('common.refresh')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

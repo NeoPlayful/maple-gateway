@@ -298,11 +298,12 @@
   },
   "settings": {
     "title": "Settings",
+    "theme": "Theme",
     "saved": "Saved and hot-reloaded",
     "saveFailed": "Save failed",
     "emptyHint": "No config for this section yet. Fill in below and save to add.",
     "appearance": "Appearance & theme",
-    "themeMaple": "Maple green",
+    "themeDefault": "Default",
     "themeCyber": "Cyber cyan",
     "currentTheme": "Current",
     "mode": "Mode",

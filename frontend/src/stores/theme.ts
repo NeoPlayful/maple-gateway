@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 
-export type ThemeName = 'maple' | 'cyber';
+export type ThemeName = 'default' | 'cyber';
 type Mode = 'light' | 'dark';
 
+// 应用命名空间 key（与 maple_token / maple-lang 同族），不随主题名改变。
 const THEME_KEY = 'maple-theme';
 const MODE_KEY = 'maple-theme-mode';
 
-const THEMES: ThemeName[] = ['maple', 'cyber'];
+const THEMES: ThemeName[] = ['default', 'cyber'];
 
 function readStored<T extends string>(key: string, valid: readonly T[]): T | null {
   try {
@@ -45,7 +46,7 @@ interface ThemeState {
   toggleMode: () => void;
 }
 
-const initialTheme = readStored<ThemeName>(THEME_KEY, THEMES) ?? 'maple';
+const initialTheme = readStored<ThemeName>(THEME_KEY, THEMES) ?? 'default';
 const initialMode = readStored<Mode>(MODE_KEY, ['light', 'dark']) ?? readInitialMode();
 
 export const useTheme = create<ThemeState>((set, get) => ({

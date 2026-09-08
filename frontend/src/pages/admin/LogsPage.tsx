@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AccessLogRow, ErrorLogRow, AuditLogRow } from '../../types';
+import { PageHeader } from '../../themes';
 
 type Tab = 'access' | 'error' | 'audit';
 
@@ -44,30 +45,32 @@ export default function LogsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('logs.title')}</h1>
-        <div className="flex gap-1">
-          {(
-            [
-              ['access', 'logs.tabAccess'],
-              ['error', 'logs.tabError'],
-              ['audit', 'logs.tabAudit'],
-            ] as [Tab, string][]
-          ).map(([v, labelKey]) => (
-            <button
-              key={v}
-              onClick={() => setTab(v)}
-              className={`rounded px-3 py-1.5 text-sm ${
-                tab === v
-                  ? 'bg-slate-800 text-white dark:bg-slate-600'
-                  : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-              }`}
-            >
-              {t(labelKey)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title={t('logs.title')}
+        right={
+          <div className="flex gap-1">
+            {(
+              [
+                ['access', 'logs.tabAccess'],
+                ['error', 'logs.tabError'],
+                ['audit', 'logs.tabAudit'],
+              ] as [Tab, string][]
+            ).map(([v, labelKey]) => (
+              <button
+                key={v}
+                onClick={() => setTab(v)}
+                className={`rounded px-3 py-1.5 text-sm ${
+                  tab === v
+                    ? 'bg-slate-800 text-white dark:bg-slate-600'
+                    : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                }`}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div>

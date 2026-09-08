@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import type { CanaryRelease, Deployment, Service, Version } from '../../types';
 import { PhaseBadge, ActionBtn } from '../../components/ui';
+import { PageHeader } from '../../themes';
 
 interface VersionMeta {
   id: string;
@@ -112,15 +113,17 @@ export default function CanaryPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('canary.title')}</h1>
-        <button
-          onClick={() => setShowCreate((v) => !v)}
-          className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
-        >
-          {showCreate ? t('common.collapse') : `+ ${t('canary.newRelease')}`}
-        </button>
-      </div>
+      <PageHeader
+        title={t('canary.title')}
+        right={
+          <button
+            onClick={() => setShowCreate((v) => !v)}
+            className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
+          >
+            {showCreate ? t('common.collapse') : `+ ${t('canary.newRelease')}`}
+          </button>
+        }
+      />
       {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 

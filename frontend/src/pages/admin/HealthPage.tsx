@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import type { Instance, Service } from '../../types';
 import { StatusBadge } from '../../components/ui';
+import { PageHeader } from '../../themes';
 
 export default function HealthPage() {
   const { t } = useTranslation('admin');
@@ -59,13 +60,15 @@ export default function HealthPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('health.title')}</h1>
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">{t('common.refresh')}</button>
-          {last && <span>{t('health.updatedAt', { time: last })}</span>}
-        </div>
-      </div>
+      <PageHeader
+        title={t('health.title')}
+        right={
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">{t('common.refresh')}</button>
+            {last && <span>{t('health.updatedAt', { time: last })}</span>}
+          </div>
+        }
+      />
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       {/* 健康汇总 */}
