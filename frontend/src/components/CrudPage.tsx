@@ -1,7 +1,7 @@
 // 配置驱动的通用资源管理页：列表 + 创建 + 启用/禁用 + 删除。
 // 适用于结构规整的后端 CRUD 资源（tenants/services/domains/deployments/nodes）。
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { list, create, remove, statusAction } from '../api/modules';
+import { list, create, remove, statusAction } from '../lib/modules';
 import { StatusBadge, ActionBtn } from '../components/ui';
 
 export interface FieldDef {

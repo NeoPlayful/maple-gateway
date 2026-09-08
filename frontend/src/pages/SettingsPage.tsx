@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { api } from '../lib/client';
 
 type KV = { value: unknown; version: number; updated_at: string };
 type SettingsMap = Record<string, Record<string, KV>>;

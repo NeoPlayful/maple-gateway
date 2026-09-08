@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { api } from '../lib/client';
 import type { CanaryRelease, Deployment, Service, Version } from '../types';
 import { PhaseBadge } from '../components/ui';
 

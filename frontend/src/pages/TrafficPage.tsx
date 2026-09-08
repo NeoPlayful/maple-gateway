@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { list, create, statusAction, remove } from '../api/modules';
+import { list, create, statusAction, remove } from '../lib/modules';
 import type { TrafficPolicy, Service } from '../types';
 import { StatusBadge, ActionBtn, Field } from '../components/ui';
 
