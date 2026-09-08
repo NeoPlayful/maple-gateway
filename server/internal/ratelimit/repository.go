@@ -2,47 +2,46 @@ package ratelimit
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entrl "github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Repository 是限流规则数据访问层。
+// Repository 是限流规则数据访问层（基于 Ent）。
 type Repository struct {
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
-const cols = `id, scope, tenant_id, domain_id, service_id, name, "limit", window_seconds,
-	burst, response_code, status, created_at, updated_at`
-
-func scanRL(row pgx.Row) (*RateLimit, error) {
-	var r RateLimit
-	err := row.Scan(&r.ID, &r.Scope, &r.TenantID, &r.DomainID, &r.ServiceID, &r.Name,
-		&r.Limit, &r.WindowSeconds, &r.Burst, &r.ResponseCode, &r.Status,
-		&r.CreatedAt, &r.UpdatedAt)
-	if err != nil {
-		return nil, err
+func toModel(e *ent.RateLimit) *RateLimit {
+	r := &RateLimit{
+		ID:            e.ID,
+		Scope:         Scope(e.Scope),
+		TenantID:      e.TenantID,
+		DomainID:      e.DomainID,
+		ServiceID:     e.ServiceID,
+		Name:          e.Name,
+		Limit:         e.Limit,
+		WindowSeconds: e.WindowSeconds,
+		Burst:         e.Burst,
+		ResponseCode:  e.ResponseCode,
+		Status:        Status(e.Status),
+		CreatedAt:     e.CreatedAt,
+		UpdatedAt:     e.UpdatedAt,
 	}
 	if r.Burst == 0 {
 		r.Burst = r.Limit // 缺省 burst = limit（令牌桶上限）
 	}
-	return &r, nil
-}
-
-func errNoRows(err error, msg string) error {
-	if errors.Is(err, pgx.ErrNoRows) {
-		return pkg.ErrNotFound(msg)
-	}
-	return err
+	return r
 }
 
 // validateScopeRefs 校验非 global scope 需带对应 ID。
@@ -73,14 +72,21 @@ func (r *Repository) Create(ctx context.Context, in NewRateLimit) (*RateLimit, e
 	if code == 0 {
 		code = 429
 	}
-	row := r.pool.QueryRow(ctx, `
-		INSERT INTO rate_limits(scope, tenant_id, domain_id, service_id, name,
-			"limit", window_seconds, burst, response_code, status)
-		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, 'enabled')
-		RETURNING `+cols,
-		string(in.Scope), in.TenantID, in.DomainID, in.ServiceID, in.Name,
-		in.Limit, in.WindowSeconds, in.Burst, code)
-	rl, err := scanRL(row)
+	now := time.Now()
+	cb := r.ent.RateLimit.Create().
+		SetScope(string(in.Scope)).
+		SetNillableTenantID(in.TenantID).
+		SetNillableDomainID(in.DomainID).
+		SetNillableServiceID(in.ServiceID).
+		SetName(in.Name).
+		SetLimit(in.Limit).
+		SetWindowSeconds(in.WindowSeconds).
+		SetBurst(in.Burst).
+		SetResponseCode(code).
+		SetStatus(string(StatusEnabled)).
+		SetCreatedAt(now).
+		SetUpdatedAt(now)
+	e, err := cb.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("同维度下已存在同名限流规则")
@@ -90,100 +96,94 @@ func (r *Repository) Create(ctx context.Context, in NewRateLimit) (*RateLimit, e
 		}
 		return nil, fmt.Errorf("insert rate limit: %w", err)
 	}
-	return rl, nil
+	return toModel(e), nil
 }
 
 // Get 查询规则。
 func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*RateLimit, error) {
-	rl, err := scanRL(r.pool.QueryRow(ctx, `SELECT `+cols+` FROM rate_limits WHERE id=$1`, id))
-	if e := errNoRows(err, "限流规则不存在"); e != nil {
-		return nil, e
-	}
+	e, err := r.ent.RateLimit.Get(ctx, id)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("限流规则不存在")
+		}
 		return nil, fmt.Errorf("get rate limit: %w", err)
 	}
-	return rl, nil
+	return toModel(e), nil
 }
 
 // List 分页列出，支持 scope 筛选。
 func (r *Repository) List(ctx context.Context, scope Scope, limit, offset int) ([]*RateLimit, int, error) {
-	var total int
-	if err := r.pool.QueryRow(ctx,
-		`SELECT count(*) FROM rate_limits WHERE ($1='' OR scope=$1)`, string(scope)).Scan(&total); err != nil {
+	q := r.ent.RateLimit.Query()
+	if scope != "" {
+		q = q.Where(entrl.ScopeEQ(string(scope)))
+	}
+	total, err := q.Count(ctx)
+	if err != nil {
 		return nil, 0, fmt.Errorf("count rate limits: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM rate_limits
-		WHERE ($1='' OR scope=$1)
-		ORDER BY created_at DESC LIMIT $2 OFFSET $3`, string(scope), limit, offset)
+	es, err := q.
+		Order(entrl.ByCreatedAt(sql.OrderDesc())).
+		Limit(limit).
+		Offset(offset).
+		All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rate limits: %w", err)
 	}
-	defer rows.Close()
-	out := []*RateLimit{}
-	for rows.Next() {
-		rl, err := scanRL(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		out = append(out, rl)
+	out := make([]*RateLimit, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, total, rows.Err()
+	return out, total, nil
 }
 
-// All 返回全部 enabled 规则（路由表限流加载用，按优先级 global→ip 排序）。
+// All 返回全部 enabled 规则（路由表限流加载用）。
 func (r *Repository) All(ctx context.Context) ([]*RateLimit, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM rate_limits WHERE status='enabled'
-		ORDER BY created_at`)
+	es, err := r.ent.RateLimit.Query().
+		Where(entrl.StatusEQ(string(StatusEnabled))).
+		Order(entrl.ByCreatedAt()).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("all rate limits: %w", err)
 	}
-	defer rows.Close()
-	out := []*RateLimit{}
-	for rows.Next() {
-		rl, err := scanRL(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, rl)
+	out := make([]*RateLimit, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // Update 应用非空更新。
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateRateLimit) (*RateLimit, error) {
-	rl, err := r.Get(ctx, id)
-	if err != nil {
-		return nil, err
+	if _, err := r.ent.RateLimit.Get(ctx, id); err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("限流规则不存在")
+		}
+		return nil, fmt.Errorf("get rate limit for update: %w", err)
 	}
+	upd := r.ent.RateLimit.UpdateOneID(id).SetUpdatedAt(time.Now())
 	if in.Name != nil {
-		rl.Name = *in.Name
+		upd = upd.SetName(*in.Name)
 	}
 	if in.Limit != nil {
-		rl.Limit = *in.Limit
+		upd = upd.SetLimit(*in.Limit)
 	}
 	if in.WindowSeconds != nil {
-		rl.WindowSeconds = *in.WindowSeconds
+		upd = upd.SetWindowSeconds(*in.WindowSeconds)
 	}
 	if in.Burst != nil {
-		rl.Burst = *in.Burst
+		upd = upd.SetBurst(*in.Burst)
 	}
 	if in.ResponseCode != nil {
-		rl.ResponseCode = *in.ResponseCode
+		upd = upd.SetResponseCode(*in.ResponseCode)
 	}
 	if in.Status != nil {
-		rl.Status = *in.Status
+		upd = upd.SetStatus(string(*in.Status))
 	}
-	upd, err := scanRL(r.pool.QueryRow(ctx, `
-		UPDATE rate_limits SET name=$2, "limit"=$3, window_seconds=$4, burst=$5,
-			response_code=$6, status=$7, updated_at=now()
-		WHERE id=$1 RETURNING `+cols,
-		id, rl.Name, rl.Limit, rl.WindowSeconds, rl.Burst, rl.ResponseCode, rl.Status))
+	e, err := upd.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("update rate limit: %w", err)
 	}
-	return upd, nil
+	return toModel(e), nil
 }
 
 // SetStatus 便捷启停。
@@ -193,12 +193,12 @@ func (r *Repository) SetStatus(ctx context.Context, id uuid.UUID, s Status) (*Ra
 
 // Delete 删除规则。
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM rate_limits WHERE id=$1`, id)
+	err := r.ent.RateLimit.DeleteOneID(id).Exec(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrNotFound("限流规则不存在")
+		}
 		return fmt.Errorf("delete rate limit: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return pkg.ErrNotFound("限流规则不存在")
 	}
 	return nil
 }

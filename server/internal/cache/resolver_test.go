@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
@@ -12,6 +13,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func vid(t *testing.T, n byte) uuid.UUID {
@@ -194,7 +196,7 @@ func newStickyVersionedCache(t *testing.T) *Cache {
 		}},
 	}
 	table := buildTable(tenants, services, domains, insts, groups, policies, nil, nil)
-	c := New(tenant.NewRepository(nil), domain.NewRepository(nil), service.NewRepository(nil), instance.NewRepository(nil))
+	c := New(tenant.NewRepository((*ent.Client)(nil)), domain.NewRepository((*ent.Client)(nil)), service.NewRepository((*ent.Client)(nil)), instance.NewRepository((*ent.Client)(nil), (*pgxpool.Pool)(nil)))
 	c.mu.Lock()
 	c.table = table
 	c.mu.Unlock()
@@ -342,7 +344,7 @@ func newTestVersionedCache(t *testing.T) *Cache {
 		}},
 	}
 	table := buildTable(tenants, services, domains, insts, groups, policies, nil, nil)
-	c := New(tenant.NewRepository(nil), domain.NewRepository(nil), service.NewRepository(nil), instance.NewRepository(nil))
+	c := New(tenant.NewRepository((*ent.Client)(nil)), domain.NewRepository((*ent.Client)(nil)), service.NewRepository((*ent.Client)(nil)), instance.NewRepository((*ent.Client)(nil), (*pgxpool.Pool)(nil)))
 	c.mu.Lock()
 	c.table = table
 	c.mu.Unlock()

@@ -30,6 +30,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
@@ -102,7 +103,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 
 	// resolver 选择：优先 DB 动态路由（S4），无 DB / 失败时回退静态（S2）。
 	metricReg := metrics.NewRegistry()
-	resolver, routeCache, db, err := buildResolver(ctx, cfg, routesPath, logger, metricReg)
+	resolver, routeCache, db, entClient, err := buildResolver(ctx, cfg, routesPath, logger, metricReg)
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	// 主动健康检查：探测异常实例并更新 DB health，AutoRebuild 随之摘除/恢复。
 	if db != nil {
-		hc := health.NewChecker(health.NewInstanceRepo(instance.NewRepository(db.Pool)), health.Config{
+		hc := health.NewChecker(health.NewInstanceRepo(instance.NewRepository(entClient, db.Pool)), health.Config{
 			Interval:         cfg.Health.Interval,
 			Timeout:          cfg.Health.Timeout,
 			FailureThreshold: cfg.Health.FailureThreshold,
@@ -127,7 +128,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	// Node 心跳看护：超时未心跳的节点置 offline，其上实例随 AutoRebuild 摘除。
 	if db != nil {
-		node.Watchdog(ctx, node.NewRepository(db.Pool), node.WatchdogConfig{
+		node.Watchdog(ctx, node.NewRepository(entClient), node.WatchdogConfig{
 			Interval: 10 * time.Second,
 			Timeout:  30 * time.Second,
 			Logger:   logger,
@@ -182,14 +183,14 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// Management API（数据平面与控制面分离）。
 	var mgmtApp *fiber.App
 	if db != nil {
-		setRepo := settings.NewRepository(db.Pool)
+		setRepo := settings.NewRepository(entClient)
 		if err := setRepo.Reload(ctx); err != nil {
 			logger.Warn("settings reload failed", zap.String("err", err.Error()))
 		}
-		mgmtApp = api.New(api.Deps{Pool: db.Pool, RouteCache: routeCache, Metrics: metricReg,
+		mgmtApp = api.New(api.Deps{Pool: db.Pool, Ent: entClient, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo})
 	} else {
-		mgmtApp = api.New(api.Deps{Pool: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog})
+		mgmtApp = api.New(api.Deps{Pool: nil, Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))
@@ -252,26 +253,26 @@ func runMigration(ctx context.Context, dbURL string) error {
 //   - 无 DB / DB 失败：回退静态路由文件（routesPath 为空则空路由表）。
 //
 // 返回的 *cache.Cache 供 Management API（S5）重建/查看路由表用；
-// *pkg.DB 由调用方负责 Close（为 nil 表示未接入 DB）。
+// *pkg.DB 与 *ent.Client 由调用方负责 Close/释放（为 nil 表示未接入 DB）。
 // metricReg 注入路由缓存与解析器的指标埋点；可为 nil。
 func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
-	logger *zap.Logger, metricReg *metrics.Registry) (router.Resolver, *cache.Cache, *pkg.DB, error) {
+	logger *zap.Logger, metricReg *metrics.Registry) (router.Resolver, *cache.Cache, *pkg.DB, *ent.Client, error) {
 
 	// 兜底静态 resolver（无 DB 或失败时）。
 	staticRes := router.FromMap(nil)
 	if routesPath != "" {
 		raw, err := os.ReadFile(routesPath)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("read routes file: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("read routes file: %w", err)
 		}
 		staticRes, err = router.NewStaticResolver(raw)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("parse routes file: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("parse routes file: %w", err)
 		}
 	}
 
 	if cfg.Database.URL == "" {
-		return staticRes, nil, nil, nil
+		return staticRes, nil, nil, nil, nil
 	}
 
 	appCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
@@ -280,17 +281,18 @@ func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
 	if err != nil {
 		logger.Warn("database unavailable, falling back to static routes",
 			zap.String("err", err.Error()))
-		return staticRes, nil, nil, nil
+		return staticRes, nil, nil, nil, nil
 	}
+	entClient := pkg.NewEntClient(db)
 
-	nodeRepo := node.NewRepository(db.Pool)
-	rlRepo := ratelimit.NewRepository(db.Pool)
+	nodeRepo := node.NewRepository(entClient)
+	rlRepo := ratelimit.NewRepository(entClient)
 	rc := cache.NewVersioned(
-		tenant.NewRepository(db.Pool),
-		domain.NewRepository(db.Pool),
-		service.NewRepository(db.Pool),
-		instance.NewRepository(db.Pool),
-		cache.NewVersionSource(deployment.NewRepository(db.Pool), traffic.NewRepository(db.Pool)),
+		tenant.NewRepository(entClient),
+		domain.NewRepository(entClient),
+		service.NewRepository(entClient),
+		instance.NewRepository(entClient, db.Pool),
+		cache.NewVersionSource(deployment.NewRepository(entClient), traffic.NewRepository(entClient)),
 	).WithNodeFilter(nodeRepo.RoutableMap).
 		WithLimits(func(ctx context.Context) ([]ratelimit.RateLimit, error) {
 			rows, err := rlRepo.All(ctx)
@@ -307,11 +309,11 @@ func buildResolver(ctx context.Context, cfg *config.Config, routesPath string,
 		logger.Warn("route cache rebuild failed, falling back to static routes",
 			zap.String("err", err.Error()))
 		db.Close()
-		return staticRes, nil, nil, nil
+		return staticRes, nil, nil, nil, nil
 	}
 	logger.Info("route cache loaded", zap.Int("routes", len(rc.Entries())))
 	if metricReg != nil {
 		rc.WithMetrics(metricReg)
 	}
-	return cache.NewResolver(rc).WithMetrics(metricReg), rc, db, nil
+	return cache.NewResolver(rc).WithMetrics(metricReg), rc, db, entClient, nil
 }

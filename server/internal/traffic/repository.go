@@ -3,13 +3,14 @@ package traffic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	enttraffic "github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // NewInput 是策略创建输入。
@@ -34,47 +35,52 @@ type UpdateInput struct {
 	Status          *Status    `json:"status"`
 }
 
-// Repository 是流量策略数据访问层。
+// Repository 是流量策略数据访问层（基于 Ent）。
 type Repository struct {
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
-const cols = `id, service_id, name, priority, match, target_version_id, weight, sticky, status, created_at, updated_at`
-
-func scanPolicy(row pgx.Row) (*Policy, error) {
-	var p Policy
-	var matchRaw, stickyRaw json.RawMessage
-	err := row.Scan(&p.ID, &p.ServiceID, &p.Name, &p.Priority, &matchRaw, &p.TargetVersionID,
-		&p.Weight, &stickyRaw, &p.Status, &p.CreatedAt, &p.UpdatedAt)
-	if err != nil {
-		return nil, err
+// fromEnt 把 Ent 实体映射为领域模型（解析 match/sticky JSONB）。
+func fromEnt(e *ent.TrafficPolicy) (*Policy, error) {
+	p := &Policy{
+		ID:              e.ID,
+		ServiceID:       e.ServiceID,
+		Name:            e.Name,
+		Priority:        e.Priority,
+		TargetVersionID: e.TargetVersionID,
+		Weight:          e.Weight,
+		Status:          Status(e.Status),
+		CreatedAt:       e.CreatedAt,
+		UpdatedAt:       e.UpdatedAt,
 	}
-	m, err := NewMatch(matchRaw)
+	m, err := NewMatch(e.Match)
 	if err != nil {
-		return nil, fmt.Errorf("parse policy %s match: %w", p.ID, err)
+		return nil, fmt.Errorf("parse policy %s match: %w", e.ID, err)
 	}
 	p.Match = m
-	s, err := NewSticky(stickyRaw)
-	if err != nil {
-		return nil, fmt.Errorf("parse policy %s sticky: %w", p.ID, err)
+	if len(e.Sticky) > 0 {
+		s, err := NewSticky(e.Sticky)
+		if err != nil {
+			return nil, fmt.Errorf("parse policy %s sticky: %w", e.ID, err)
+		}
+		p.Sticky = s
 	}
-	p.Sticky = s
-	return &p, nil
+	return p, nil
 }
 
-func marshalMatch(m *Match) ([]byte, error) {
+func marshalMatch(m *Match) (json.RawMessage, error) {
 	if m == nil {
 		return json.Marshal(Match{})
 	}
 	return json.Marshal(m)
 }
 
-func marshalSticky(s *Sticky) ([]byte, error) {
+func marshalSticky(s *Sticky) (json.RawMessage, error) {
 	if s == nil {
 		return nil, nil
 	}
@@ -95,12 +101,21 @@ func (r *Repository) Create(ctx context.Context, in NewInput) (*Policy, error) {
 	if priority == 0 {
 		priority = 100
 	}
-	row := r.pool.QueryRow(ctx, `
-		INSERT INTO traffic_policies(service_id, name, priority, match, target_version_id, weight, sticky, status)
-		VALUES($1, $2, $3, $4, $5, $6, $7, 'enabled')
-		RETURNING `+cols,
-		in.ServiceID, in.Name, priority, matchRaw, in.TargetVersionID, in.Weight, stickyRaw)
-	p, err := scanPolicy(row)
+	now := time.Now()
+	cb := r.ent.TrafficPolicy.Create().
+		SetServiceID(in.ServiceID).
+		SetName(in.Name).
+		SetPriority(priority).
+		SetMatch(matchRaw).
+		SetNillableTargetVersionID(in.TargetVersionID).
+		SetWeight(in.Weight).
+		SetStatus(string(StatusEnabled)).
+		SetCreatedAt(now).
+		SetUpdatedAt(now)
+	if stickyRaw != nil {
+		cb = cb.SetSticky(stickyRaw)
+	}
+	e, err := cb.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("该服务下已存在同名策略")
@@ -110,113 +125,122 @@ func (r *Repository) Create(ctx context.Context, in NewInput) (*Policy, error) {
 		}
 		return nil, fmt.Errorf("insert traffic policy: %w", err)
 	}
-	return p, nil
+	return fromEnt(e)
 }
 
 // ListByService 列出某服务的策略（按 priority 升序）。
 func (r *Repository) ListByService(ctx context.Context, serviceID uuid.UUID) ([]*Policy, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM traffic_policies
-		WHERE service_id=$1 ORDER BY priority, created_at`, serviceID)
+	es, err := r.ent.TrafficPolicy.Query().
+		Where(enttraffic.ServiceID(serviceID)).
+		Order(enttraffic.ByPriority(), enttraffic.ByCreatedAt()).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list traffic policies by service: %w", err)
 	}
-	defer rows.Close()
-	return collectPolicies(rows)
+	return collectPolicies(es)
 }
 
 // ListAll 分页列出全部策略。
 func (r *Repository) ListAll(ctx context.Context, limit, offset int) ([]*Policy, int, error) {
-	var total int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM traffic_policies`).Scan(&total); err != nil {
+	total, err := r.ent.TrafficPolicy.Query().Count(ctx)
+	if err != nil {
 		return nil, 0, fmt.Errorf("count traffic policies: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM traffic_policies
-		ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	es, err := r.ent.TrafficPolicy.Query().
+		Order(enttraffic.ByCreatedAt(sql.OrderDesc())).
+		Limit(limit).
+		Offset(offset).
+		All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list traffic policies: %w", err)
 	}
-	defer rows.Close()
-	out, err := collectPolicies(rows)
+	out, err := collectPolicies(es)
 	return out, total, err
 }
 
 // AllGroupedByService 返回全部策略按 service_id 分组（路由表构建用）。
 func (r *Repository) AllGroupedByService(ctx context.Context) (map[uuid.UUID][]*Policy, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+cols+` FROM traffic_policies ORDER BY service_id, priority`)
+	es, err := r.ent.TrafficPolicy.Query().
+		Order(enttraffic.ByServiceID(), enttraffic.ByPriority()).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("all traffic policies grouped: %w", err)
 	}
-	defer rows.Close()
 	out := map[uuid.UUID][]*Policy{}
-	for rows.Next() {
-		p, err := scanPolicy(rows)
+	for _, e := range es {
+		p, err := fromEnt(e)
 		if err != nil {
 			return nil, err
 		}
 		out[p.ServiceID] = append(out[p.ServiceID], p)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // GetByID 查询策略。
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Policy, error) {
-	p, err := scanPolicy(r.pool.QueryRow(ctx, `SELECT `+cols+` FROM traffic_policies WHERE id=$1`, id))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("策略不存在")
-	}
+	e, err := r.ent.TrafficPolicy.Get(ctx, id)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("策略不存在")
+		}
 		return nil, fmt.Errorf("get traffic policy: %w", err)
 	}
-	return p, nil
+	return fromEnt(e)
 }
 
 // Update 应用非空更新。
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (*Policy, error) {
-	p, err := r.GetByID(ctx, id)
-	if err != nil {
+	// 确认存在（不存在报 NotFound）。
+	if _, err := r.GetByID(ctx, id); err != nil {
 		return nil, err
 	}
+	upd := r.ent.TrafficPolicy.UpdateOneID(id).SetUpdatedAt(time.Now())
 	if in.Name != nil {
-		p.Name = *in.Name
+		upd = upd.SetName(*in.Name)
 	}
 	if in.Priority != nil {
-		p.Priority = *in.Priority
+		upd = upd.SetPriority(*in.Priority)
 	}
 	if in.Match != nil {
-		p.Match = *in.Match
+		matchRaw, err := marshalMatch(in.Match)
+		if err != nil {
+			return nil, err
+		}
+		upd = upd.SetMatch(matchRaw)
 	}
 	if in.TargetVersionID != nil {
 		if *in.TargetVersionID == uuid.Nil {
-			p.TargetVersionID = nil
+			upd = upd.ClearTargetVersionID()
 		} else {
-			p.TargetVersionID = in.TargetVersionID
+			upd = upd.SetTargetVersionID(*in.TargetVersionID)
 		}
 	}
 	if in.Weight != nil {
-		p.Weight = *in.Weight
+		upd = upd.SetWeight(*in.Weight)
 	}
 	if in.Sticky != nil {
-		p.Sticky = in.Sticky
+		stickyRaw, err := marshalSticky(in.Sticky)
+		if err != nil {
+			return nil, err
+		}
+		if stickyRaw == nil {
+			upd = upd.ClearSticky()
+		} else {
+			upd = upd.SetSticky(stickyRaw)
+		}
 	}
 	if in.Status != nil {
-		p.Status = *in.Status
+		upd = upd.SetStatus(string(*in.Status))
 	}
-	matchRaw, _ := marshalMatch(&p.Match)
-	stickyRaw, _ := marshalSticky(p.Sticky)
-	upd, err := scanPolicy(r.pool.QueryRow(ctx, `
-		UPDATE traffic_policies SET name=$2, priority=$3, match=$4, target_version_id=$5,
-			weight=$6, sticky=$7, status=$8, updated_at=now()
-		WHERE id=$1 RETURNING `+cols,
-		id, p.Name, p.Priority, matchRaw, p.TargetVersionID, p.Weight, stickyRaw, p.Status))
+	e, err := upd.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("该服务下已存在同名策略")
 		}
 		return nil, fmt.Errorf("update traffic policy: %w", err)
 	}
-	return upd, nil
+	return fromEnt(e)
 }
 
 // SetStatus 便捷状态变更。
@@ -226,24 +250,24 @@ func (r *Repository) SetStatus(ctx context.Context, id uuid.UUID, s Status) (*Po
 
 // Delete 删除策略。
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM traffic_policies WHERE id=$1`, id)
+	err := r.ent.TrafficPolicy.DeleteOneID(id).Exec(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrNotFound("策略不存在")
+		}
 		return fmt.Errorf("delete traffic policy: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return pkg.ErrNotFound("策略不存在")
 	}
 	return nil
 }
 
-func collectPolicies(rows pgx.Rows) ([]*Policy, error) {
-	out := []*Policy{}
-	for rows.Next() {
-		p, err := scanPolicy(rows)
+func collectPolicies(es []*ent.TrafficPolicy) ([]*Policy, error) {
+	out := make([]*Policy, 0, len(es))
+	for _, e := range es {
+		p, err := fromEnt(e)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	return out, nil
 }

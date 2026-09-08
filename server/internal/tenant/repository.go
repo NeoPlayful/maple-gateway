@@ -2,150 +2,134 @@ package tenant
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
 
+	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	enttenant "github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Repository 是 Tenant 数据访问层。
+// Repository 是 Tenant 数据访问层（基于 Ent）。
 type Repository struct {
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
-const cols = `id, name, slug, status, description, created_at, updated_at`
-
-func scanTenant(row pgx.Row) (*Tenant, error) {
-	var t Tenant
-	err := row.Scan(&t.ID, &t.Name, &t.Slug, &t.Status, &t.Description, &t.CreatedAt, &t.UpdatedAt)
-	if err != nil {
-		return nil, err
+// toModel 把 Ent 实体映射为领域模型。
+func toModel(e *ent.Tenant) *Tenant {
+	return &Tenant{
+		ID:          e.ID,
+		Name:        e.Name,
+		Slug:        e.Slug,
+		Status:      Status(e.Status),
+		Description: e.Description,
+		CreatedAt:   e.CreatedAt,
+		UpdatedAt:   e.UpdatedAt,
 	}
-	return &t, nil
 }
 
 // Create 插入新租户。slug 冲突返回 Conflict。
 func (r *Repository) Create(ctx context.Context, in New) (*Tenant, error) {
-	row := r.pool.QueryRow(ctx, `
-		INSERT INTO tenants(name, slug, status, description)
-		VALUES($1, $2, 'active', $3)
-		RETURNING `+cols,
-		in.Name, in.Slug, in.Description)
-	t, err := scanTenant(row)
+	now := time.Now()
+	e, err := r.ent.Tenant.Create().
+		SetName(in.Name).
+		SetSlug(in.Slug).
+		SetStatus(string(StatusActive)).
+		SetDescription(in.Description).
+		SetCreatedAt(now).
+		SetUpdatedAt(now).
+		Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("slug 已存在")
 		}
 		return nil, fmt.Errorf("insert tenant: %w", err)
 	}
-	return t, nil
+	return toModel(e), nil
 }
 
 // GetByID 查询单个租户。
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Tenant, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+cols+` FROM tenants WHERE id=$1`, id)
-	t, err := scanTenant(row)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("租户不存在")
-	}
+	e, err := r.ent.Tenant.Get(ctx, id)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("租户不存在")
+		}
 		return nil, fmt.Errorf("get tenant: %w", err)
 	}
-	return t, nil
+	return toModel(e), nil
 }
 
 // All 返回全部租户（路由缓存构建用）。
 func (r *Repository) All(ctx context.Context) ([]*Tenant, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+cols+` FROM tenants`)
+	es, err := r.ent.Tenant.Query().All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("all tenants: %w", err)
 	}
-	defer rows.Close()
-	out := []*Tenant{}
-	for rows.Next() {
-		t, err := scanTenant(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, t)
+	out := make([]*Tenant, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // List 分页列出租户，支持按状态筛选。
 func (r *Repository) List(ctx context.Context, status Status, limit, offset int) ([]*Tenant, int, error) {
-	var total int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM tenants WHERE ($1='' OR status=$1)`,
-		string(status)).Scan(&total); err != nil {
+	q := r.ent.Tenant.Query()
+	if status != "" {
+		q = q.Where(enttenant.StatusEQ(string(status)))
+	}
+	total, err := q.Count(ctx)
+	if err != nil {
 		return nil, 0, fmt.Errorf("count tenants: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+cols+` FROM tenants
-		WHERE ($1='' OR status=$1)
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`, string(status), limit, offset)
+	es, err := q.
+		Order(enttenant.ByCreatedAt(sql.OrderDesc())).
+		Limit(limit).
+		Offset(offset).
+		All(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list tenants: %w", err)
 	}
-	defer rows.Close()
-
-	out := []*Tenant{}
-	for rows.Next() {
-		t, err := scanTenant(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		out = append(out, t)
+	out := make([]*Tenant, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, total, rows.Err()
+	return out, total, nil
 }
 
 // Update 应用非空更新。
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Tenant, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
+	// 不存在则直接 NotFound（避免空更新返回 success）。
+	if _, err := r.ent.Tenant.Get(ctx, id); err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("租户不存在")
+		}
+		return nil, fmt.Errorf("get tenant for update: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // commit 成功后再 rollback 无害
 
-	var t Tenant
-	err = tx.QueryRow(ctx, `SELECT `+cols+` FROM tenants WHERE id=$1 FOR UPDATE`, id).
-		Scan(&t.ID, &t.Name, &t.Slug, &t.Status, &t.Description, &t.CreatedAt, &t.UpdatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("租户不存在")
-	}
-	if err != nil {
-		return nil, err
-	}
+	upd := r.ent.Tenant.UpdateOneID(id).SetUpdatedAt(time.Now())
 	if in.Name != nil {
-		t.Name = *in.Name
+		upd = upd.SetName(*in.Name)
 	}
 	if in.Description != nil {
-		t.Description = *in.Description
+		upd = upd.SetDescription(*in.Description)
 	}
 	if in.Status != nil {
-		t.Status = *in.Status
+		upd = upd.SetStatus(string(*in.Status))
 	}
-
-	err = tx.QueryRow(ctx, `
-		UPDATE tenants SET name=$2, description=$3, status=$4, updated_at=now()
-		WHERE id=$1 RETURNING `+cols,
-		id, t.Name, t.Description, t.Status).Scan(&t.ID, &t.Name, &t.Slug, &t.Status, &t.Description, &t.CreatedAt, &t.UpdatedAt)
+	e, err := upd.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("update tenant: %w", err)
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return &t, nil
+	return toModel(e), nil
 }
 
 // SetStatus 便捷状态变更。
@@ -155,12 +139,12 @@ func (r *Repository) SetStatus(ctx context.Context, id uuid.UUID, s Status) (*Te
 
 // Delete 删除租户。
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM tenants WHERE id=$1`, id)
+	err := r.ent.Tenant.DeleteOneID(id).Exec(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrNotFound("租户不存在")
+		}
 		return fmt.Errorf("delete tenant: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return pkg.ErrNotFound("租户不存在")
 	}
 	return nil
 }

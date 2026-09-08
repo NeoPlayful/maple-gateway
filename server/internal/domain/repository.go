@@ -2,171 +2,175 @@ package domain
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent"
+	entdomain "github.com/NeoPlayful/maple-gateway/server/ent/domain"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Repository 是 Domain 数据访问层。
+// Repository 是 Domain 数据访问层（基于 Ent）。
 type Repository struct {
-	pool *pgxpool.Pool
+	ent *ent.Client
 }
 
 // NewRepository 构造。
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewRepository(client *ent.Client) *Repository {
+	return &Repository{ent: client}
 }
 
-const cols = `id, tenant_id, hostname, service_id, status, verified_at, created_at, updated_at`
-
-func scanDomain(row pgx.Row) (*Domain, error) {
-	var d Domain
-	err := row.Scan(&d.ID, &d.TenantID, &d.Hostname, &d.ServiceID, &d.Status, &d.VerifiedAt, &d.CreatedAt, &d.UpdatedAt)
-	if err != nil {
-		return nil, err
+// toModel 把 Ent 实体映射为领域模型。
+func toModel(e *ent.Domain) *Domain {
+	return &Domain{
+		ID:         e.ID,
+		TenantID:   e.TenantID,
+		Hostname:   e.Hostname,
+		ServiceID:  e.ServiceID,
+		Status:     Status(e.Status),
+		VerifiedAt: e.VerifiedAt,
+		CreatedAt:  e.CreatedAt,
+		UpdatedAt:  e.UpdatedAt,
 	}
-	return &d, nil
 }
 
 // Create 插入新域名。hostname 冲突返回 Conflict。
 func (r *Repository) Create(ctx context.Context, in New) (*Domain, error) {
-	row := r.pool.QueryRow(ctx, `
-		INSERT INTO domains(tenant_id, hostname, service_id, status)
-		VALUES($1, $2, $3, 'active')
-		RETURNING `+cols,
-		in.TenantID, in.Hostname, in.ServiceID)
-	d, err := scanDomain(row)
+	now := time.Now()
+	e, err := r.ent.Domain.Create().
+		SetTenantID(in.TenantID).
+		SetHostname(in.Hostname).
+		SetNillableServiceID(in.ServiceID).
+		SetStatus(string(StatusActive)).
+		SetCreatedAt(now).
+		SetUpdatedAt(now).
+		Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("hostname 已存在")
 		}
 		return nil, fmt.Errorf("insert domain: %w", err)
 	}
-	return d, nil
+	return toModel(e), nil
 }
 
 // GetByID 查询。
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Domain, error) {
-	d, err := scanDomain(r.pool.QueryRow(ctx, `SELECT `+cols+` FROM domains WHERE id=$1`, id))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("域名不存在")
-	}
+	e, err := r.ent.Domain.Get(ctx, id)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("域名不存在")
+		}
 		return nil, fmt.Errorf("get domain: %w", err)
 	}
-	return d, nil
+	return toModel(e), nil
 }
 
 // GetByHostname 查询（数据平面路由用）。
 func (r *Repository) GetByHostname(ctx context.Context, hostname string) (*Domain, error) {
-	d, err := scanDomain(r.pool.QueryRow(ctx, `SELECT `+cols+` FROM domains WHERE hostname=$1`, hostname))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, pkg.ErrNotFound("域名不存在")
-	}
+	e, err := r.ent.Domain.Query().
+		Where(entdomain.HostnameEQ(hostname)).
+		Only(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("域名不存在")
+		}
 		return nil, fmt.Errorf("get domain by hostname: %w", err)
 	}
-	return d, nil
+	return toModel(e), nil
 }
 
 // ListByTenant 列出某租户的域名。
 func (r *Repository) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*Domain, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+cols+` FROM domains WHERE tenant_id=$1 ORDER BY hostname`, tenantID)
+	es, err := r.ent.Domain.Query().
+		Where(entdomain.TenantID(tenantID)).
+		Order(entdomain.ByHostname()).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list domains: %w", err)
 	}
-	defer rows.Close()
-	out := []*Domain{}
-	for rows.Next() {
-		d, err := scanDomain(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
+	out := make([]*Domain, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // All 返回全部域名（路由缓存构建用）。
 func (r *Repository) All(ctx context.Context) ([]*Domain, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+cols+` FROM domains ORDER BY hostname`)
+	es, err := r.ent.Domain.Query().Order(entdomain.ByHostname()).All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("all domains: %w", err)
 	}
-	defer rows.Close()
-	out := []*Domain{}
-	for rows.Next() {
-		d, err := scanDomain(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
+	out := make([]*Domain, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // List 全量域名（分页）。
 func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Domain, int, error) {
-	var total int
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM domains`).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	rows, err := r.pool.Query(ctx, `SELECT `+cols+` FROM domains ORDER BY hostname LIMIT $1 OFFSET $2`, limit, offset)
+	total, err := r.ent.Domain.Query().Count(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	out := []*Domain{}
-	for rows.Next() {
-		d, err := scanDomain(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		out = append(out, d)
+	es, err := r.ent.Domain.Query().
+		Order(entdomain.ByHostname()).
+		Limit(limit).
+		Offset(offset).
+		All(ctx)
+	if err != nil {
+		return nil, 0, err
 	}
-	return out, total, rows.Err()
+	out := make([]*Domain, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
+	}
+	return out, total, nil
 }
 
 // Update 应用非空更新。
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Domain, error) {
-	d, err := r.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
+	if _, err := r.ent.Domain.Get(ctx, id); err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("域名不存在")
+		}
+		return nil, fmt.Errorf("get domain for update: %w", err)
 	}
+
+	upd := r.ent.Domain.UpdateOneID(id).SetUpdatedAt(time.Now())
 	if in.Hostname != nil {
-		d.Hostname = *in.Hostname
+		upd = upd.SetHostname(*in.Hostname)
 	}
 	if in.ServiceID != nil {
-		d.ServiceID = in.ServiceID
+		upd = upd.SetServiceID(*in.ServiceID)
+	} else {
+		// 显式清空默认 service 引用。
+		upd = upd.ClearServiceID()
 	}
 	if in.Status != nil {
-		d.Status = *in.Status
+		upd = upd.SetStatus(string(*in.Status))
 	}
-	err = r.pool.QueryRow(ctx, `
-		UPDATE domains SET hostname=$2, service_id=$3, status=$4, updated_at=now()
-		WHERE id=$1 RETURNING `+cols,
-		id, d.Hostname, d.ServiceID, d.Status).Scan(&d.ID, &d.TenantID, &d.Hostname, &d.ServiceID, &d.Status, &d.VerifiedAt, &d.CreatedAt, &d.UpdatedAt)
+	e, err := upd.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("hostname 已存在")
 		}
 		return nil, fmt.Errorf("update domain: %w", err)
 	}
-	return d, nil
+	return toModel(e), nil
 }
 
 // Delete 删除。
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM domains WHERE id=$1`, id)
+	err := r.ent.Domain.DeleteOneID(id).Exec(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.ErrNotFound("域名不存在")
+		}
 		return fmt.Errorf("delete domain: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return pkg.ErrNotFound("域名不存在")
 	}
 	return nil
 }
