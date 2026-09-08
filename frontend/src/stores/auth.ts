@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, getToken, setToken, clearToken } from '../api/client';
+import { api, getToken, setToken, clearToken } from '../lib/client';
 
 export interface Admin {
   id: string;

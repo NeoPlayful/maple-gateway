@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { api } from '../api/client';
+import { api } from '../lib/client';
 import type { AccessLogRow, ErrorLogRow, AuditLogRow } from '../types';
 
 type Tab = 'access' | 'error' | 'audit';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { list, create, statusAction } from '../api/modules';
+import { list, create, statusAction } from '../lib/modules';
 import type { Service, Deployment, Instance as Inst, Version, Node } from '../types';
 import { StatusBadge, ActionBtn, Field } from '../components/ui';
 
