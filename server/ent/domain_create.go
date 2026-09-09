@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/google/uuid"
@@ -79,6 +80,34 @@ func (dc *DomainCreate) SetNillableVerifiedAt(t *time.Time) *DomainCreate {
 	return dc
 }
 
+// SetTLSMode sets the "tls_mode" field.
+func (dc *DomainCreate) SetTLSMode(s string) *DomainCreate {
+	dc.mutation.SetTLSMode(s)
+	return dc
+}
+
+// SetNillableTLSMode sets the "tls_mode" field if the given value is not nil.
+func (dc *DomainCreate) SetNillableTLSMode(s *string) *DomainCreate {
+	if s != nil {
+		dc.SetTLSMode(*s)
+	}
+	return dc
+}
+
+// SetCertificateStatus sets the "certificate_status" field.
+func (dc *DomainCreate) SetCertificateStatus(s string) *DomainCreate {
+	dc.mutation.SetCertificateStatus(s)
+	return dc
+}
+
+// SetNillableCertificateStatus sets the "certificate_status" field if the given value is not nil.
+func (dc *DomainCreate) SetNillableCertificateStatus(s *string) *DomainCreate {
+	if s != nil {
+		dc.SetCertificateStatus(*s)
+	}
+	return dc
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (dc *DomainCreate) SetCreatedAt(t time.Time) *DomainCreate {
 	dc.mutation.SetCreatedAt(t)
@@ -108,6 +137,21 @@ func (dc *DomainCreate) SetNillableID(u *uuid.UUID) *DomainCreate {
 // SetTenant sets the "tenant" edge to the Tenant entity.
 func (dc *DomainCreate) SetTenant(t *Tenant) *DomainCreate {
 	return dc.SetTenantID(t.ID)
+}
+
+// AddCertificateIDs adds the "certificates" edge to the Certificate entity by IDs.
+func (dc *DomainCreate) AddCertificateIDs(ids ...uuid.UUID) *DomainCreate {
+	dc.mutation.AddCertificateIDs(ids...)
+	return dc
+}
+
+// AddCertificates adds the "certificates" edges to the Certificate entity.
+func (dc *DomainCreate) AddCertificates(c ...*Certificate) *DomainCreate {
+	ids := make([]uuid.UUID, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return dc.AddCertificateIDs(ids...)
 }
 
 // Mutation returns the DomainMutation object of the builder.
@@ -149,6 +193,10 @@ func (dc *DomainCreate) defaults() {
 		v := domain.DefaultStatus
 		dc.mutation.SetStatus(v)
 	}
+	if _, ok := dc.mutation.TLSMode(); !ok {
+		v := domain.DefaultTLSMode
+		dc.mutation.SetTLSMode(v)
+	}
 	if _, ok := dc.mutation.ID(); !ok {
 		v := domain.DefaultID()
 		dc.mutation.SetID(v)
@@ -170,6 +218,9 @@ func (dc *DomainCreate) check() error {
 	}
 	if _, ok := dc.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Domain.status"`)}
+	}
+	if _, ok := dc.mutation.TLSMode(); !ok {
+		return &ValidationError{Name: "tls_mode", err: errors.New(`ent: missing required field "Domain.tls_mode"`)}
 	}
 	if _, ok := dc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Domain.created_at"`)}
@@ -232,6 +283,14 @@ func (dc *DomainCreate) createSpec() (*Domain, *sqlgraph.CreateSpec) {
 		_spec.SetField(domain.FieldVerifiedAt, field.TypeTime, value)
 		_node.VerifiedAt = &value
 	}
+	if value, ok := dc.mutation.TLSMode(); ok {
+		_spec.SetField(domain.FieldTLSMode, field.TypeString, value)
+		_node.TLSMode = value
+	}
+	if value, ok := dc.mutation.CertificateStatus(); ok {
+		_spec.SetField(domain.FieldCertificateStatus, field.TypeString, value)
+		_node.CertificateStatus = &value
+	}
 	if value, ok := dc.mutation.CreatedAt(); ok {
 		_spec.SetField(domain.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -255,6 +314,22 @@ func (dc *DomainCreate) createSpec() (*Domain, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.TenantID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := dc.mutation.CertificatesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
@@ -378,6 +453,36 @@ func (u *DomainUpsert) UpdateVerifiedAt() *DomainUpsert {
 // ClearVerifiedAt clears the value of the "verified_at" field.
 func (u *DomainUpsert) ClearVerifiedAt() *DomainUpsert {
 	u.SetNull(domain.FieldVerifiedAt)
+	return u
+}
+
+// SetTLSMode sets the "tls_mode" field.
+func (u *DomainUpsert) SetTLSMode(v string) *DomainUpsert {
+	u.Set(domain.FieldTLSMode, v)
+	return u
+}
+
+// UpdateTLSMode sets the "tls_mode" field to the value that was provided on create.
+func (u *DomainUpsert) UpdateTLSMode() *DomainUpsert {
+	u.SetExcluded(domain.FieldTLSMode)
+	return u
+}
+
+// SetCertificateStatus sets the "certificate_status" field.
+func (u *DomainUpsert) SetCertificateStatus(v string) *DomainUpsert {
+	u.Set(domain.FieldCertificateStatus, v)
+	return u
+}
+
+// UpdateCertificateStatus sets the "certificate_status" field to the value that was provided on create.
+func (u *DomainUpsert) UpdateCertificateStatus() *DomainUpsert {
+	u.SetExcluded(domain.FieldCertificateStatus)
+	return u
+}
+
+// ClearCertificateStatus clears the value of the "certificate_status" field.
+func (u *DomainUpsert) ClearCertificateStatus() *DomainUpsert {
+	u.SetNull(domain.FieldCertificateStatus)
 	return u
 }
 
@@ -525,6 +630,41 @@ func (u *DomainUpsertOne) UpdateVerifiedAt() *DomainUpsertOne {
 func (u *DomainUpsertOne) ClearVerifiedAt() *DomainUpsertOne {
 	return u.Update(func(s *DomainUpsert) {
 		s.ClearVerifiedAt()
+	})
+}
+
+// SetTLSMode sets the "tls_mode" field.
+func (u *DomainUpsertOne) SetTLSMode(v string) *DomainUpsertOne {
+	return u.Update(func(s *DomainUpsert) {
+		s.SetTLSMode(v)
+	})
+}
+
+// UpdateTLSMode sets the "tls_mode" field to the value that was provided on create.
+func (u *DomainUpsertOne) UpdateTLSMode() *DomainUpsertOne {
+	return u.Update(func(s *DomainUpsert) {
+		s.UpdateTLSMode()
+	})
+}
+
+// SetCertificateStatus sets the "certificate_status" field.
+func (u *DomainUpsertOne) SetCertificateStatus(v string) *DomainUpsertOne {
+	return u.Update(func(s *DomainUpsert) {
+		s.SetCertificateStatus(v)
+	})
+}
+
+// UpdateCertificateStatus sets the "certificate_status" field to the value that was provided on create.
+func (u *DomainUpsertOne) UpdateCertificateStatus() *DomainUpsertOne {
+	return u.Update(func(s *DomainUpsert) {
+		s.UpdateCertificateStatus()
+	})
+}
+
+// ClearCertificateStatus clears the value of the "certificate_status" field.
+func (u *DomainUpsertOne) ClearCertificateStatus() *DomainUpsertOne {
+	return u.Update(func(s *DomainUpsert) {
+		s.ClearCertificateStatus()
 	})
 }
 
@@ -841,6 +981,41 @@ func (u *DomainUpsertBulk) UpdateVerifiedAt() *DomainUpsertBulk {
 func (u *DomainUpsertBulk) ClearVerifiedAt() *DomainUpsertBulk {
 	return u.Update(func(s *DomainUpsert) {
 		s.ClearVerifiedAt()
+	})
+}
+
+// SetTLSMode sets the "tls_mode" field.
+func (u *DomainUpsertBulk) SetTLSMode(v string) *DomainUpsertBulk {
+	return u.Update(func(s *DomainUpsert) {
+		s.SetTLSMode(v)
+	})
+}
+
+// UpdateTLSMode sets the "tls_mode" field to the value that was provided on create.
+func (u *DomainUpsertBulk) UpdateTLSMode() *DomainUpsertBulk {
+	return u.Update(func(s *DomainUpsert) {
+		s.UpdateTLSMode()
+	})
+}
+
+// SetCertificateStatus sets the "certificate_status" field.
+func (u *DomainUpsertBulk) SetCertificateStatus(v string) *DomainUpsertBulk {
+	return u.Update(func(s *DomainUpsert) {
+		s.SetCertificateStatus(v)
+	})
+}
+
+// UpdateCertificateStatus sets the "certificate_status" field to the value that was provided on create.
+func (u *DomainUpsertBulk) UpdateCertificateStatus() *DomainUpsertBulk {
+	return u.Update(func(s *DomainUpsert) {
+		s.UpdateCertificateStatus()
+	})
+}
+
+// ClearCertificateStatus clears the value of the "certificate_status" field.
+func (u *DomainUpsertBulk) ClearCertificateStatus() *DomainUpsertBulk {
+	return u.Update(func(s *DomainUpsert) {
+		s.ClearCertificateStatus()
 	})
 }
 

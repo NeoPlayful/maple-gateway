@@ -102,7 +102,9 @@
     "phase": "Phase",
     "port": "Port",
     "version": "Version",
-    "weight": "Weight"
+    "weight": "Weight",
+    "tlsMode": "TLS Mode",
+    "certificateStatus": "Cert Status"
   },
   "tenants": {
     "title": "Tenants",

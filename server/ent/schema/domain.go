@@ -22,6 +22,10 @@ func (Domain) Fields() []ent.Field {
 		field.UUID("service_id", uuid.UUID{}).Optional().Nillable(),
 		field.String("status").Default("active"),
 		field.Time("verified_at").Optional().Nillable(),
+		// Phase 5 Direct TLS：TLS 接入模式（cloudflare/managed/manual/disabled；本期可写 manual|disabled）。
+		field.String("tls_mode").Default("disabled"),
+		// Phase 5 Direct TLS：证书自身状态（active/pending/error/expiring/expired），与 status(路由)分离。
+		field.String("certificate_status").Optional().Nillable(),
 		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),
 	}
@@ -35,6 +39,8 @@ func (Domain) Edges() []ent.Edge {
 			Field("tenant_id").
 			Unique().
 			Required(),
+		// O2M: domain 下的证书（Direct TLS，一般 0..1 生效）。
+		edge.To("certificates", Certificate.Type),
 	}
 }
 

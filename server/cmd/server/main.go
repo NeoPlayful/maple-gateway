@@ -16,6 +16,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
+	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
@@ -199,6 +200,66 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		go coord.Run(ctx)
 	}
 
+	// Phase 5 Direct TLS：证书管理 Service（需 DB + MAPLE_CERT_ENC_KEY）。
+	// 密钥未配置或表未迁移时告警禁用，不影响既有 global 模式启动。
+	var certSvc *certificate.Service
+	var certH *certificate.Handler
+	if db != nil {
+		certCache := certificate.NewCache()
+		certSvc, err = certificate.NewService(certificate.NewRepository(entClient), certCache, logger,
+			certificate.WithDomainSync(domain.NewRepository(entClient)))
+		if err != nil {
+			logger.Warn("certificate service disabled (Direct TLS)",
+				zap.String("err", err.Error()))
+		} else {
+			if err := certSvc.ReloadAll(ctx); err != nil {
+				logger.Warn("certificate cache initial reload failed",
+					zap.String("err", err.Error()))
+			} else {
+				logger.Info("certificate cache loaded",
+					zap.Int("certs", certSvc.Cache().Len()))
+			}
+			certH = certificate.NewHandler(certSvc)
+		}
+	}
+	// 证书缓存多实例对账：周期全量重载（对齐 Phase 4"先轮询"决策）。
+	// 任实例上传/删除证书后，其余实例在窗口内收敛；本地变更已即时更新缓存，幂等。
+	if certSvc != nil {
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if err := certSvc.ReloadAll(ctx); err != nil {
+						logger.Warn("certificate cache reconcile failed",
+							zap.String("err", err.Error()))
+					}
+				}
+			}
+		}()
+		// 证书临期扫描（30 天窗口）：置 expiring/expired 并摘除缓存。
+		go func() {
+			ticker := time.NewTicker(1 * time.Hour)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if n, err := certSvc.ScanExpiring(ctx, 30*24*time.Hour); err != nil {
+						logger.Warn("certificate expiry scan failed",
+							zap.String("err", err.Error()))
+					} else if n > 0 {
+						logger.Info("certificate expiry scan updated", zap.Int("certs", n))
+					}
+				}
+			}
+		}()
+	}
+
 	logger.Info("maple-gateway starting",
 		zap.String("http_addr", cfg.Gateway.HTTP.Address),
 		zap.String("management_addr", cfg.Management.Address),
@@ -225,23 +286,52 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		certFile = cfg.Gateway.HTTPS.Cert
 		keyFile = cfg.Gateway.HTTPS.Key
 	}
+	// Phase 5 Direct TLS：tls.mode=direct 且证书缓存可用时注入 SNI GetCertificate。
+	// Getter miss 时根据 fallback_cert_enabled 决定：回退全局证书 / 拒绝握手（隔离）。
+	tlsMode := gateway.TLSMode(cfg.TLS.Mode)
+	if tlsMode == "" {
+		tlsMode = gateway.TLSModeGlobal
+	}
+	var sniGetter gateway.TLSCertGetter
+	if tlsMode == gateway.TLSModeDirect && certSvc != nil {
+		onMiss := func(serverName string, usedFallback bool) {
+			logger.Warn("tls certificate cache miss",
+				zap.String("sni", serverName),
+				zap.Bool("used_fallback", usedFallback))
+		}
+		g := certificate.NewGetter(certSvc.Cache(), cfg.TLS.FallbackCertEnabled, onMiss)
+		sniGetter = g.GetCertificate
+		if certH != nil {
+			certH.SetGetter(g)
+		}
+		logger.Info("data plane tls mode direct (dynamic sni)",
+			zap.Bool("fallback_cert_enabled", cfg.TLS.FallbackCertEnabled),
+			zap.Int("cached_certs", certSvc.Cache().Len()))
+	} else {
+		logger.Info("data plane tls mode",
+			zap.String("mode", string(tlsMode)))
+	}
 	accessLog := logs.NewAccessLog(5000)
 	errLog := logs.NewErrLog(2000)
 	dp := gateway.NewDataPlane(gateway.DataPlaneConfig{
-		Address:           httpAddr,
-		HTTPSAddress:      httpsAddr,
-		CertFile:          certFile,
-		KeyFile:           keyFile,
-		Resolver:          resolver,
-		Transport:         transport,
-		ReadHeaderTimeout: cfg.Proxy.ReadHeaderTimeout,
-		IdleTimeout:       cfg.Proxy.IdleTimeout,
-		MaxHeaderBytes:    cfg.Proxy.MaxHeaderBytes,
-		Logger:            logger,
-		Metrics:           metricReg,
-		AccessLog:         accessLog,
-		ErrLog:            errLog,
-		Tracer:            trc,
+		Address:             httpAddr,
+		HTTPSAddress:        httpsAddr,
+		CertFile:            certFile,
+		KeyFile:             keyFile,
+		TLSMode:             tlsMode,
+		TLSMinVersion:       cfg.TLS.MinVersion,
+		GetCertificate:      sniGetter,
+		EnforceSNIHostMatch: tlsMode == gateway.TLSModeDirect && cfg.TLS.EnforceSNIHostMatch,
+		Resolver:            resolver,
+		Transport:           transport,
+		ReadHeaderTimeout:   cfg.Proxy.ReadHeaderTimeout,
+		IdleTimeout:         cfg.Proxy.IdleTimeout,
+		MaxHeaderBytes:      cfg.Proxy.MaxHeaderBytes,
+		Logger:              logger,
+		Metrics:             metricReg,
+		AccessLog:           accessLog,
+		ErrLog:              errLog,
+		Tracer:              trc,
 	})
 	dpErrCh := dp.Start()
 
@@ -265,7 +355,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series,
-			HA: ha.NewHandler(ha.NewRepository(entClient), coord), UIDir: uiDir})
+			HA: ha.NewHandler(ha.NewRepository(entClient), coord), Certificates: certH, UIDir: uiDir})
 	} else {
 		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir})
 	}

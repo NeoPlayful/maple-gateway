@@ -26,6 +26,7 @@ type Config struct {
 	HA         HAConfig         `yaml:"ha"`
 	CanaryAuto CanaryAutoConfig `yaml:"canary_auto"`
 	Trace      TraceConfig      `yaml:"trace"`
+	TLS        TLSConfig        `yaml:"tls"`
 }
 
 // TraceConfig 是 OpenTelemetry 数据面追踪配置。
@@ -112,6 +113,18 @@ type HAConfig struct {
 	LeaseTTL   time.Duration `yaml:"lease_ttl"`   // lease 时长
 }
 
+// TLSConfig 是数据平面 TLS 接入模式配置（Phase 5 Direct TLS）。
+type TLSConfig struct {
+	// Mode: global（单全局证书，Phase 4 行为）/ direct（每域名动态 SNI 证书）。
+	Mode string `yaml:"mode"`
+	// MinVersion 允许 "tls1.2"/"tls1.3"；空默认 tls1.2。
+	MinVersion string `yaml:"min_version"`
+	// EnforceSNIHostMatch Direct TLS 下 SNI 与 Host 不一致时返回 421。
+	EnforceSNIHostMatch bool `yaml:"enforce_sni_host_match"`
+	// FallbackCertEnabled direct 模式未知 SNI / 无 SNI（裸 IP、健康检查）用全局回退证书兜底。
+	FallbackCertEnabled bool `yaml:"fallback_cert_enabled"`
+}
+
 // Default 返回内建默认配置（作为 env / 缺省兜底）。
 func Default() *Config {
 	return &Config{
@@ -152,6 +165,12 @@ func Default() *Config {
 		Trace: TraceConfig{
 			Enabled:     false, // 默认关闭：trace 仅显式开启时导出，避免误刷 stdout
 			SampleRatio: 0.01,  // 默认低采样 1%
+		},
+		TLS: TLSConfig{
+			Mode:                "global", // 默认保持 Phase 4 单全局证书行为
+			MinVersion:          "tls1.2",
+			EnforceSNIHostMatch: true,
+			FallbackCertEnabled: true,
 		},
 	}
 }
@@ -241,6 +260,18 @@ func (c *Config) applyEnv() {
 			c.Trace.SampleRatio = f
 		}
 	}
+	if v := os.Getenv("MAPLE_TLS_MODE"); v != "" {
+		c.TLS.Mode = v
+	}
+	if v := os.Getenv("MAPLE_TLS_MIN_VERSION"); v != "" {
+		c.TLS.MinVersion = v
+	}
+	if v := os.Getenv("MAPLE_TLS_ENFORCE_SNI_HOST_MATCH"); v != "" {
+		c.TLS.EnforceSNIHostMatch = parseBool(v, c.TLS.EnforceSNIHostMatch)
+	}
+	if v := os.Getenv("MAPLE_TLS_FALLBACK_CERT_ENABLED"); v != "" {
+		c.TLS.FallbackCertEnabled = parseBool(v, c.TLS.FallbackCertEnabled)
+	}
 }
 
 func parseBool(v string, def bool) bool {
@@ -270,6 +301,16 @@ func (c *Config) Validate() error {
 		if c.Database.URL == "" {
 			return fmt.Errorf("ha.enabled requires database.url")
 		}
+	}
+	switch c.TLS.Mode {
+	case "", "global", "direct":
+	default:
+		return fmt.Errorf("tls.mode must be global or direct, got %q", c.TLS.Mode)
+	}
+	switch c.TLS.MinVersion {
+	case "", "tls1.2", "tls1.3":
+	default:
+		return fmt.Errorf("tls.min_version must be tls1.2 or tls1.3, got %q", c.TLS.MinVersion)
 	}
 	return nil
 }

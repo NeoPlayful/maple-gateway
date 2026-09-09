@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
 	"github.com/NeoPlayful/maple-gateway/server/ent/predicate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
@@ -112,6 +113,40 @@ func (du *DomainUpdate) ClearVerifiedAt() *DomainUpdate {
 	return du
 }
 
+// SetTLSMode sets the "tls_mode" field.
+func (du *DomainUpdate) SetTLSMode(s string) *DomainUpdate {
+	du.mutation.SetTLSMode(s)
+	return du
+}
+
+// SetNillableTLSMode sets the "tls_mode" field if the given value is not nil.
+func (du *DomainUpdate) SetNillableTLSMode(s *string) *DomainUpdate {
+	if s != nil {
+		du.SetTLSMode(*s)
+	}
+	return du
+}
+
+// SetCertificateStatus sets the "certificate_status" field.
+func (du *DomainUpdate) SetCertificateStatus(s string) *DomainUpdate {
+	du.mutation.SetCertificateStatus(s)
+	return du
+}
+
+// SetNillableCertificateStatus sets the "certificate_status" field if the given value is not nil.
+func (du *DomainUpdate) SetNillableCertificateStatus(s *string) *DomainUpdate {
+	if s != nil {
+		du.SetCertificateStatus(*s)
+	}
+	return du
+}
+
+// ClearCertificateStatus clears the value of the "certificate_status" field.
+func (du *DomainUpdate) ClearCertificateStatus() *DomainUpdate {
+	du.mutation.ClearCertificateStatus()
+	return du
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (du *DomainUpdate) SetUpdatedAt(t time.Time) *DomainUpdate {
 	du.mutation.SetUpdatedAt(t)
@@ -131,6 +166,21 @@ func (du *DomainUpdate) SetTenant(t *Tenant) *DomainUpdate {
 	return du.SetTenantID(t.ID)
 }
 
+// AddCertificateIDs adds the "certificates" edge to the Certificate entity by IDs.
+func (du *DomainUpdate) AddCertificateIDs(ids ...uuid.UUID) *DomainUpdate {
+	du.mutation.AddCertificateIDs(ids...)
+	return du
+}
+
+// AddCertificates adds the "certificates" edges to the Certificate entity.
+func (du *DomainUpdate) AddCertificates(c ...*Certificate) *DomainUpdate {
+	ids := make([]uuid.UUID, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return du.AddCertificateIDs(ids...)
+}
+
 // Mutation returns the DomainMutation object of the builder.
 func (du *DomainUpdate) Mutation() *DomainMutation {
 	return du.mutation
@@ -140,6 +190,27 @@ func (du *DomainUpdate) Mutation() *DomainMutation {
 func (du *DomainUpdate) ClearTenant() *DomainUpdate {
 	du.mutation.ClearTenant()
 	return du
+}
+
+// ClearCertificates clears all "certificates" edges to the Certificate entity.
+func (du *DomainUpdate) ClearCertificates() *DomainUpdate {
+	du.mutation.ClearCertificates()
+	return du
+}
+
+// RemoveCertificateIDs removes the "certificates" edge to Certificate entities by IDs.
+func (du *DomainUpdate) RemoveCertificateIDs(ids ...uuid.UUID) *DomainUpdate {
+	du.mutation.RemoveCertificateIDs(ids...)
+	return du
+}
+
+// RemoveCertificates removes "certificates" edges to Certificate entities.
+func (du *DomainUpdate) RemoveCertificates(c ...*Certificate) *DomainUpdate {
+	ids := make([]uuid.UUID, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return du.RemoveCertificateIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -212,6 +283,15 @@ func (du *DomainUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if du.mutation.VerifiedAtCleared() {
 		_spec.ClearField(domain.FieldVerifiedAt, field.TypeTime)
 	}
+	if value, ok := du.mutation.TLSMode(); ok {
+		_spec.SetField(domain.FieldTLSMode, field.TypeString, value)
+	}
+	if value, ok := du.mutation.CertificateStatus(); ok {
+		_spec.SetField(domain.FieldCertificateStatus, field.TypeString, value)
+	}
+	if du.mutation.CertificateStatusCleared() {
+		_spec.ClearField(domain.FieldCertificateStatus, field.TypeString)
+	}
 	if value, ok := du.mutation.UpdatedAt(); ok {
 		_spec.SetField(domain.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -237,6 +317,51 @@ func (du *DomainUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tenant.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if du.mutation.CertificatesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := du.mutation.RemovedCertificatesIDs(); len(nodes) > 0 && !du.mutation.CertificatesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := du.mutation.CertificatesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {
@@ -346,6 +471,40 @@ func (duo *DomainUpdateOne) ClearVerifiedAt() *DomainUpdateOne {
 	return duo
 }
 
+// SetTLSMode sets the "tls_mode" field.
+func (duo *DomainUpdateOne) SetTLSMode(s string) *DomainUpdateOne {
+	duo.mutation.SetTLSMode(s)
+	return duo
+}
+
+// SetNillableTLSMode sets the "tls_mode" field if the given value is not nil.
+func (duo *DomainUpdateOne) SetNillableTLSMode(s *string) *DomainUpdateOne {
+	if s != nil {
+		duo.SetTLSMode(*s)
+	}
+	return duo
+}
+
+// SetCertificateStatus sets the "certificate_status" field.
+func (duo *DomainUpdateOne) SetCertificateStatus(s string) *DomainUpdateOne {
+	duo.mutation.SetCertificateStatus(s)
+	return duo
+}
+
+// SetNillableCertificateStatus sets the "certificate_status" field if the given value is not nil.
+func (duo *DomainUpdateOne) SetNillableCertificateStatus(s *string) *DomainUpdateOne {
+	if s != nil {
+		duo.SetCertificateStatus(*s)
+	}
+	return duo
+}
+
+// ClearCertificateStatus clears the value of the "certificate_status" field.
+func (duo *DomainUpdateOne) ClearCertificateStatus() *DomainUpdateOne {
+	duo.mutation.ClearCertificateStatus()
+	return duo
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (duo *DomainUpdateOne) SetUpdatedAt(t time.Time) *DomainUpdateOne {
 	duo.mutation.SetUpdatedAt(t)
@@ -365,6 +524,21 @@ func (duo *DomainUpdateOne) SetTenant(t *Tenant) *DomainUpdateOne {
 	return duo.SetTenantID(t.ID)
 }
 
+// AddCertificateIDs adds the "certificates" edge to the Certificate entity by IDs.
+func (duo *DomainUpdateOne) AddCertificateIDs(ids ...uuid.UUID) *DomainUpdateOne {
+	duo.mutation.AddCertificateIDs(ids...)
+	return duo
+}
+
+// AddCertificates adds the "certificates" edges to the Certificate entity.
+func (duo *DomainUpdateOne) AddCertificates(c ...*Certificate) *DomainUpdateOne {
+	ids := make([]uuid.UUID, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return duo.AddCertificateIDs(ids...)
+}
+
 // Mutation returns the DomainMutation object of the builder.
 func (duo *DomainUpdateOne) Mutation() *DomainMutation {
 	return duo.mutation
@@ -374,6 +548,27 @@ func (duo *DomainUpdateOne) Mutation() *DomainMutation {
 func (duo *DomainUpdateOne) ClearTenant() *DomainUpdateOne {
 	duo.mutation.ClearTenant()
 	return duo
+}
+
+// ClearCertificates clears all "certificates" edges to the Certificate entity.
+func (duo *DomainUpdateOne) ClearCertificates() *DomainUpdateOne {
+	duo.mutation.ClearCertificates()
+	return duo
+}
+
+// RemoveCertificateIDs removes the "certificates" edge to Certificate entities by IDs.
+func (duo *DomainUpdateOne) RemoveCertificateIDs(ids ...uuid.UUID) *DomainUpdateOne {
+	duo.mutation.RemoveCertificateIDs(ids...)
+	return duo
+}
+
+// RemoveCertificates removes "certificates" edges to Certificate entities.
+func (duo *DomainUpdateOne) RemoveCertificates(c ...*Certificate) *DomainUpdateOne {
+	ids := make([]uuid.UUID, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return duo.RemoveCertificateIDs(ids...)
 }
 
 // Where appends a list predicates to the DomainUpdate builder.
@@ -476,6 +671,15 @@ func (duo *DomainUpdateOne) sqlSave(ctx context.Context) (_node *Domain, err err
 	if duo.mutation.VerifiedAtCleared() {
 		_spec.ClearField(domain.FieldVerifiedAt, field.TypeTime)
 	}
+	if value, ok := duo.mutation.TLSMode(); ok {
+		_spec.SetField(domain.FieldTLSMode, field.TypeString, value)
+	}
+	if value, ok := duo.mutation.CertificateStatus(); ok {
+		_spec.SetField(domain.FieldCertificateStatus, field.TypeString, value)
+	}
+	if duo.mutation.CertificateStatusCleared() {
+		_spec.ClearField(domain.FieldCertificateStatus, field.TypeString)
+	}
 	if value, ok := duo.mutation.UpdatedAt(); ok {
 		_spec.SetField(domain.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -501,6 +705,51 @@ func (duo *DomainUpdateOne) sqlSave(ctx context.Context) (_node *Domain, err err
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tenant.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if duo.mutation.CertificatesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := duo.mutation.RemovedCertificatesIDs(); len(nodes) > 0 && !duo.mutation.CertificatesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := duo.mutation.CertificatesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   domain.CertificatesTable,
+			Columns: []string{domain.CertificatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(certificate.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

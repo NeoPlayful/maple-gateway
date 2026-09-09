@@ -1,0 +1,269 @@
+package certificate
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/certenc"
+	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
+	"github.com/NeoPlayful/maple-gateway/server/internal/router"
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+// encIface 加解密抽象（certenc 实现，便于测试注入）。
+type encIface interface {
+	Encrypt(plaintext []byte) (string, error)
+	Decrypt(encoded string) ([]byte, error)
+}
+
+// Service 编排证书业务：上传校验 → 加密 → 落库 → 刷新缓存。
+type Service struct {
+	repo       *Repository
+	cache      *Cache
+	enc        encIface
+	log        *zap.Logger
+	domainRepo *domain.Repository // 可空：联动 Domain TLS 状态
+}
+
+// ServiceOption 供可选依赖注入。
+type ServiceOption func(*Service)
+
+// WithDomainSync 注入 Domain 仓库，使证书上传/删除联动 domains.tls_mode / certificate_status。
+func WithDomainSync(repo *domain.Repository) ServiceOption {
+	return func(s *Service) { s.domainRepo = repo }
+}
+
+// NewService 构造。enc 密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。
+func NewService(repo *Repository, cache *Cache, log *zap.Logger, opts ...ServiceOption) (*Service, error) {
+	enc, err := certenc.New()
+	if err != nil {
+		return nil, err
+	}
+	s := &Service{repo: repo, cache: cache, enc: enc, log: log}
+	for _, o := range opts {
+		o(s)
+	}
+	return s, nil
+}
+
+// newServiceWithDeps 供测试注入 enc 实现（绕过 MAPLE_CERT_ENC_KEY 依赖）。
+func newServiceWithDeps(repo *Repository, cache *Cache, enc encIface, log *zap.Logger) *Service {
+	return &Service{repo: repo, cache: cache, enc: enc, log: log}
+}
+
+// Upload 上传/替换某域名的 Manual Certificate。
+// 校验通过 → 私钥加密落库 → 更新内存缓存 → 返回不含私钥的模型。
+func (s *Service) Upload(ctx context.Context, in New) (*Certificate, error) {
+	hostname, err := router.NormalizeHost(in.Hostname)
+	if err != nil {
+		return nil, pkg.ErrValidation("域名格式无效")
+	}
+	// 校验 PEM 可解析、证书/私钥匹配、未过期、SAN 覆盖 hostname。
+	if _, leaf, err := validateAndLoad(in.CertificatePEM, in.PrivateKeyPEM, hostname); err != nil {
+		return nil, pkg.ErrValidation(err.Error())
+	} else {
+		rec := &Certificate{
+			DomainID:       in.DomainID,
+			Hostname:       hostname,
+			Source:         SourceManual,
+			Status:         StatusActive,
+			CertificatePEM: in.CertificatePEM,
+			Issuer:         leaf.Issuer.String(),
+			SerialNumber:   leaf.SerialNumber.String(),
+			IssuedAt:       &leaf.NotBefore,
+			ExpiresAt:      &leaf.NotAfter,
+		}
+		encKey, err := s.enc.Encrypt([]byte(in.PrivateKeyPEM))
+		if err != nil {
+			s.log.Error("certificate private key encrypt failed", zap.Error(err))
+			return nil, pkg.ErrSystem("私钥加密失败")
+		}
+		rec.PrivateKeyEncrypted = encKey
+
+		// 同 hostname 已有证书 → 覆盖内容保留记录；否则新建。
+		var saved *Certificate
+		existing, err := s.repo.GetByHostname(ctx, hostname)
+		switch {
+		case err == nil:
+			saved, err = s.repo.UpdateContent(ctx, existing.ID, rec)
+			if err != nil {
+				return nil, pkg.ErrSystem("证书更新失败")
+			}
+		case pkg.ErrCode(err) == pkg.CodeNotFound:
+			saved, err = s.repo.Create(ctx, rec)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, err
+		}
+
+		// 刷新内存缓存（热加载）：解密私钥后重建 tls.Certificate。
+		if err := s.reloadIntoCache(saved); err != nil {
+			s.log.Warn("certificate cache reload failed",
+				zap.String("hostname", hostname), zap.Error(err))
+		}
+		// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
+		s.syncDomainTLS(ctx, hostname, true, saved.Status)
+		return saved, nil
+	}
+}
+
+// syncDomainTLS 更新 hostname 对应 Domain 的 TLS 状态（可空 repo 时静默跳过）。
+func (s *Service) syncDomainTLS(ctx context.Context, hostname string, manual bool, certStatus Status) {
+	if s.domainRepo == nil {
+		return
+	}
+	d, err := s.domainRepo.GetByHostname(ctx, hostname)
+	if err != nil {
+		// hostname 可能尚无 Domain 记录（裸证书管理）；不阻断证书本身。
+		s.log.Debug("certificate uploaded without matching domain",
+			zap.String("hostname", hostname))
+		return
+	}
+	tlsMode := "disabled"
+	if manual {
+		tlsMode = "manual"
+	}
+	cs := string(certStatus)
+	if _, err := s.domainRepo.Update(ctx, d.ID, domain.Update{
+		TLSMode:           &tlsMode,
+		CertificateStatus: &cs,
+	}); err != nil {
+		s.log.Warn("sync domain tls state failed",
+			zap.String("hostname", hostname), zap.Error(err))
+	}
+}
+
+// Reload 单条重载缓存（管理员显式 reload）。
+func (s *Service) Reload(ctx context.Context, id uuid.UUID) (*Certificate, error) {
+	rec, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.reloadIntoCache(rec); err != nil {
+		s.log.Warn("certificate reload into cache failed",
+			zap.String("id", rec.ID.String()), zap.Error(err))
+		return rec, pkg.ErrSystem("证书缓存重载失败")
+	}
+	return rec, nil
+}
+
+// ReloadAll 全量重载缓存（启动 / 周期对账用），原子整体替换。
+func (s *Service) ReloadAll(ctx context.Context) error {
+	recs, err := s.repo.All(ctx)
+	if err != nil {
+		return err
+	}
+	next := make(map[string]*Loaded, len(recs))
+	for _, r := range recs {
+		// 已过期/错误状态不入缓存（不对外发过期证书）。
+		if r.Status != StatusActive && r.Status != StatusPending {
+			continue
+		}
+		loaded, err := s.decryptAndLoad(r)
+		if err != nil {
+			s.log.Warn("certificate skipped at reload",
+				zap.String("hostname", r.Hostname), zap.Error(err))
+			continue
+		}
+		next[r.Hostname] = loaded
+	}
+	s.cache.ReplaceAll(next)
+	return nil
+}
+
+// Delete 删除证书并从缓存摘除；如该 hostname 已无证书则回落 disabled。
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	rec, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	hostname := rec.Hostname
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.cache.Delete(hostname)
+	// 仍有其他证书则该域名保留 manual，否则回落 disabled。
+	if s.domainRepo != nil {
+		if _, lerr := s.repo.GetByHostname(ctx, hostname); lerr != nil {
+			s.syncDomainTLS(ctx, hostname, false, "")
+		}
+	}
+	return nil
+}
+
+// Get 详情。
+func (s *Service) Get(ctx context.Context, id uuid.UUID) (*Certificate, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+// List 列表。
+func (s *Service) List(ctx context.Context, limit, offset int) ([]*Certificate, int, error) {
+	return s.repo.List(ctx, limit, offset)
+}
+
+// ScanExpiring 把 warnWindow 内过期的 active/pending 证书置 expiring，已过期置 expired 并从缓存摘除。
+func (s *Service) ScanExpiring(ctx context.Context, warnWindow time.Duration) (int, error) {
+	deadline := time.Now().Add(warnWindow)
+	recs, err := s.repo.ActiveByExpiryBefore(ctx, deadline)
+	if err != nil {
+		return 0, err
+	}
+	now := time.Now()
+	count := 0
+	for _, r := range recs {
+		if r.ExpiresAt == nil {
+			continue
+		}
+		if now.After(*r.ExpiresAt) {
+			if _, err := s.repo.UpdateStatus(ctx, r.ID, StatusExpired, "证书已过期"); err == nil {
+				s.cache.Delete(r.Hostname)
+				count++
+			}
+			continue
+		}
+		if _, err := s.repo.UpdateStatus(ctx, r.ID, StatusExpiring, "证书即将过期"); err == nil {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// Cache 暴露只读句柄供数据面 GetCertificate 使用。
+func (s *Service) Cache() *Cache { return s.cache }
+
+// reloadIntoCache 单条解密并装载缓存。仅 active/pending 可入缓存。
+func (s *Service) reloadIntoCache(rec *Certificate) error {
+	if rec.Status != StatusActive && rec.Status != StatusPending {
+		return errors.New("certificate not in serviceable status")
+	}
+	loaded, err := s.decryptAndLoad(rec)
+	if err != nil {
+		return err
+	}
+	s.cache.Set(rec.Hostname, loaded)
+	return nil
+}
+
+// decryptAndLoad 解密私钥并组装 tls.Certificate 缓存项。
+func (s *Service) decryptAndLoad(rec *Certificate) (*Loaded, error) {
+	keyPEM, err := s.enc.Decrypt(rec.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt private key: %w", err)
+	}
+	pair, err := tls.X509KeyPair([]byte(rec.CertificatePEM), keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("assemble certificate: %w", err)
+	}
+	leaf, err := parseLeaf(rec.CertificatePEM)
+	if err != nil {
+		return nil, err
+	}
+	return &Loaded{Hostname: rec.Hostname, Cert: &pair, Leaf: leaf, Expiry: leaf.NotAfter}, nil
+}

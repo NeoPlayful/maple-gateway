@@ -29,6 +29,10 @@ type Domain struct {
 	Status string `json:"status,omitempty"`
 	// VerifiedAt holds the value of the "verified_at" field.
 	VerifiedAt *time.Time `json:"verified_at,omitempty"`
+	// TLSMode holds the value of the "tls_mode" field.
+	TLSMode string `json:"tls_mode,omitempty"`
+	// CertificateStatus holds the value of the "certificate_status" field.
+	CertificateStatus *string `json:"certificate_status,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -43,9 +47,11 @@ type Domain struct {
 type DomainEdges struct {
 	// Tenant holds the value of the tenant edge.
 	Tenant *Tenant `json:"tenant,omitempty"`
+	// Certificates holds the value of the certificates edge.
+	Certificates []*Certificate `json:"certificates,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // TenantOrErr returns the Tenant value or an error if the edge
@@ -59,6 +65,15 @@ func (e DomainEdges) TenantOrErr() (*Tenant, error) {
 	return nil, &NotLoadedError{edge: "tenant"}
 }
 
+// CertificatesOrErr returns the Certificates value or an error if the edge
+// was not loaded in eager-loading.
+func (e DomainEdges) CertificatesOrErr() ([]*Certificate, error) {
+	if e.loadedTypes[1] {
+		return e.Certificates, nil
+	}
+	return nil, &NotLoadedError{edge: "certificates"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Domain) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -66,7 +81,7 @@ func (*Domain) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case domain.FieldServiceID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
-		case domain.FieldHostname, domain.FieldStatus:
+		case domain.FieldHostname, domain.FieldStatus, domain.FieldTLSMode, domain.FieldCertificateStatus:
 			values[i] = new(sql.NullString)
 		case domain.FieldVerifiedAt, domain.FieldCreatedAt, domain.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -125,6 +140,19 @@ func (d *Domain) assignValues(columns []string, values []any) error {
 				d.VerifiedAt = new(time.Time)
 				*d.VerifiedAt = value.Time
 			}
+		case domain.FieldTLSMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field tls_mode", values[i])
+			} else if value.Valid {
+				d.TLSMode = value.String
+			}
+		case domain.FieldCertificateStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field certificate_status", values[i])
+			} else if value.Valid {
+				d.CertificateStatus = new(string)
+				*d.CertificateStatus = value.String
+			}
 		case domain.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -153,6 +181,11 @@ func (d *Domain) Value(name string) (ent.Value, error) {
 // QueryTenant queries the "tenant" edge of the Domain entity.
 func (d *Domain) QueryTenant() *TenantQuery {
 	return NewDomainClient(d.config).QueryTenant(d)
+}
+
+// QueryCertificates queries the "certificates" edge of the Domain entity.
+func (d *Domain) QueryCertificates() *CertificateQuery {
+	return NewDomainClient(d.config).QueryCertificates(d)
 }
 
 // Update returns a builder for updating this Domain.
@@ -195,6 +228,14 @@ func (d *Domain) String() string {
 	if v := d.VerifiedAt; v != nil {
 		builder.WriteString("verified_at=")
 		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("tls_mode=")
+	builder.WriteString(d.TLSMode)
+	builder.WriteString(", ")
+	if v := d.CertificateStatus; v != nil {
+		builder.WriteString("certificate_status=")
+		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")

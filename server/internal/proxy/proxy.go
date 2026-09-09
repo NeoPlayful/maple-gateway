@@ -35,17 +35,21 @@ type Config struct {
 	AccessLog *logs.AccessLog   // 可空；nil 时不记录访问日志
 	ErrLog    *logs.ErrLog      // 可空；nil 时不记录错误日志
 	Tracer    tracex.Tracer     // 可空；nil 时不埋 trace span
+	// EnforceSNIHostMatch 仅 Direct TLS（tls.mode=direct）开启：
+	// TLS 握手 SNI 与 HTTP Host 不一致时返回 421 Misdirected Request。
+	EnforceSNIHostMatch bool
 }
 
 // Proxy 是数据平面反向代理。
 type Proxy struct {
-	resolver router.Resolver
-	director *httputil.ReverseProxy
-	logger   Logger
-	metrics  *metrics.Registry
-	access   *logs.AccessLog
-	errLog   *logs.ErrLog
-	tracer   tracex.Tracer
+	resolver            router.Resolver
+	director            *httputil.ReverseProxy
+	logger              Logger
+	metrics             *metrics.Registry
+	access              *logs.AccessLog
+	errLog              *logs.ErrLog
+	tracer              tracex.Tracer
+	enforceSNIHostMatch bool
 }
 
 // New 构造 Proxy。transport 为空时使用默认配置。
@@ -61,12 +65,13 @@ func New(cfg Config) *Proxy {
 	}
 
 	p := &Proxy{
-		resolver: cfg.Resolver,
-		logger:   cfg.Logger,
-		metrics:  cfg.Metrics,
-		access:   cfg.AccessLog,
-		errLog:   cfg.ErrLog,
-		tracer:   cfg.Tracer,
+		resolver:            cfg.Resolver,
+		logger:              cfg.Logger,
+		metrics:             cfg.Metrics,
+		access:              cfg.AccessLog,
+		errLog:              cfg.ErrLog,
+		tracer:              cfg.Tracer,
+		enforceSNIHostMatch: cfg.EnforceSNIHostMatch,
 	}
 	p.director = &httputil.ReverseProxy{
 		Transport:     transport,
@@ -136,6 +141,21 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respStatus = http.StatusBadRequest
 		http.Error(w, "invalid host", http.StatusBadRequest)
 		return
+	}
+
+	// Direct TLS：SNI 与 Host 不一致 → 421 Misdirected Request（防跨租户发错证书下的错误路由）。
+	if p.enforceSNIHostMatch && r.TLS != nil && r.TLS.ServerName != "" {
+		if sni, serr := router.NormalizeHost(r.TLS.ServerName); serr == nil && sni != host {
+			if p.logger != nil {
+				p.logger.Warn("tls sni/host mismatch rejected",
+					zap.String("sni", r.TLS.ServerName),
+					zap.String("host", host),
+					zap.String("request_id", requestID))
+			}
+			respStatus = http.StatusMisdirectedRequest
+			http.Error(w, http.StatusText(http.StatusMisdirectedRequest), http.StatusMisdirectedRequest)
+			return
+		}
 	}
 
 	if p.metrics != nil {

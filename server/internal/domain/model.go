@@ -24,8 +24,12 @@ type Domain struct {
 	ServiceID  *uuid.UUID `json:"service_id,omitempty"`
 	Status     Status     `json:"status"`
 	VerifiedAt *time.Time `json:"verified_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	// Phase 5 Direct TLS：TLS 接入模式（cloudflare/managed/manual/disabled）。
+	TLSMode string `json:"tls_mode,omitempty"`
+	// Phase 5 Direct TLS：证书状态（active/pending/error/expiring/expired），与路由状态分离。
+	CertificateStatus *string   `json:"certificate_status,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // New 创建输入。
@@ -33,6 +37,8 @@ type New struct {
 	TenantID  uuid.UUID  `json:"tenant_id" validate:"required"`
 	Hostname  string     `json:"hostname" validate:"required"`
 	ServiceID *uuid.UUID `json:"service_id"`
+	// TLSMode 缺省 disabled（Phase 1 语义未变）。
+	TLSMode string `json:"tls_mode"`
 }
 
 // Update 可修改字段。
@@ -40,4 +46,7 @@ type Update struct {
 	Hostname  *string    `json:"hostname"`
 	ServiceID *uuid.UUID `json:"service_id"`
 	Status    *Status    `json:"status"`
+	// Phase 5：TLS 相关字段由证书服务联动更新。
+	TLSMode           *string `json:"tls_mode"`
+	CertificateStatus *string `json:"certificate_status"`
 }
