@@ -70,4 +70,4 @@ tls:
   mode: global                       # global（单全局证书，Phase 4 兼容）/ direct（按 SNI 动态选每域名证书）
   min_version: tls1.2                # tls1.2 / tls1.3
   enforce_sni_host_match: true       # direct 模式：SNI 与 Host 不一致返回 421 Misdirected Request
-  fallback_cert_enabled: true        # direct 模式：未知 SNI/无 SNI 用全局回退证书兜底；false 则拒绝握手
+  fallback_cert_enabled: false       # direct 模式：未知 SNI/无 SNI 默认拒绝握手（隔离优先）；需内网泛兜底时改 true

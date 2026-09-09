@@ -511,7 +511,7 @@ tls:
   mode: global                     # global（Phase 4 单证书兼容）| direct（动态 SNI）
   min_version: tls1.2
   enforce_sni_host_match: true     # Direct TLS：SNI 与 Host 不一致返回 421
-  fallback_cert_enabled: true      # direct 模式下未知 SNI/裸 IP 是否用全局证书兜底
+  fallback_cert_enabled: false     # direct 模式未知 SNI/无 SNI：默认拒绝握手（隔离优先）；内网泛兜底再显式开启
 ```
 
 ```env

@@ -122,6 +122,7 @@ type TLSConfig struct {
 	// EnforceSNIHostMatch Direct TLS 下 SNI 与 Host 不一致时返回 421。
 	EnforceSNIHostMatch bool `yaml:"enforce_sni_host_match"`
 	// FallbackCertEnabled direct 模式未知 SNI / 无 SNI（裸 IP、健康检查）用全局回退证书兜底。
+	// 默认 false（隔离优先）：未知域名直接拒绝握手；需要内网泛兜底时显式开启。
 	FallbackCertEnabled bool `yaml:"fallback_cert_enabled"`
 }
 
@@ -170,7 +171,8 @@ func Default() *Config {
 			Mode:                "global", // 默认保持 Phase 4 单全局证书行为
 			MinVersion:          "tls1.2",
 			EnforceSNIHostMatch: true,
-			FallbackCertEnabled: true,
+			// 默认 false（隔离优先）：未知 SNI/无 SNI 拒绝握手，不向任意域名发全局证书。
+			FallbackCertEnabled: false,
 		},
 	}
 }
