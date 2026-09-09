@@ -18,6 +18,7 @@ type AccessEntry struct {
 	Path       string    `json:"path"`
 	Status     int       `json:"status"`
 	ClientIP   string    `json:"client_ip"`
+	RequestID  string    `json:"request_id,omitempty"` // 关联 OTel trace / 跨组件排查
 	DurationMS int64     `json:"duration_ms"`
 }
 
@@ -48,8 +49,8 @@ func (a *AccessLog) Append(e AccessEntry) {
 	a.mu.Unlock()
 }
 
-// Query 按时间倒序返回过滤后的记录，支持 limit/offset。
-func (a *AccessLog) Query(host string, status int, from, to time.Time, limit, offset int) []AccessEntry {
+// Query 按时间倒序返回过滤后的记录，支持 request_id / host / status / limit/offset。
+func (a *AccessLog) Query(host string, status int, requestID string, from, to time.Time, limit, offset int) []AccessEntry {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	// 从最新往旧遍历（head-1 是最新写入）。
@@ -64,6 +65,9 @@ func (a *AccessLog) Query(host string, status int, from, to time.Time, limit, of
 		e := a.ring[idx]
 		if e.Timestamp.IsZero() {
 			continue // 未写位置
+		}
+		if requestID != "" && e.RequestID != requestID {
+			continue
 		}
 		if host != "" && e.Host != host {
 			continue
@@ -105,6 +109,7 @@ type ErrEntry struct {
 	Host      string    `json:"host"`
 	Path      string    `json:"path"`
 	Status    int       `json:"status"`
+	RequestID string    `json:"request_id,omitempty"` // 关联 OTel trace / 跨组件排查
 	Error     string    `json:"error"`
 }
 
@@ -135,8 +140,8 @@ func (e *ErrLog) Append(entry ErrEntry) {
 	e.mu.Unlock()
 }
 
-// Query 按时间倒序返回过滤后的错误记录（host / status / from / to + limit/offset）。
-func (e *ErrLog) Query(host string, status int, from, to time.Time, limit, offset int) []ErrEntry {
+// Query 按时间倒序返回过滤后的错误记录（request_id / host / status / from / to + limit/offset）。
+func (e *ErrLog) Query(host string, status int, requestID string, from, to time.Time, limit, offset int) []ErrEntry {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	n := e.head
@@ -149,6 +154,9 @@ func (e *ErrLog) Query(host string, status int, from, to time.Time, limit, offse
 		idx := (e.head - 1 - i + len(e.ring)) % len(e.ring)
 		entry := e.ring[idx]
 		if entry.Timestamp.IsZero() {
+			continue
+		}
+		if requestID != "" && entry.RequestID != requestID {
 			continue
 		}
 		if host != "" && entry.Host != host {

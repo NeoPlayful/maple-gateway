@@ -15,10 +15,27 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// 管理员角色（RBAC）。与 admins.role 列、internal/rbac 授权矩阵一致。
+const (
+	RoleSuperAdmin = "super_admin"
+	RoleOperator   = "operator"
+	RoleViewer     = "viewer"
+)
+
+// ValidRole 判断角色是否合法。
+func ValidRole(r string) bool {
+	switch r {
+	case RoleSuperAdmin, RoleOperator, RoleViewer:
+		return true
+	}
+	return false
+}
+
 // Claims 是 JWT 载荷。
 type Claims struct {
 	AdminID string `json:"aid"`
 	Email   string `json:"email"`
+	Role    string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -59,6 +76,7 @@ type AdminInfo struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name"`
+	Role  string `json:"role"`
 }
 
 // Login 校验邮箱密码，签发 JWT。失败统一返回"邮箱或密码错误"避免账号枚举。
@@ -83,22 +101,27 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*LoginResult, error
 	if name == nil {
 		name = stringPtr("")
 	}
-	signed, err := s.signToken(a.ID.String(), a.Email)
+	role := a.Role
+	if role == "" {
+		role = RoleSuperAdmin // 存量行无 role（未迁移前）按超管兜底，不阻断登录
+	}
+	signed, err := s.signToken(a.ID.String(), a.Email, role)
 	if err != nil {
 		return nil, err
 	}
 	return &LoginResult{
 		Token: signed,
-		Admin: AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name},
+		Admin: AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name, Role: role},
 	}, nil
 }
 
-// signToken 为指定管理员签发新 JWT。
-func (s *Service) signToken(adminID, email string) (string, error) {
+// signToken 为指定管理员签发新 JWT（带 role 声明）。
+func (s *Service) signToken(adminID, email, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		AdminID: adminID,
 		Email:   email,
+		Role:    role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   adminID,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -122,7 +145,7 @@ func (s *Service) Refresh(ctx context.Context, oldToken string) (*LoginResult, e
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.signToken(claims.AdminID, info.Email)
+	token, err := s.signToken(claims.AdminID, info.Email, info.Role)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +211,11 @@ func (s *Service) AdminByID(ctx context.Context, id string) (*AdminInfo, error) 
 	if name == nil {
 		name = stringPtr("")
 	}
-	return &AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name}, nil
+	role := a.Role
+	if role == "" {
+		role = RoleSuperAdmin // 存量兜底
+	}
+	return &AdminInfo{ID: a.ID.String(), Email: a.Email, Name: *name, Role: role}, nil
 }
 
 func stringPtr(s string) *string { return &s }

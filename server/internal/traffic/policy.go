@@ -25,6 +25,24 @@ const (
 	StatusDisabled Status = "disabled"
 )
 
+// Balance 是命中策略后的实例选择算法。
+type Balance string
+
+const (
+	BalanceRoundRobin      Balance = "round_robin"     // 平滑加权轮询（默认）
+	BalanceConsistentHash  Balance = "consistent_hash" // 一致性哈希（按会话键钉实例）
+	BalanceLeastConnection Balance = "least_conn"      // 在途连接最少
+)
+
+// ValidBalance 判断 balance 值是否合法。
+func ValidBalance(b Balance) bool {
+	switch b {
+	case BalanceRoundRobin, BalanceConsistentHash, BalanceLeastConnection:
+		return true
+	}
+	return false
+}
+
 // Match 描述一条策略的匹配规则（对应 traffic_policies.match JSONB）。
 // 多个条件同时满足才命中（AND 语义）；percent 单独成类，不入 AND。
 type Match struct {
@@ -52,7 +70,8 @@ type Policy struct {
 	Priority        int        `json:"priority"`
 	Match           Match      `json:"match"`
 	TargetVersionID *uuid.UUID `json:"target_version_id,omitempty"`
-	Weight          int        `json:"weight"` // 未指定目标版本时按权重参与版本分流
+	Weight          int        `json:"weight"`  // 未指定目标版本时按权重参与版本分流
+	Balance         Balance    `json:"balance"` // 命中后实例选择算法
 	Sticky          *Sticky    `json:"sticky,omitempty"`
 	Status          Status     `json:"status"`
 	CreatedAt       time.Time  `json:"created_at"`

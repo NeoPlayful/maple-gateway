@@ -14,6 +14,15 @@ type Allowance struct {
 	Retry   int // 距下次可放行的秒数（上限时建议等待）
 }
 
+// Backend 是限流计数后端接口。
+// *Limiter（单机内存）与 *RedisLimiter（跨实例共享）都实现它；
+// 数据平面经该接口判定，便于装配时按配置选 memory / redis。
+type Backend interface {
+	Allow(key string, limit, windowSec, burst int, now time.Time) Allowance
+}
+
+var _ Backend = (*Limiter)(nil)
+
 // bucket 是单 key 的滑动窗口计数状态。
 type bucket struct {
 	window time.Time // 当前窗口起点

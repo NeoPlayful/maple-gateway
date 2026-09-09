@@ -76,6 +76,20 @@ func (au *AdminUpdate) ClearName() *AdminUpdate {
 	return au
 }
 
+// SetRole sets the "role" field.
+func (au *AdminUpdate) SetRole(s string) *AdminUpdate {
+	au.mutation.SetRole(s)
+	return au
+}
+
+// SetNillableRole sets the "role" field if the given value is not nil.
+func (au *AdminUpdate) SetNillableRole(s *string) *AdminUpdate {
+	if s != nil {
+		au.SetRole(*s)
+	}
+	return au
+}
+
 // SetStatus sets the "status" field.
 func (au *AdminUpdate) SetStatus(s string) *AdminUpdate {
 	au.mutation.SetStatus(s)
@@ -175,6 +189,9 @@ func (au *AdminUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if au.mutation.NameCleared() {
 		_spec.ClearField(admin.FieldName, field.TypeString)
 	}
+	if value, ok := au.mutation.Role(); ok {
+		_spec.SetField(admin.FieldRole, field.TypeString, value)
+	}
 	if value, ok := au.mutation.Status(); ok {
 		_spec.SetField(admin.FieldStatus, field.TypeString, value)
 	}
@@ -246,6 +263,20 @@ func (auo *AdminUpdateOne) SetNillableName(s *string) *AdminUpdateOne {
 // ClearName clears the value of the "name" field.
 func (auo *AdminUpdateOne) ClearName() *AdminUpdateOne {
 	auo.mutation.ClearName()
+	return auo
+}
+
+// SetRole sets the "role" field.
+func (auo *AdminUpdateOne) SetRole(s string) *AdminUpdateOne {
+	auo.mutation.SetRole(s)
+	return auo
+}
+
+// SetNillableRole sets the "role" field if the given value is not nil.
+func (auo *AdminUpdateOne) SetNillableRole(s *string) *AdminUpdateOne {
+	if s != nil {
+		auo.SetRole(*s)
+	}
 	return auo
 }
 
@@ -377,6 +408,9 @@ func (auo *AdminUpdateOne) sqlSave(ctx context.Context) (_node *Admin, err error
 	}
 	if auo.mutation.NameCleared() {
 		_spec.ClearField(admin.FieldName, field.TypeString)
+	}
+	if value, ok := auo.mutation.Role(); ok {
+		_spec.SetField(admin.FieldRole, field.TypeString, value)
 	}
 	if value, ok := auo.mutation.Status(); ok {
 		_spec.SetField(admin.FieldStatus, field.TypeString, value)

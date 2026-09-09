@@ -13,6 +13,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // auditMiddleware 把 admin 组的写操作（非 GET/HEAD）记入 audit_logs。
@@ -41,6 +42,35 @@ func auditMiddleware(client *ent.Client) fiber.Handler {
 			SetCreatedAt(time.Now()).
 			Save(ctx)
 		return err
+	}
+}
+
+// denyAuditer 实现 rbac.DenyAuditer：越权尝试写 audit_logs（同步落库）。
+type denyAuditer struct {
+	ent *ent.Client
+}
+
+// newDenyAuditer 构造；ent 为空返回 nil（无 DB 时静默跳过越权审计）。
+func newDenyAuditer(client *ent.Client) *denyAuditer {
+	if client == nil {
+		return nil
+	}
+	return &denyAuditer{ent: client}
+}
+
+// AuditDeny 记录一条越权尝试：action=DENY <method><path>、target_type=rbac。
+// 审计失败不影响主链路响应（静默降级）。
+func (a *denyAuditer) AuditDeny(adminID, path, action, module string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := a.ent.AuditLog.Create().
+		SetNillableAdminID(parseUUIDOpt(adminID)).
+		SetAction("DENY " + action + " " + path).
+		SetTargetType("rbac").
+		SetNillableTargetID(optStr(module)).
+		SetCreatedAt(time.Now()).
+		Save(ctx); err != nil {
+		pkg.Log().Warn("rbac deny audit failed", zap.Error(err))
 	}
 }
 
@@ -93,7 +123,6 @@ func segmentFromPath(path string) string {
 	}
 	return ""
 }
-
 
 // auditLogsHandler 查询 audit_logs 表（分页 + action/时间过滤，基于 Ent）。
 type auditLogsHandler struct {

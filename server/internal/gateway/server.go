@@ -9,6 +9,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/proxy"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
+	"github.com/NeoPlayful/maple-gateway/server/internal/tracex"
 	"go.uber.org/zap"
 )
 
@@ -41,6 +42,7 @@ type DataPlaneConfig struct {
 	Metrics           *metrics.Registry // 可空；nil 时不采集指标
 	AccessLog         *logs.AccessLog   // 可空；nil 时不记录访问日志
 	ErrLog            *logs.ErrLog      // 可空；nil 时不记录错误日志
+	Tracer            tracex.Tracer     // 可空；nil 时不埋 OTel trace
 }
 
 // NewDataPlane 组装数据平面服务（不启动）。Address 与 HTTPSAddress 至少其一非空。
@@ -52,6 +54,7 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 		Metrics:   cfg.Metrics,
 		AccessLog: cfg.AccessLog,
 		ErrLog:    cfg.ErrLog,
+		Tracer:    cfg.Tracer,
 	})
 	handler := http.Handler(px)
 

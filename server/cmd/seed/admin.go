@@ -43,6 +43,7 @@ func seedAdmin(ctx context.Context, client *ent.Client) error {
 		SetEmail(email).
 		SetPasswordHash(string(hash)).
 		SetName("admin").
+		SetRole("super_admin").
 		SetStatus("active").
 		SetCreatedAt(now).
 		SetUpdatedAt(now).

@@ -42,3 +42,24 @@ security:
   admin_token: ""                    # 建议用 MAPLE_ADMIN_TOKEN 注入
   trusted_proxies: []                # 如 ["127.0.0.1", "::1"]
   instance_allow_private: true
+
+# ---- Phase 4 ----
+ha:
+  enabled: false                     # 多实例 HA：注册 gateway_instances + Leader 竞逐（Redis 锁优先，DB lease 兜底）
+  instance_id: ""                    # 唯一实例 ID；空则启动自动生成
+  heartbeat: 5s
+  lease_ttl: 15s
+
+ratelimit:
+  mode: memory                       # memory（单机）/ redis（跨实例共享配额）
+
+canary_auto:
+  enabled: false                     # 自动 Canary：指标驱动自动推进/回滚
+  interval: 15s
+  err_rate_max: 5                    # canary 错误率上限（%），超限止损 SetWeight(0)+Pause
+  err_latency_ms: 0                  # 平均延迟上限（ms），>0 才启用
+  min_requests: 10                   # 窗口最小请求数，不足不推进
+
+trace:
+  enabled: false                     # OTel 数据面追踪（stdout 导出）
+  sample_ratio: 0.01                 # 采样率 0-1

@@ -20,8 +20,18 @@ type Config struct {
 	Proxy      ProxyConfig      `yaml:"proxy"`
 	Database   DatabaseConfig   `yaml:"database"`
 	Redis      RedisConfig      `yaml:"redis"`
+	RateLimit  RateLimitConfig  `yaml:"ratelimit"`
 	Logging    LoggingConfig    `yaml:"logging"`
 	Security   SecurityConfig   `yaml:"security"`
+	HA         HAConfig         `yaml:"ha"`
+	CanaryAuto CanaryAutoConfig `yaml:"canary_auto"`
+	Trace      TraceConfig      `yaml:"trace"`
+}
+
+// TraceConfig 是 OpenTelemetry 数据面追踪配置。
+type TraceConfig struct {
+	Enabled     bool    `yaml:"enabled"`      // 是否开启数据面 span 采集与导出
+	SampleRatio float64 `yaml:"sample_ratio"` // 采样率 0-1；0 默认关闭采样（全量导出太吵）
 }
 
 type GatewayConfig struct {
@@ -79,6 +89,28 @@ type SecurityConfig struct {
 	InstanceAllowPrivate bool     `yaml:"instance_allow_private"`
 }
 
+// RateLimitConfig 是限流后端配置。
+type RateLimitConfig struct {
+	Mode string `yaml:"mode"` // memory（默认单机）/ redis（跨实例共享）
+}
+
+// CanaryAutoConfig 是自动 Canary 执行器配置。
+type CanaryAutoConfig struct {
+	Enabled      bool          `yaml:"enabled"`        // 是否启用指标驱动自动推进/回滚
+	Interval     time.Duration `yaml:"interval"`       // 评估周期
+	ErrRateMax   float64       `yaml:"err_rate_max"`   // canary 错误率上限（%），超限自动回滚
+	ErrLatencyMS float64       `yaml:"err_latency_ms"` // 平均延迟上限（ms），>0 才启用
+	MinRequests  int64         `yaml:"min_requests"`   // 窗口最小请求数，不足不推进
+}
+
+// HAConfig 是本 Gateway 进程的多实例协调配置。
+type HAConfig struct {
+	Enabled    bool          `yaml:"enabled"`     // 是否参与 Leader 竞逐/多实例协调
+	InstanceID string        `yaml:"instance_id"` // 唯一实例标识；空则自动生成
+	Heartbeat  time.Duration `yaml:"heartbeat"`   // 心跳周期
+	LeaseTTL   time.Duration `yaml:"lease_ttl"`   // lease 时长
+}
+
 // Default 返回内建默认配置（作为 env / 缺省兜底）。
 func Default() *Config {
 	return &Config{
@@ -100,10 +132,25 @@ func Default() *Config {
 			MaxHeaderBytes:        1 << 20,
 			MaxBodyBytes:          10 << 20,
 		},
-		Logging: LoggingConfig{Level: "info"},
+		RateLimit: RateLimitConfig{Mode: "memory"},
+		Logging:   LoggingConfig{Level: "info"},
 		Security: SecurityConfig{
 			AdminToken:           "",
 			InstanceAllowPrivate: true,
+		},
+		HA: HAConfig{
+			Heartbeat: 5 * time.Second,
+			LeaseTTL:  15 * time.Second,
+		},
+		CanaryAuto: CanaryAutoConfig{
+			Enabled:     false,
+			Interval:    15 * time.Second,
+			ErrRateMax:  5,
+			MinRequests: 10,
+		},
+		Trace: TraceConfig{
+			Enabled:     false, // 默认关闭：trace 仅显式开启时导出，避免误刷 stdout
+			SampleRatio: 0.01,  // 默认低采样 1%
 		},
 	}
 }
@@ -165,6 +212,31 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_KEY"); v != "" {
 		c.Gateway.HTTPS.Key = v
 	}
+	if v := os.Getenv("MAPLE_HA_ENABLED"); v != "" {
+		c.HA.Enabled = parseBool(v, c.HA.Enabled)
+	}
+	if v := os.Getenv("MAPLE_HA_INSTANCE_ID"); v != "" {
+		c.HA.InstanceID = v
+	}
+	if v := os.Getenv("MAPLE_CANARY_AUTO_ENABLED"); v != "" {
+		c.CanaryAuto.Enabled = parseBool(v, c.CanaryAuto.Enabled)
+	}
+	if v := os.Getenv("MAPLE_CANARY_AUTO_ERR_RATE_MAX"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			c.CanaryAuto.ErrRateMax = f
+		}
+	}
+	if v := os.Getenv("MAPLE_RATE_LIMIT_MODE"); v != "" {
+		c.RateLimit.Mode = v
+	}
+	if v := os.Getenv("MAPLE_TRACE_ENABLED"); v != "" {
+		c.Trace.Enabled = parseBool(v, c.Trace.Enabled)
+	}
+	if v := os.Getenv("MAPLE_TRACE_SAMPLE_RATIO"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			c.Trace.SampleRatio = f
+		}
+	}
 }
 
 func parseBool(v string, def bool) bool {
@@ -188,6 +260,11 @@ func (c *Config) Validate() error {
 		}
 		if c.Gateway.HTTPS.Cert == "" || c.Gateway.HTTPS.Key == "" {
 			return fmt.Errorf("gateway.https.cert and key are required when https enabled")
+		}
+	}
+	if c.HA.Enabled {
+		if c.Database.URL == "" {
+			return fmt.Errorf("ha.enabled requires database.url")
 		}
 	}
 	return nil

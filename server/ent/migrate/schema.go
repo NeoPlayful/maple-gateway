@@ -15,6 +15,7 @@ var (
 		{Name: "email", Type: field.TypeString},
 		{Name: "password_hash", Type: field.TypeString},
 		{Name: "name", Type: field.TypeString, Nullable: true},
+		{Name: "role", Type: field.TypeString, Default: "super_admin"},
 		{Name: "status", Type: field.TypeString, Default: "active"},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -260,6 +261,44 @@ var (
 			},
 		},
 	}
+	// GatewayInstancesColumns holds the columns for the "gateway_instances" table.
+	GatewayInstancesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "instance_id", Type: field.TypeString},
+		{Name: "addr", Type: field.TypeString},
+		{Name: "hostname", Type: field.TypeString, Default: ""},
+		{Name: "status", Type: field.TypeString, Default: "online"},
+		{Name: "role", Type: field.TypeString, Default: "standalone"},
+		{Name: "lease_until", Type: field.TypeTime, Nullable: true},
+		{Name: "version", Type: field.TypeString, Default: ""},
+		{Name: "started_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_seen_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// GatewayInstancesTable holds the schema information for the "gateway_instances" table.
+	GatewayInstancesTable = &schema.Table{
+		Name:       "gateway_instances",
+		Columns:    GatewayInstancesColumns,
+		PrimaryKey: []*schema.Column{GatewayInstancesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "gatewayinstance_instance_id",
+				Unique:  true,
+				Columns: []*schema.Column{GatewayInstancesColumns[1]},
+			},
+			{
+				Name:    "gatewayinstance_status",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayInstancesColumns[4]},
+			},
+			{
+				Name:    "gatewayinstance_role",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayInstancesColumns[5]},
+			},
+		},
+	}
 	// InstancesColumns holds the columns for the "instances" table.
 	InstancesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -486,6 +525,7 @@ var (
 		{Name: "target_version_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "weight", Type: field.TypeInt, Default: 100},
 		{Name: "sticky", Type: field.TypeJSON, Nullable: true},
+		{Name: "balance", Type: field.TypeString, Default: "round_robin"},
 		{Name: "status", Type: field.TypeString, Default: "enabled"},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -499,7 +539,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "traffic_policies_services_traffic_policies",
-				Columns:    []*schema.Column{TrafficPoliciesColumns[10]},
+				Columns:    []*schema.Column{TrafficPoliciesColumns[11]},
 				RefColumns: []*schema.Column{ServicesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -508,7 +548,7 @@ var (
 			{
 				Name:    "trafficpolicy_service_id_name",
 				Unique:  true,
-				Columns: []*schema.Column{TrafficPoliciesColumns[10], TrafficPoliciesColumns[1]},
+				Columns: []*schema.Column{TrafficPoliciesColumns[11], TrafficPoliciesColumns[1]},
 			},
 		},
 	}
@@ -523,6 +563,7 @@ var (
 		DeploymentsTable,
 		DeploymentVersionsTable,
 		DomainsTable,
+		GatewayInstancesTable,
 		InstancesTable,
 		NodesTable,
 		RateLimitsTable,

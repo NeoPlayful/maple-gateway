@@ -19,6 +19,7 @@ func (Admin) Fields() []ent.Field {
 		field.String("email").NotEmpty(),
 		field.String("password_hash").NotEmpty(),
 		field.String("name").Optional().Nillable(),
+		field.String("role").Default("super_admin"), // RBAC：super_admin / operator / viewer
 		field.String("status").Default("active"),
 		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),

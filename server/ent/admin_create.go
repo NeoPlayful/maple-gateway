@@ -50,6 +50,20 @@ func (ac *AdminCreate) SetNillableName(s *string) *AdminCreate {
 	return ac
 }
 
+// SetRole sets the "role" field.
+func (ac *AdminCreate) SetRole(s string) *AdminCreate {
+	ac.mutation.SetRole(s)
+	return ac
+}
+
+// SetNillableRole sets the "role" field if the given value is not nil.
+func (ac *AdminCreate) SetNillableRole(s *string) *AdminCreate {
+	if s != nil {
+		ac.SetRole(*s)
+	}
+	return ac
+}
+
 // SetStatus sets the "status" field.
 func (ac *AdminCreate) SetStatus(s string) *AdminCreate {
 	ac.mutation.SetStatus(s)
@@ -125,6 +139,10 @@ func (ac *AdminCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (ac *AdminCreate) defaults() {
+	if _, ok := ac.mutation.Role(); !ok {
+		v := admin.DefaultRole
+		ac.mutation.SetRole(v)
+	}
 	if _, ok := ac.mutation.Status(); !ok {
 		v := admin.DefaultStatus
 		ac.mutation.SetStatus(v)
@@ -152,6 +170,9 @@ func (ac *AdminCreate) check() error {
 		if err := admin.PasswordHashValidator(v); err != nil {
 			return &ValidationError{Name: "password_hash", err: fmt.Errorf(`ent: validator failed for field "Admin.password_hash": %w`, err)}
 		}
+	}
+	if _, ok := ac.mutation.Role(); !ok {
+		return &ValidationError{Name: "role", err: errors.New(`ent: missing required field "Admin.role"`)}
 	}
 	if _, ok := ac.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Admin.status"`)}
@@ -209,6 +230,10 @@ func (ac *AdminCreate) createSpec() (*Admin, *sqlgraph.CreateSpec) {
 	if value, ok := ac.mutation.Name(); ok {
 		_spec.SetField(admin.FieldName, field.TypeString, value)
 		_node.Name = &value
+	}
+	if value, ok := ac.mutation.Role(); ok {
+		_spec.SetField(admin.FieldRole, field.TypeString, value)
+		_node.Role = value
 	}
 	if value, ok := ac.mutation.Status(); ok {
 		_spec.SetField(admin.FieldStatus, field.TypeString, value)
@@ -313,6 +338,18 @@ func (u *AdminUpsert) UpdateName() *AdminUpsert {
 // ClearName clears the value of the "name" field.
 func (u *AdminUpsert) ClearName() *AdminUpsert {
 	u.SetNull(admin.FieldName)
+	return u
+}
+
+// SetRole sets the "role" field.
+func (u *AdminUpsert) SetRole(v string) *AdminUpsert {
+	u.Set(admin.FieldRole, v)
+	return u
+}
+
+// UpdateRole sets the "role" field to the value that was provided on create.
+func (u *AdminUpsert) UpdateRole() *AdminUpsert {
+	u.SetExcluded(admin.FieldRole)
 	return u
 }
 
@@ -437,6 +474,20 @@ func (u *AdminUpsertOne) UpdateName() *AdminUpsertOne {
 func (u *AdminUpsertOne) ClearName() *AdminUpsertOne {
 	return u.Update(func(s *AdminUpsert) {
 		s.ClearName()
+	})
+}
+
+// SetRole sets the "role" field.
+func (u *AdminUpsertOne) SetRole(v string) *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.SetRole(v)
+	})
+}
+
+// UpdateRole sets the "role" field to the value that was provided on create.
+func (u *AdminUpsertOne) UpdateRole() *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.UpdateRole()
 	})
 }
 
@@ -732,6 +783,20 @@ func (u *AdminUpsertBulk) UpdateName() *AdminUpsertBulk {
 func (u *AdminUpsertBulk) ClearName() *AdminUpsertBulk {
 	return u.Update(func(s *AdminUpsert) {
 		s.ClearName()
+	})
+}
+
+// SetRole sets the "role" field.
+func (u *AdminUpsertBulk) SetRole(v string) *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.SetRole(v)
+	})
+}
+
+// UpdateRole sets the "role" field to the value that was provided on create.
+func (u *AdminUpsertBulk) UpdateRole() *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.UpdateRole()
 	})
 }
 

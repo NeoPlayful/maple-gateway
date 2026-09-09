@@ -30,6 +30,8 @@ type Tx struct {
 	DeploymentVersion *DeploymentVersionClient
 	// Domain is the client for interacting with the Domain builders.
 	Domain *DomainClient
+	// GatewayInstance is the client for interacting with the GatewayInstance builders.
+	GatewayInstance *GatewayInstanceClient
 	// Instance is the client for interacting with the Instance builders.
 	Instance *InstanceClient
 	// Node is the client for interacting with the Node builders.
@@ -186,6 +188,7 @@ func (tx *Tx) init() {
 	tx.Deployment = NewDeploymentClient(tx.config)
 	tx.DeploymentVersion = NewDeploymentVersionClient(tx.config)
 	tx.Domain = NewDomainClient(tx.config)
+	tx.GatewayInstance = NewGatewayInstanceClient(tx.config)
 	tx.Instance = NewInstanceClient(tx.config)
 	tx.Node = NewNodeClient(tx.config)
 	tx.RateLimit = NewRateLimitClient(tx.config)

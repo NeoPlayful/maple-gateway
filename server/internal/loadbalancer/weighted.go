@@ -12,15 +12,27 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 )
 
-// Balancer 维护每个路由条目的加权轮询状态。
+// Balancer 维护每个路由条目的加权轮询状态 + 全局 Least-Connections 计数。
 type Balancer struct {
 	mu    sync.Mutex
 	byKey map[string]*wrrState
+	lc    *leastConnTracker // Least-Connections 在途连接计数
 }
 
 // NewBalancer 构造。
 func NewBalancer() *Balancer {
-	return &Balancer{byKey: map[string]*wrrState{}}
+	return &Balancer{byKey: map[string]*wrrState{}, lc: newLeastConnTracker()}
+}
+
+// IncConn 记录请求转发到指定实例（Least-Connections 选路计数 +1）。
+func (b *Balancer) IncConn(instanceID string) { b.lc.IncConn(instanceID) }
+
+// DecConn 记录请求结束（Least-Connections 计数 -1）。
+func (b *Balancer) DecConn(instanceID string) { b.lc.DecConn(instanceID) }
+
+// SelectLeastConnections 从池中选在途连接最少者（Least-Connections 策略）。
+func (b *Balancer) SelectLeastConnections(pool []router.PoolMember) *router.PoolMember {
+	return LeastConnections(pool, b.lc)
 }
 
 // Select 从 pool 选一个实例。key 为路由标识（DomainID）；pool 为空返回 nil。

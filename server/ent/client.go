@@ -25,6 +25,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
+	"github.com/NeoPlayful/maple-gateway/server/ent/gatewayinstance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
@@ -58,6 +59,8 @@ type Client struct {
 	DeploymentVersion *DeploymentVersionClient
 	// Domain is the client for interacting with the Domain builders.
 	Domain *DomainClient
+	// GatewayInstance is the client for interacting with the GatewayInstance builders.
+	GatewayInstance *GatewayInstanceClient
 	// Instance is the client for interacting with the Instance builders.
 	Instance *InstanceClient
 	// Node is the client for interacting with the Node builders.
@@ -94,6 +97,7 @@ func (c *Client) init() {
 	c.Deployment = NewDeploymentClient(c.config)
 	c.DeploymentVersion = NewDeploymentVersionClient(c.config)
 	c.Domain = NewDomainClient(c.config)
+	c.GatewayInstance = NewGatewayInstanceClient(c.config)
 	c.Instance = NewInstanceClient(c.config)
 	c.Node = NewNodeClient(c.config)
 	c.RateLimit = NewRateLimitClient(c.config)
@@ -203,6 +207,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Deployment:          NewDeploymentClient(cfg),
 		DeploymentVersion:   NewDeploymentVersionClient(cfg),
 		Domain:              NewDomainClient(cfg),
+		GatewayInstance:     NewGatewayInstanceClient(cfg),
 		Instance:            NewInstanceClient(cfg),
 		Node:                NewNodeClient(cfg),
 		RateLimit:           NewRateLimitClient(cfg),
@@ -239,6 +244,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Deployment:          NewDeploymentClient(cfg),
 		DeploymentVersion:   NewDeploymentVersionClient(cfg),
 		Domain:              NewDomainClient(cfg),
+		GatewayInstance:     NewGatewayInstanceClient(cfg),
 		Instance:            NewInstanceClient(cfg),
 		Node:                NewNodeClient(cfg),
 		RateLimit:           NewRateLimitClient(cfg),
@@ -277,9 +283,9 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
-		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain, c.Instance,
-		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
-		c.TrafficPolicy,
+		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain,
+		c.GatewayInstance, c.Instance, c.Node, c.RateLimit, c.Service, c.Setting,
+		c.SettingHistory, c.Tenant, c.TrafficPolicy,
 	} {
 		n.Use(hooks...)
 	}
@@ -290,9 +296,9 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
-		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain, c.Instance,
-		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
-		c.TrafficPolicy,
+		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain,
+		c.GatewayInstance, c.Instance, c.Node, c.RateLimit, c.Service, c.Setting,
+		c.SettingHistory, c.Tenant, c.TrafficPolicy,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -319,6 +325,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.DeploymentVersion.mutate(ctx, m)
 	case *DomainMutation:
 		return c.Domain.mutate(ctx, m)
+	case *GatewayInstanceMutation:
+		return c.GatewayInstance.mutate(ctx, m)
 	case *InstanceMutation:
 		return c.Instance.mutate(ctx, m)
 	case *NodeMutation:
@@ -1601,6 +1609,139 @@ func (c *DomainClient) mutate(ctx context.Context, m *DomainMutation) (Value, er
 	}
 }
 
+// GatewayInstanceClient is a client for the GatewayInstance schema.
+type GatewayInstanceClient struct {
+	config
+}
+
+// NewGatewayInstanceClient returns a client for the GatewayInstance from the given config.
+func NewGatewayInstanceClient(c config) *GatewayInstanceClient {
+	return &GatewayInstanceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `gatewayinstance.Hooks(f(g(h())))`.
+func (c *GatewayInstanceClient) Use(hooks ...Hook) {
+	c.hooks.GatewayInstance = append(c.hooks.GatewayInstance, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `gatewayinstance.Intercept(f(g(h())))`.
+func (c *GatewayInstanceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GatewayInstance = append(c.inters.GatewayInstance, interceptors...)
+}
+
+// Create returns a builder for creating a GatewayInstance entity.
+func (c *GatewayInstanceClient) Create() *GatewayInstanceCreate {
+	mutation := newGatewayInstanceMutation(c.config, OpCreate)
+	return &GatewayInstanceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GatewayInstance entities.
+func (c *GatewayInstanceClient) CreateBulk(builders ...*GatewayInstanceCreate) *GatewayInstanceCreateBulk {
+	return &GatewayInstanceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GatewayInstanceClient) MapCreateBulk(slice any, setFunc func(*GatewayInstanceCreate, int)) *GatewayInstanceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GatewayInstanceCreateBulk{err: fmt.Errorf("calling to GatewayInstanceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GatewayInstanceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GatewayInstanceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GatewayInstance.
+func (c *GatewayInstanceClient) Update() *GatewayInstanceUpdate {
+	mutation := newGatewayInstanceMutation(c.config, OpUpdate)
+	return &GatewayInstanceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GatewayInstanceClient) UpdateOne(gi *GatewayInstance) *GatewayInstanceUpdateOne {
+	mutation := newGatewayInstanceMutation(c.config, OpUpdateOne, withGatewayInstance(gi))
+	return &GatewayInstanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GatewayInstanceClient) UpdateOneID(id uuid.UUID) *GatewayInstanceUpdateOne {
+	mutation := newGatewayInstanceMutation(c.config, OpUpdateOne, withGatewayInstanceID(id))
+	return &GatewayInstanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GatewayInstance.
+func (c *GatewayInstanceClient) Delete() *GatewayInstanceDelete {
+	mutation := newGatewayInstanceMutation(c.config, OpDelete)
+	return &GatewayInstanceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GatewayInstanceClient) DeleteOne(gi *GatewayInstance) *GatewayInstanceDeleteOne {
+	return c.DeleteOneID(gi.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GatewayInstanceClient) DeleteOneID(id uuid.UUID) *GatewayInstanceDeleteOne {
+	builder := c.Delete().Where(gatewayinstance.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GatewayInstanceDeleteOne{builder}
+}
+
+// Query returns a query builder for GatewayInstance.
+func (c *GatewayInstanceClient) Query() *GatewayInstanceQuery {
+	return &GatewayInstanceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGatewayInstance},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GatewayInstance entity by its id.
+func (c *GatewayInstanceClient) Get(ctx context.Context, id uuid.UUID) (*GatewayInstance, error) {
+	return c.Query().Where(gatewayinstance.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GatewayInstanceClient) GetX(ctx context.Context, id uuid.UUID) *GatewayInstance {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GatewayInstanceClient) Hooks() []Hook {
+	return c.hooks.GatewayInstance
+}
+
+// Interceptors returns the client interceptors.
+func (c *GatewayInstanceClient) Interceptors() []Interceptor {
+	return c.inters.GatewayInstance
+}
+
+func (c *GatewayInstanceClient) mutate(ctx context.Context, m *GatewayInstanceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GatewayInstanceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GatewayInstanceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GatewayInstanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GatewayInstanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GatewayInstance mutation op: %q", m.Op())
+	}
+}
+
 // InstanceClient is a client for the Instance schema.
 type InstanceClient struct {
 	config
@@ -2797,13 +2938,14 @@ func (c *TrafficPolicyClient) mutate(ctx context.Context, m *TrafficPolicyMutati
 type (
 	hooks struct {
 		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Deployment, DeploymentVersion, Domain, Instance, Node,
-		RateLimit, Service, Setting, SettingHistory, Tenant, TrafficPolicy []ent.Hook
+		CanaryRelease, Deployment, DeploymentVersion, Domain, GatewayInstance,
+		Instance, Node, RateLimit, Service, Setting, SettingHistory, Tenant,
+		TrafficPolicy []ent.Hook
 	}
 	inters struct {
 		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Deployment, DeploymentVersion, Domain, Instance, Node,
-		RateLimit, Service, Setting, SettingHistory, Tenant,
+		CanaryRelease, Deployment, DeploymentVersion, Domain, GatewayInstance,
+		Instance, Node, RateLimit, Service, Setting, SettingHistory, Tenant,
 		TrafficPolicy []ent.Interceptor
 	}
 )

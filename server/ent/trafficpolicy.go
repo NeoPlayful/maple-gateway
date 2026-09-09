@@ -34,6 +34,8 @@ type TrafficPolicy struct {
 	Weight int `json:"weight,omitempty"`
 	// Sticky holds the value of the "sticky" field.
 	Sticky json.RawMessage `json:"sticky,omitempty"`
+	// Balance holds the value of the "balance" field.
+	Balance string `json:"balance,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -77,7 +79,7 @@ func (*TrafficPolicy) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case trafficpolicy.FieldPriority, trafficpolicy.FieldWeight:
 			values[i] = new(sql.NullInt64)
-		case trafficpolicy.FieldName, trafficpolicy.FieldStatus:
+		case trafficpolicy.FieldName, trafficpolicy.FieldBalance, trafficpolicy.FieldStatus:
 			values[i] = new(sql.NullString)
 		case trafficpolicy.FieldCreatedAt, trafficpolicy.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -150,6 +152,12 @@ func (tp *TrafficPolicy) assignValues(columns []string, values []any) error {
 				if err := json.Unmarshal(*value, &tp.Sticky); err != nil {
 					return fmt.Errorf("unmarshal field sticky: %w", err)
 				}
+			}
+		case trafficpolicy.FieldBalance:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field balance", values[i])
+			} else if value.Valid {
+				tp.Balance = value.String
 			}
 		case trafficpolicy.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -232,6 +240,9 @@ func (tp *TrafficPolicy) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sticky=")
 	builder.WriteString(fmt.Sprintf("%v", tp.Sticky))
+	builder.WriteString(", ")
+	builder.WriteString("balance=")
+	builder.WriteString(tp.Balance)
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(tp.Status)

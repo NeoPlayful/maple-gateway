@@ -33,6 +33,9 @@ type DeploymentVersion func(*sql.Selector)
 // Domain is the predicate function for domain builders.
 type Domain func(*sql.Selector)
 
+// GatewayInstance is the predicate function for gatewayinstance builders.
+type GatewayInstance func(*sql.Selector)
+
 // Instance is the predicate function for instance builders.
 type Instance func(*sql.Selector)
 

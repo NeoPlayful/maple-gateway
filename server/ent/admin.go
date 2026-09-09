@@ -24,6 +24,8 @@ type Admin struct {
 	PasswordHash string `json:"password_hash,omitempty"`
 	// Name holds the value of the "name" field.
 	Name *string `json:"name,omitempty"`
+	// Role holds the value of the "role" field.
+	Role string `json:"role,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -38,7 +40,7 @@ func (*Admin) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case admin.FieldEmail, admin.FieldPasswordHash, admin.FieldName, admin.FieldStatus:
+		case admin.FieldEmail, admin.FieldPasswordHash, admin.FieldName, admin.FieldRole, admin.FieldStatus:
 			values[i] = new(sql.NullString)
 		case admin.FieldCreatedAt, admin.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -83,6 +85,12 @@ func (a *Admin) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				a.Name = new(string)
 				*a.Name = value.String
+			}
+		case admin.FieldRole:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field role", values[i])
+			} else if value.Valid {
+				a.Role = value.String
 			}
 		case admin.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -148,6 +156,9 @@ func (a *Admin) String() string {
 		builder.WriteString("name=")
 		builder.WriteString(*v)
 	}
+	builder.WriteString(", ")
+	builder.WriteString("role=")
+	builder.WriteString(a.Role)
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(a.Status)
