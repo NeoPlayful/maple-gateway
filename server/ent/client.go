@@ -22,6 +22,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
@@ -53,6 +54,8 @@ type Client struct {
 	CanaryEvent *CanaryEventClient
 	// CanaryRelease is the client for interacting with the CanaryRelease builders.
 	CanaryRelease *CanaryReleaseClient
+	// Certificate is the client for interacting with the Certificate builders.
+	Certificate *CertificateClient
 	// Deployment is the client for interacting with the Deployment builders.
 	Deployment *DeploymentClient
 	// DeploymentVersion is the client for interacting with the DeploymentVersion builders.
@@ -94,6 +97,7 @@ func (c *Client) init() {
 	c.BluegreenEvent = NewBluegreenEventClient(c.config)
 	c.CanaryEvent = NewCanaryEventClient(c.config)
 	c.CanaryRelease = NewCanaryReleaseClient(c.config)
+	c.Certificate = NewCertificateClient(c.config)
 	c.Deployment = NewDeploymentClient(c.config)
 	c.DeploymentVersion = NewDeploymentVersionClient(c.config)
 	c.Domain = NewDomainClient(c.config)
@@ -204,6 +208,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		BluegreenEvent:      NewBluegreenEventClient(cfg),
 		CanaryEvent:         NewCanaryEventClient(cfg),
 		CanaryRelease:       NewCanaryReleaseClient(cfg),
+		Certificate:         NewCertificateClient(cfg),
 		Deployment:          NewDeploymentClient(cfg),
 		DeploymentVersion:   NewDeploymentVersionClient(cfg),
 		Domain:              NewDomainClient(cfg),
@@ -241,6 +246,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		BluegreenEvent:      NewBluegreenEventClient(cfg),
 		CanaryEvent:         NewCanaryEventClient(cfg),
 		CanaryRelease:       NewCanaryReleaseClient(cfg),
+		Certificate:         NewCertificateClient(cfg),
 		Deployment:          NewDeploymentClient(cfg),
 		DeploymentVersion:   NewDeploymentVersionClient(cfg),
 		Domain:              NewDomainClient(cfg),
@@ -283,7 +289,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
-		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain,
+		c.CanaryRelease, c.Certificate, c.Deployment, c.DeploymentVersion, c.Domain,
 		c.GatewayInstance, c.Instance, c.Node, c.RateLimit, c.Service, c.Setting,
 		c.SettingHistory, c.Tenant, c.TrafficPolicy,
 	} {
@@ -296,7 +302,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
-		c.CanaryRelease, c.Deployment, c.DeploymentVersion, c.Domain,
+		c.CanaryRelease, c.Certificate, c.Deployment, c.DeploymentVersion, c.Domain,
 		c.GatewayInstance, c.Instance, c.Node, c.RateLimit, c.Service, c.Setting,
 		c.SettingHistory, c.Tenant, c.TrafficPolicy,
 	} {
@@ -319,6 +325,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CanaryEvent.mutate(ctx, m)
 	case *CanaryReleaseMutation:
 		return c.CanaryRelease.mutate(ctx, m)
+	case *CertificateMutation:
+		return c.Certificate.mutate(ctx, m)
 	case *DeploymentMutation:
 		return c.Deployment.mutate(ctx, m)
 	case *DeploymentVersionMutation:
@@ -1146,6 +1154,155 @@ func (c *CanaryReleaseClient) mutate(ctx context.Context, m *CanaryReleaseMutati
 	}
 }
 
+// CertificateClient is a client for the Certificate schema.
+type CertificateClient struct {
+	config
+}
+
+// NewCertificateClient returns a client for the Certificate from the given config.
+func NewCertificateClient(c config) *CertificateClient {
+	return &CertificateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `certificate.Hooks(f(g(h())))`.
+func (c *CertificateClient) Use(hooks ...Hook) {
+	c.hooks.Certificate = append(c.hooks.Certificate, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `certificate.Intercept(f(g(h())))`.
+func (c *CertificateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Certificate = append(c.inters.Certificate, interceptors...)
+}
+
+// Create returns a builder for creating a Certificate entity.
+func (c *CertificateClient) Create() *CertificateCreate {
+	mutation := newCertificateMutation(c.config, OpCreate)
+	return &CertificateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Certificate entities.
+func (c *CertificateClient) CreateBulk(builders ...*CertificateCreate) *CertificateCreateBulk {
+	return &CertificateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CertificateClient) MapCreateBulk(slice any, setFunc func(*CertificateCreate, int)) *CertificateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CertificateCreateBulk{err: fmt.Errorf("calling to CertificateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CertificateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CertificateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Certificate.
+func (c *CertificateClient) Update() *CertificateUpdate {
+	mutation := newCertificateMutation(c.config, OpUpdate)
+	return &CertificateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CertificateClient) UpdateOne(ce *Certificate) *CertificateUpdateOne {
+	mutation := newCertificateMutation(c.config, OpUpdateOne, withCertificate(ce))
+	return &CertificateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CertificateClient) UpdateOneID(id uuid.UUID) *CertificateUpdateOne {
+	mutation := newCertificateMutation(c.config, OpUpdateOne, withCertificateID(id))
+	return &CertificateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Certificate.
+func (c *CertificateClient) Delete() *CertificateDelete {
+	mutation := newCertificateMutation(c.config, OpDelete)
+	return &CertificateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CertificateClient) DeleteOne(ce *Certificate) *CertificateDeleteOne {
+	return c.DeleteOneID(ce.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CertificateClient) DeleteOneID(id uuid.UUID) *CertificateDeleteOne {
+	builder := c.Delete().Where(certificate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CertificateDeleteOne{builder}
+}
+
+// Query returns a query builder for Certificate.
+func (c *CertificateClient) Query() *CertificateQuery {
+	return &CertificateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCertificate},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Certificate entity by its id.
+func (c *CertificateClient) Get(ctx context.Context, id uuid.UUID) (*Certificate, error) {
+	return c.Query().Where(certificate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CertificateClient) GetX(ctx context.Context, id uuid.UUID) *Certificate {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryDomain queries the domain edge of a Certificate.
+func (c *CertificateClient) QueryDomain(ce *Certificate) *DomainQuery {
+	query := (&DomainClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := ce.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(certificate.Table, certificate.FieldID, id),
+			sqlgraph.To(domain.Table, domain.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, certificate.DomainTable, certificate.DomainColumn),
+		)
+		fromV = sqlgraph.Neighbors(ce.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CertificateClient) Hooks() []Hook {
+	return c.hooks.Certificate
+}
+
+// Interceptors returns the client interceptors.
+func (c *CertificateClient) Interceptors() []Interceptor {
+	return c.inters.Certificate
+}
+
+func (c *CertificateClient) mutate(ctx context.Context, m *CertificateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CertificateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CertificateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CertificateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CertificateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Certificate mutation op: %q", m.Op())
+	}
+}
+
 // DeploymentClient is a client for the Deployment schema.
 type DeploymentClient struct {
 	config
@@ -1577,6 +1734,22 @@ func (c *DomainClient) QueryTenant(d *Domain) *TenantQuery {
 			sqlgraph.From(domain.Table, domain.FieldID, id),
 			sqlgraph.To(tenant.Table, tenant.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, domain.TenantTable, domain.TenantColumn),
+		)
+		fromV = sqlgraph.Neighbors(d.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCertificates queries the certificates edge of a Domain.
+func (c *DomainClient) QueryCertificates(d *Domain) *CertificateQuery {
+	query := (&CertificateClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := d.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(domain.Table, domain.FieldID, id),
+			sqlgraph.To(certificate.Table, certificate.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, domain.CertificatesTable, domain.CertificatesColumn),
 		)
 		fromV = sqlgraph.Neighbors(d.driver.Dialect(), step)
 		return fromV, nil
@@ -2938,14 +3111,14 @@ func (c *TrafficPolicyClient) mutate(ctx context.Context, m *TrafficPolicyMutati
 type (
 	hooks struct {
 		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Deployment, DeploymentVersion, Domain, GatewayInstance,
-		Instance, Node, RateLimit, Service, Setting, SettingHistory, Tenant,
-		TrafficPolicy []ent.Hook
+		CanaryRelease, Certificate, Deployment, DeploymentVersion, Domain,
+		GatewayInstance, Instance, Node, RateLimit, Service, Setting, SettingHistory,
+		Tenant, TrafficPolicy []ent.Hook
 	}
 	inters struct {
 		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Deployment, DeploymentVersion, Domain, GatewayInstance,
-		Instance, Node, RateLimit, Service, Setting, SettingHistory, Tenant,
-		TrafficPolicy []ent.Interceptor
+		CanaryRelease, Certificate, Deployment, DeploymentVersion, Domain,
+		GatewayInstance, Instance, Node, RateLimit, Service, Setting, SettingHistory,
+		Tenant, TrafficPolicy []ent.Interceptor
 	}
 )

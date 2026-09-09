@@ -64,3 +64,10 @@ canary_auto:
 trace:
   enabled: false                     # OTel 数据面追踪（stdout 导出）
   sample_ratio: 0.01                 # 采样率 0-1
+
+# ---- Phase 5：Direct TLS ----
+tls:
+  mode: global                       # global（单全局证书，Phase 4 兼容）/ direct（按 SNI 动态选每域名证书）
+  min_version: tls1.2                # tls1.2 / tls1.3
+  enforce_sni_host_match: true       # direct 模式：SNI 与 Host 不一致返回 421 Misdirected Request
+  fallback_cert_enabled: true        # direct 模式：未知 SNI/无 SNI 用全局回退证书兜底；false 则拒绝握手

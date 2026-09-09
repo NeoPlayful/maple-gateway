@@ -24,6 +24,8 @@ type Tx struct {
 	CanaryEvent *CanaryEventClient
 	// CanaryRelease is the client for interacting with the CanaryRelease builders.
 	CanaryRelease *CanaryReleaseClient
+	// Certificate is the client for interacting with the Certificate builders.
+	Certificate *CertificateClient
 	// Deployment is the client for interacting with the Deployment builders.
 	Deployment *DeploymentClient
 	// DeploymentVersion is the client for interacting with the DeploymentVersion builders.
@@ -185,6 +187,7 @@ func (tx *Tx) init() {
 	tx.BluegreenEvent = NewBluegreenEventClient(tx.config)
 	tx.CanaryEvent = NewCanaryEventClient(tx.config)
 	tx.CanaryRelease = NewCanaryReleaseClient(tx.config)
+	tx.Certificate = NewCertificateClient(tx.config)
 	tx.Deployment = NewDeploymentClient(tx.config)
 	tx.DeploymentVersion = NewDeploymentVersionClient(tx.config)
 	tx.Domain = NewDomainClient(tx.config)

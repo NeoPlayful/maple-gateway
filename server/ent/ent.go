@@ -18,6 +18,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
@@ -96,6 +97,7 @@ func checkColumn(table, column string) error {
 			bluegreenevent.Table:      bluegreenevent.ValidColumn,
 			canaryevent.Table:         canaryevent.ValidColumn,
 			canaryrelease.Table:       canaryrelease.ValidColumn,
+			certificate.Table:         certificate.ValidColumn,
 			deployment.Table:          deployment.ValidColumn,
 			deploymentversion.Table:   deploymentversion.ValidColumn,
 			domain.Table:              domain.ValidColumn,

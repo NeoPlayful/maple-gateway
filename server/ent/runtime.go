@@ -11,6 +11,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
@@ -127,6 +128,44 @@ func init() {
 	canaryreleaseDescID := canaryreleaseFields[0].Descriptor()
 	// canaryrelease.DefaultID holds the default value on creation for the id field.
 	canaryrelease.DefaultID = canaryreleaseDescID.Default.(func() uuid.UUID)
+	certificateFields := schema.Certificate{}.Fields()
+	_ = certificateFields
+	// certificateDescHostname is the schema descriptor for hostname field.
+	certificateDescHostname := certificateFields[2].Descriptor()
+	// certificate.HostnameValidator is a validator for the "hostname" field. It is called by the builders before save.
+	certificate.HostnameValidator = certificateDescHostname.Validators[0].(func(string) error)
+	// certificateDescSource is the schema descriptor for source field.
+	certificateDescSource := certificateFields[3].Descriptor()
+	// certificate.DefaultSource holds the default value on creation for the source field.
+	certificate.DefaultSource = certificateDescSource.Default.(string)
+	// certificateDescStatus is the schema descriptor for status field.
+	certificateDescStatus := certificateFields[4].Descriptor()
+	// certificate.DefaultStatus holds the default value on creation for the status field.
+	certificate.DefaultStatus = certificateDescStatus.Default.(string)
+	// certificateDescCertificatePem is the schema descriptor for certificate_pem field.
+	certificateDescCertificatePem := certificateFields[5].Descriptor()
+	// certificate.CertificatePemValidator is a validator for the "certificate_pem" field. It is called by the builders before save.
+	certificate.CertificatePemValidator = certificateDescCertificatePem.Validators[0].(func(string) error)
+	// certificateDescPrivateKeyEncrypted is the schema descriptor for private_key_encrypted field.
+	certificateDescPrivateKeyEncrypted := certificateFields[6].Descriptor()
+	// certificate.PrivateKeyEncryptedValidator is a validator for the "private_key_encrypted" field. It is called by the builders before save.
+	certificate.PrivateKeyEncryptedValidator = certificateDescPrivateKeyEncrypted.Validators[0].(func(string) error)
+	// certificateDescIssuer is the schema descriptor for issuer field.
+	certificateDescIssuer := certificateFields[7].Descriptor()
+	// certificate.DefaultIssuer holds the default value on creation for the issuer field.
+	certificate.DefaultIssuer = certificateDescIssuer.Default.(string)
+	// certificateDescSerialNumber is the schema descriptor for serial_number field.
+	certificateDescSerialNumber := certificateFields[8].Descriptor()
+	// certificate.DefaultSerialNumber holds the default value on creation for the serial_number field.
+	certificate.DefaultSerialNumber = certificateDescSerialNumber.Default.(string)
+	// certificateDescLastError is the schema descriptor for last_error field.
+	certificateDescLastError := certificateFields[12].Descriptor()
+	// certificate.DefaultLastError holds the default value on creation for the last_error field.
+	certificate.DefaultLastError = certificateDescLastError.Default.(string)
+	// certificateDescID is the schema descriptor for id field.
+	certificateDescID := certificateFields[0].Descriptor()
+	// certificate.DefaultID holds the default value on creation for the id field.
+	certificate.DefaultID = certificateDescID.Default.(func() uuid.UUID)
 	deploymentFields := schema.Deployment{}.Fields()
 	_ = deploymentFields
 	// deploymentDescName is the schema descriptor for name field.
@@ -177,6 +216,10 @@ func init() {
 	domainDescStatus := domainFields[4].Descriptor()
 	// domain.DefaultStatus holds the default value on creation for the status field.
 	domain.DefaultStatus = domainDescStatus.Default.(string)
+	// domainDescTLSMode is the schema descriptor for tls_mode field.
+	domainDescTLSMode := domainFields[6].Descriptor()
+	// domain.DefaultTLSMode holds the default value on creation for the tls_mode field.
+	domain.DefaultTLSMode = domainDescTLSMode.Default.(string)
 	// domainDescID is the schema descriptor for id field.
 	domainDescID := domainFields[0].Descriptor()
 	// domain.DefaultID holds the default value on creation for the id field.

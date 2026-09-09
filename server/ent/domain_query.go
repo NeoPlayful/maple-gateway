@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
@@ -11,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
 	"github.com/NeoPlayful/maple-gateway/server/ent/predicate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
@@ -20,11 +22,12 @@ import (
 // DomainQuery is the builder for querying Domain entities.
 type DomainQuery struct {
 	config
-	ctx        *QueryContext
-	order      []domain.OrderOption
-	inters     []Interceptor
-	predicates []predicate.Domain
-	withTenant *TenantQuery
+	ctx              *QueryContext
+	order            []domain.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.Domain
+	withTenant       *TenantQuery
+	withCertificates *CertificateQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -76,6 +79,28 @@ func (dq *DomainQuery) QueryTenant() *TenantQuery {
 			sqlgraph.From(domain.Table, domain.FieldID, selector),
 			sqlgraph.To(tenant.Table, tenant.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, domain.TenantTable, domain.TenantColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(dq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCertificates chains the current query on the "certificates" edge.
+func (dq *DomainQuery) QueryCertificates() *CertificateQuery {
+	query := (&CertificateClient{config: dq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := dq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := dq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(domain.Table, domain.FieldID, selector),
+			sqlgraph.To(certificate.Table, certificate.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, domain.CertificatesTable, domain.CertificatesColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(dq.driver.Dialect(), step)
 		return fromU, nil
@@ -270,12 +295,13 @@ func (dq *DomainQuery) Clone() *DomainQuery {
 		return nil
 	}
 	return &DomainQuery{
-		config:     dq.config,
-		ctx:        dq.ctx.Clone(),
-		order:      append([]domain.OrderOption{}, dq.order...),
-		inters:     append([]Interceptor{}, dq.inters...),
-		predicates: append([]predicate.Domain{}, dq.predicates...),
-		withTenant: dq.withTenant.Clone(),
+		config:           dq.config,
+		ctx:              dq.ctx.Clone(),
+		order:            append([]domain.OrderOption{}, dq.order...),
+		inters:           append([]Interceptor{}, dq.inters...),
+		predicates:       append([]predicate.Domain{}, dq.predicates...),
+		withTenant:       dq.withTenant.Clone(),
+		withCertificates: dq.withCertificates.Clone(),
 		// clone intermediate query.
 		sql:  dq.sql.Clone(),
 		path: dq.path,
@@ -290,6 +316,17 @@ func (dq *DomainQuery) WithTenant(opts ...func(*TenantQuery)) *DomainQuery {
 		opt(query)
 	}
 	dq.withTenant = query
+	return dq
+}
+
+// WithCertificates tells the query-builder to eager-load the nodes that are connected to
+// the "certificates" edge. The optional arguments are used to configure the query builder of the edge.
+func (dq *DomainQuery) WithCertificates(opts ...func(*CertificateQuery)) *DomainQuery {
+	query := (&CertificateClient{config: dq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	dq.withCertificates = query
 	return dq
 }
 
@@ -371,8 +408,9 @@ func (dq *DomainQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Domai
 	var (
 		nodes       = []*Domain{}
 		_spec       = dq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			dq.withTenant != nil,
+			dq.withCertificates != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -396,6 +434,13 @@ func (dq *DomainQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Domai
 	if query := dq.withTenant; query != nil {
 		if err := dq.loadTenant(ctx, query, nodes, nil,
 			func(n *Domain, e *Tenant) { n.Edges.Tenant = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := dq.withCertificates; query != nil {
+		if err := dq.loadCertificates(ctx, query, nodes,
+			func(n *Domain) { n.Edges.Certificates = []*Certificate{} },
+			func(n *Domain, e *Certificate) { n.Edges.Certificates = append(n.Edges.Certificates, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -428,6 +473,39 @@ func (dq *DomainQuery) loadTenant(ctx context.Context, query *TenantQuery, nodes
 		for i := range nodes {
 			assign(nodes[i], n)
 		}
+	}
+	return nil
+}
+func (dq *DomainQuery) loadCertificates(ctx context.Context, query *CertificateQuery, nodes []*Domain, init func(*Domain), assign func(*Domain, *Certificate)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Domain)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(certificate.FieldDomainID)
+	}
+	query.Where(predicate.Certificate(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(domain.CertificatesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.DomainID
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "domain_id" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "domain_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }

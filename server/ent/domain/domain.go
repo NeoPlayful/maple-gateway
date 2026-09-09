@@ -23,12 +23,18 @@ const (
 	FieldStatus = "status"
 	// FieldVerifiedAt holds the string denoting the verified_at field in the database.
 	FieldVerifiedAt = "verified_at"
+	// FieldTLSMode holds the string denoting the tls_mode field in the database.
+	FieldTLSMode = "tls_mode"
+	// FieldCertificateStatus holds the string denoting the certificate_status field in the database.
+	FieldCertificateStatus = "certificate_status"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
 	// EdgeTenant holds the string denoting the tenant edge name in mutations.
 	EdgeTenant = "tenant"
+	// EdgeCertificates holds the string denoting the certificates edge name in mutations.
+	EdgeCertificates = "certificates"
 	// Table holds the table name of the domain in the database.
 	Table = "domains"
 	// TenantTable is the table that holds the tenant relation/edge.
@@ -38,6 +44,13 @@ const (
 	TenantInverseTable = "tenants"
 	// TenantColumn is the table column denoting the tenant relation/edge.
 	TenantColumn = "tenant_id"
+	// CertificatesTable is the table that holds the certificates relation/edge.
+	CertificatesTable = "certificates"
+	// CertificatesInverseTable is the table name for the Certificate entity.
+	// It exists in this package in order to avoid circular dependency with the "certificate" package.
+	CertificatesInverseTable = "certificates"
+	// CertificatesColumn is the table column denoting the certificates relation/edge.
+	CertificatesColumn = "domain_id"
 )
 
 // Columns holds all SQL columns for domain fields.
@@ -48,6 +61,8 @@ var Columns = []string{
 	FieldServiceID,
 	FieldStatus,
 	FieldVerifiedAt,
+	FieldTLSMode,
+	FieldCertificateStatus,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -67,6 +82,8 @@ var (
 	HostnameValidator func(string) error
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
+	// DefaultTLSMode holds the default value on creation for the "tls_mode" field.
+	DefaultTLSMode string
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -104,6 +121,16 @@ func ByVerifiedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldVerifiedAt, opts...).ToFunc()
 }
 
+// ByTLSMode orders the results by the tls_mode field.
+func ByTLSMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTLSMode, opts...).ToFunc()
+}
+
+// ByCertificateStatus orders the results by the certificate_status field.
+func ByCertificateStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCertificateStatus, opts...).ToFunc()
+}
+
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
@@ -120,10 +147,31 @@ func ByTenantField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newTenantStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByCertificatesCount orders the results by certificates count.
+func ByCertificatesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCertificatesStep(), opts...)
+	}
+}
+
+// ByCertificates orders the results by certificates terms.
+func ByCertificates(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCertificatesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTenantStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(TenantInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, TenantTable, TenantColumn),
+	)
+}
+func newCertificatesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CertificatesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, CertificatesTable, CertificatesColumn),
 	)
 }

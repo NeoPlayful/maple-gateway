@@ -81,6 +81,16 @@ func VerifiedAt(v time.Time) predicate.Domain {
 	return predicate.Domain(sql.FieldEQ(FieldVerifiedAt, v))
 }
 
+// TLSMode applies equality check predicate on the "tls_mode" field. It's identical to TLSModeEQ.
+func TLSMode(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldEQ(FieldTLSMode, v))
+}
+
+// CertificateStatus applies equality check predicate on the "certificate_status" field. It's identical to CertificateStatusEQ.
+func CertificateStatus(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldEQ(FieldCertificateStatus, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Domain {
 	return predicate.Domain(sql.FieldEQ(FieldCreatedAt, v))
@@ -341,6 +351,146 @@ func VerifiedAtNotNil() predicate.Domain {
 	return predicate.Domain(sql.FieldNotNull(FieldVerifiedAt))
 }
 
+// TLSModeEQ applies the EQ predicate on the "tls_mode" field.
+func TLSModeEQ(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldEQ(FieldTLSMode, v))
+}
+
+// TLSModeNEQ applies the NEQ predicate on the "tls_mode" field.
+func TLSModeNEQ(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldNEQ(FieldTLSMode, v))
+}
+
+// TLSModeIn applies the In predicate on the "tls_mode" field.
+func TLSModeIn(vs ...string) predicate.Domain {
+	return predicate.Domain(sql.FieldIn(FieldTLSMode, vs...))
+}
+
+// TLSModeNotIn applies the NotIn predicate on the "tls_mode" field.
+func TLSModeNotIn(vs ...string) predicate.Domain {
+	return predicate.Domain(sql.FieldNotIn(FieldTLSMode, vs...))
+}
+
+// TLSModeGT applies the GT predicate on the "tls_mode" field.
+func TLSModeGT(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldGT(FieldTLSMode, v))
+}
+
+// TLSModeGTE applies the GTE predicate on the "tls_mode" field.
+func TLSModeGTE(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldGTE(FieldTLSMode, v))
+}
+
+// TLSModeLT applies the LT predicate on the "tls_mode" field.
+func TLSModeLT(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldLT(FieldTLSMode, v))
+}
+
+// TLSModeLTE applies the LTE predicate on the "tls_mode" field.
+func TLSModeLTE(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldLTE(FieldTLSMode, v))
+}
+
+// TLSModeContains applies the Contains predicate on the "tls_mode" field.
+func TLSModeContains(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldContains(FieldTLSMode, v))
+}
+
+// TLSModeHasPrefix applies the HasPrefix predicate on the "tls_mode" field.
+func TLSModeHasPrefix(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldHasPrefix(FieldTLSMode, v))
+}
+
+// TLSModeHasSuffix applies the HasSuffix predicate on the "tls_mode" field.
+func TLSModeHasSuffix(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldHasSuffix(FieldTLSMode, v))
+}
+
+// TLSModeEqualFold applies the EqualFold predicate on the "tls_mode" field.
+func TLSModeEqualFold(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldEqualFold(FieldTLSMode, v))
+}
+
+// TLSModeContainsFold applies the ContainsFold predicate on the "tls_mode" field.
+func TLSModeContainsFold(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldContainsFold(FieldTLSMode, v))
+}
+
+// CertificateStatusEQ applies the EQ predicate on the "certificate_status" field.
+func CertificateStatusEQ(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldEQ(FieldCertificateStatus, v))
+}
+
+// CertificateStatusNEQ applies the NEQ predicate on the "certificate_status" field.
+func CertificateStatusNEQ(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldNEQ(FieldCertificateStatus, v))
+}
+
+// CertificateStatusIn applies the In predicate on the "certificate_status" field.
+func CertificateStatusIn(vs ...string) predicate.Domain {
+	return predicate.Domain(sql.FieldIn(FieldCertificateStatus, vs...))
+}
+
+// CertificateStatusNotIn applies the NotIn predicate on the "certificate_status" field.
+func CertificateStatusNotIn(vs ...string) predicate.Domain {
+	return predicate.Domain(sql.FieldNotIn(FieldCertificateStatus, vs...))
+}
+
+// CertificateStatusGT applies the GT predicate on the "certificate_status" field.
+func CertificateStatusGT(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldGT(FieldCertificateStatus, v))
+}
+
+// CertificateStatusGTE applies the GTE predicate on the "certificate_status" field.
+func CertificateStatusGTE(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldGTE(FieldCertificateStatus, v))
+}
+
+// CertificateStatusLT applies the LT predicate on the "certificate_status" field.
+func CertificateStatusLT(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldLT(FieldCertificateStatus, v))
+}
+
+// CertificateStatusLTE applies the LTE predicate on the "certificate_status" field.
+func CertificateStatusLTE(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldLTE(FieldCertificateStatus, v))
+}
+
+// CertificateStatusContains applies the Contains predicate on the "certificate_status" field.
+func CertificateStatusContains(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldContains(FieldCertificateStatus, v))
+}
+
+// CertificateStatusHasPrefix applies the HasPrefix predicate on the "certificate_status" field.
+func CertificateStatusHasPrefix(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldHasPrefix(FieldCertificateStatus, v))
+}
+
+// CertificateStatusHasSuffix applies the HasSuffix predicate on the "certificate_status" field.
+func CertificateStatusHasSuffix(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldHasSuffix(FieldCertificateStatus, v))
+}
+
+// CertificateStatusIsNil applies the IsNil predicate on the "certificate_status" field.
+func CertificateStatusIsNil() predicate.Domain {
+	return predicate.Domain(sql.FieldIsNull(FieldCertificateStatus))
+}
+
+// CertificateStatusNotNil applies the NotNil predicate on the "certificate_status" field.
+func CertificateStatusNotNil() predicate.Domain {
+	return predicate.Domain(sql.FieldNotNull(FieldCertificateStatus))
+}
+
+// CertificateStatusEqualFold applies the EqualFold predicate on the "certificate_status" field.
+func CertificateStatusEqualFold(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldEqualFold(FieldCertificateStatus, v))
+}
+
+// CertificateStatusContainsFold applies the ContainsFold predicate on the "certificate_status" field.
+func CertificateStatusContainsFold(v string) predicate.Domain {
+	return predicate.Domain(sql.FieldContainsFold(FieldCertificateStatus, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Domain {
 	return predicate.Domain(sql.FieldEQ(FieldCreatedAt, v))
@@ -436,6 +586,29 @@ func HasTenant() predicate.Domain {
 func HasTenantWith(preds ...predicate.Tenant) predicate.Domain {
 	return predicate.Domain(func(s *sql.Selector) {
 		step := newTenantStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCertificates applies the HasEdge predicate on the "certificates" edge.
+func HasCertificates() predicate.Domain {
+	return predicate.Domain(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, CertificatesTable, CertificatesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCertificatesWith applies the HasEdge predicate on the "certificates" edge with a given conditions (other predicates).
+func HasCertificatesWith(preds ...predicate.Certificate) predicate.Domain {
+	return predicate.Domain(func(s *sql.Selector) {
+		step := newCertificatesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

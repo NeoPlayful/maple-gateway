@@ -8,7 +8,10 @@ gateway:
   http:
     address: ":8091"        # 数据平面地址（开发 e2e：数据面 8091 / 管理面 8090）
   https:
-    address: ":8093"        # 默认不启用 TLS，保留端口位
+    enabled: true           # 开发验证启用 HTTPS（需同时提供 cert/key）
+    address: ":8093"        # 数据面 HTTPS
+    cert: certs/test-cert.pem
+    key: certs/test-key.pem
 
 management:
   address: ":8090"          # 管理面 API 地址

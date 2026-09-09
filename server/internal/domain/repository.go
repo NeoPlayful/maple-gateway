@@ -24,28 +24,35 @@ func NewRepository(client *ent.Client) *Repository {
 // toModel 把 Ent 实体映射为领域模型。
 func toModel(e *ent.Domain) *Domain {
 	return &Domain{
-		ID:         e.ID,
-		TenantID:   e.TenantID,
-		Hostname:   e.Hostname,
-		ServiceID:  e.ServiceID,
-		Status:     Status(e.Status),
-		VerifiedAt: e.VerifiedAt,
-		CreatedAt:  e.CreatedAt,
-		UpdatedAt:  e.UpdatedAt,
+		ID:                e.ID,
+		TenantID:          e.TenantID,
+		Hostname:          e.Hostname,
+		ServiceID:         e.ServiceID,
+		Status:            Status(e.Status),
+		VerifiedAt:        e.VerifiedAt,
+		TLSMode:           e.TLSMode,
+		CertificateStatus: e.CertificateStatus,
+		CreatedAt:         e.CreatedAt,
+		UpdatedAt:         e.UpdatedAt,
 	}
 }
 
 // Create 插入新域名。hostname 冲突返回 Conflict。
 func (r *Repository) Create(ctx context.Context, in New) (*Domain, error) {
 	now := time.Now()
-	e, err := r.ent.Domain.Create().
+	cr := r.ent.Domain.Create().
 		SetTenantID(in.TenantID).
 		SetHostname(in.Hostname).
 		SetNillableServiceID(in.ServiceID).
 		SetStatus(string(StatusActive)).
 		SetCreatedAt(now).
-		SetUpdatedAt(now).
-		Save(ctx)
+		SetUpdatedAt(now)
+	if in.TLSMode != "" {
+		cr = cr.SetTLSMode(in.TLSMode)
+	} else {
+		cr = cr.SetTLSMode("disabled")
+	}
+	e, err := cr.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
 			return nil, pkg.ErrConflict("hostname 已存在")
@@ -152,6 +159,12 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Doma
 	}
 	if in.Status != nil {
 		upd = upd.SetStatus(string(*in.Status))
+	}
+	if in.TLSMode != nil {
+		upd = upd.SetTLSMode(*in.TLSMode)
+	}
+	if in.CertificateStatus != nil {
+		upd = upd.SetCertificateStatus(*in.CertificateStatus)
 	}
 	e, err := upd.Save(ctx)
 	if err != nil {

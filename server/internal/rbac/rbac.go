@@ -26,6 +26,7 @@ const (
 var operatorWritable = []string{
 	"/api/admin/tenants",
 	"/api/admin/domains",
+	"/api/admin/certificates",
 	"/api/admin/services",
 	"/api/admin/instances",
 	"/api/admin/nodes",

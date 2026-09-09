@@ -12,6 +12,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/bluegreen"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
+	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/dashboard"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
@@ -44,6 +45,7 @@ type Deps struct {
 	Settings   *settings.Repository        // 可空；提供动态 Settings 读写
 	Series     dashboard.SeriesReader      // 可空；提供 Dashboard 趋势时序数据
 	HA         *ha.Handler                 // 可空；提供 Gateway 自身实例（HA）查看
+	Certificates *certificate.Handler      // 可空；提供 Direct TLS 证书管理（需 MAPLE_CERT_ENC_KEY）
 	UIDir      string                      // 可空；管理后台前端产物目录（dist），空则不托管 UI
 }
 
@@ -263,6 +265,21 @@ func New(d Deps) *fiber.App {
 	bg.Delete("/:id", bgH.Delete)
 	bg.Post("/:id/switch", bgH.Switch)
 	bg.Post("/:id/rollback", bgH.Rollback)
+
+	// Direct TLS 证书管理（可选：需 MAPLE_CERT_ENC_KEY 才能构造）。
+	if d.Certificates != nil {
+		ch := d.Certificates
+		cert := admin.Group("/certificates")
+		cert.Get("/", ch.List)
+		cert.Get("/count", ch.Count)
+		cert.Get("/:id", ch.Get)
+		cert.Delete("/:id", ch.Delete)
+		cert.Get("/:id/status", ch.Status)
+		cert.Post("/:id/reload", ch.Reload)
+		cert.Post("/", ch.Upload)
+		// 需求路径：POST /api/admin/domains/:id/certificate（域名维度上传）。
+		admin.Post("/domains/:id/certificate", ch.Upload)
+	}
 
 	// 路由缓存查看/重建。
 	if d.RouteCache != nil {

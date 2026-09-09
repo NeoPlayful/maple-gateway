@@ -102,7 +102,9 @@
     "phase": "阶段",
     "port": "端口",
     "version": "版本",
-    "weight": "权重"
+    "weight": "权重",
+    "tlsMode": "TLS 模式",
+    "certificateStatus": "证书状态"
   },
   "tenants": {
     "title": "租户管理",

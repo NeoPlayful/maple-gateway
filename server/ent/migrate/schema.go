@@ -166,6 +166,55 @@ var (
 			},
 		},
 	}
+	// CertificatesColumns holds the columns for the "certificates" table.
+	CertificatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "hostname", Type: field.TypeString},
+		{Name: "source", Type: field.TypeString, Default: "manual"},
+		{Name: "status", Type: field.TypeString, Default: "pending"},
+		{Name: "certificate_pem", Type: field.TypeString, Size: 2147483647},
+		{Name: "private_key_encrypted", Type: field.TypeString, Size: 2147483647},
+		{Name: "issuer", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "serial_number", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "issued_at", Type: field.TypeTime, Nullable: true},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_renewed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "domain_id", Type: field.TypeUUID, Nullable: true},
+	}
+	// CertificatesTable holds the schema information for the "certificates" table.
+	CertificatesTable = &schema.Table{
+		Name:       "certificates",
+		Columns:    CertificatesColumns,
+		PrimaryKey: []*schema.Column{CertificatesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "certificates_domains_certificates",
+				Columns:    []*schema.Column{CertificatesColumns[14]},
+				RefColumns: []*schema.Column{DomainsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "certificate_domain_id",
+				Unique:  false,
+				Columns: []*schema.Column{CertificatesColumns[14]},
+			},
+			{
+				Name:    "certificate_hostname",
+				Unique:  false,
+				Columns: []*schema.Column{CertificatesColumns[1]},
+			},
+			{
+				Name:    "certificate_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{CertificatesColumns[9]},
+			},
+		},
+	}
 	// DeploymentsColumns holds the columns for the "deployments" table.
 	DeploymentsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -236,6 +285,8 @@ var (
 		{Name: "service_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "status", Type: field.TypeString, Default: "active"},
 		{Name: "verified_at", Type: field.TypeTime, Nullable: true},
+		{Name: "tls_mode", Type: field.TypeString, Default: "disabled"},
+		{Name: "certificate_status", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "tenant_id", Type: field.TypeUUID},
@@ -248,7 +299,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "domains_tenants_domains",
-				Columns:    []*schema.Column{DomainsColumns[7]},
+				Columns:    []*schema.Column{DomainsColumns[9]},
 				RefColumns: []*schema.Column{TenantsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -560,6 +611,7 @@ var (
 		BluegreenEventsTable,
 		CanaryEventsTable,
 		CanaryReleasesTable,
+		CertificatesTable,
 		DeploymentsTable,
 		DeploymentVersionsTable,
 		DomainsTable,
@@ -576,6 +628,7 @@ var (
 )
 
 func init() {
+	CertificatesTable.ForeignKeys[0].RefTable = DomainsTable
 	DeploymentsTable.ForeignKeys[0].RefTable = ServicesTable
 	DeploymentVersionsTable.ForeignKeys[0].RefTable = DeploymentsTable
 	DomainsTable.ForeignKeys[0].RefTable = TenantsTable
