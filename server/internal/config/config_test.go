@@ -22,11 +22,11 @@ func TestLoad_Defaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load defaults: %v", err)
 	}
-	if cfg.Gateway.HTTP.Address != ":8000" {
-		t.Fatalf("default http addr = %q", cfg.Gateway.HTTP.Address)
+	if cfg.Gateway.HTTP.Port != 8000 {
+		t.Fatalf("default http port = %d", cfg.Gateway.HTTP.Port)
 	}
-	if cfg.Management.Address != ":4000" {
-		t.Fatalf("default mgmt addr = %q", cfg.Management.Address)
+	if cfg.Management.Port != 4000 {
+		t.Fatalf("default mgmt port = %d", cfg.Management.Port)
 	}
 	if cfg.Health.Interval != 10*time.Second {
 		t.Fatalf("default health interval = %v", cfg.Health.Interval)
@@ -79,9 +79,9 @@ func TestLoad_YAMLOverride(t *testing.T) {
 	path := writeTemp(t, `
 gateway:
   http:
-    address: ":9090"
+    port: 9090
 management:
-  address: ":5000"
+  port: 5000
 health:
   failure_threshold: 5
 `)
@@ -89,11 +89,11 @@ health:
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if cfg.Gateway.HTTP.Address != ":9090" {
-		t.Fatalf("yaml http addr = %q", cfg.Gateway.HTTP.Address)
+	if cfg.Gateway.HTTP.Port != 9090 {
+		t.Fatalf("yaml http port = %d", cfg.Gateway.HTTP.Port)
 	}
-	if cfg.Management.Address != ":5000" {
-		t.Fatalf("yaml mgmt addr = %q", cfg.Management.Address)
+	if cfg.Management.Port != 5000 {
+		t.Fatalf("yaml mgmt port = %d", cfg.Management.Port)
 	}
 	if cfg.Health.FailureThreshold != 5 {
 		t.Fatalf("yaml threshold = %d", cfg.Health.FailureThreshold)
@@ -105,8 +105,9 @@ health:
 }
 
 func TestLoad_EnvOverride(t *testing.T) {
-	t.Setenv("MAPLE_GATEWAY_HTTP_ADDR", ":7777")
-	t.Setenv("MAPLE_MANAGEMENT_ADDR", ":6666")
+	t.Setenv("MAPLE_LISTEN_HOST", "127.0.0.1")
+	t.Setenv("MAPLE_GATEWAY_HTTP_PORT", "7777")
+	t.Setenv("MAPLE_MANAGEMENT_PORT", "6666")
 	t.Setenv("MAPLE_DATABASE_URL", "postgres://env:env@db/maple")
 	t.Setenv("MAPLE_ADMIN_TOKEN", "env-token")
 
@@ -114,11 +115,14 @@ func TestLoad_EnvOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if cfg.Gateway.HTTP.Address != ":7777" {
-		t.Fatalf("env http addr = %q", cfg.Gateway.HTTP.Address)
+	if cfg.Gateway.HTTP.Port != 7777 {
+		t.Fatalf("env http port = %d", cfg.Gateway.HTTP.Port)
 	}
-	if cfg.Management.Address != ":6666" {
-		t.Fatalf("env mgmt addr = %q", cfg.Management.Address)
+	if cfg.Management.Port != 6666 {
+		t.Fatalf("env mgmt port = %d", cfg.Management.Port)
+	}
+	if cfg.Listen.Host != "127.0.0.1" {
+		t.Fatalf("env listen host = %q", cfg.Listen.Host)
 	}
 	if cfg.Database.URL != "postgres://env:env@db/maple" {
 		t.Fatalf("env db url = %q", cfg.Database.URL)
@@ -132,16 +136,16 @@ func TestLoad_EnvBeatsYAML(t *testing.T) {
 	path := writeTemp(t, `
 gateway:
   http:
-    address: ":9090"
+    port: 9090
 `)
-	t.Setenv("MAPLE_GATEWAY_HTTP_ADDR", ":7777")
+	t.Setenv("MAPLE_GATEWAY_HTTP_PORT", "7777")
 
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if cfg.Gateway.HTTP.Address != ":7777" {
-		t.Fatalf("env should beat yaml, got %q", cfg.Gateway.HTTP.Address)
+	if cfg.Gateway.HTTP.Port != 7777 {
+		t.Fatalf("env should beat yaml, got %d", cfg.Gateway.HTTP.Port)
 	}
 }
 
@@ -167,6 +171,21 @@ tls:
 	}
 	if cfg2.TLS.CertEncKey != "env-key" {
 		t.Fatalf("env cert_enc_key should beat yaml, got %q", cfg2.TLS.CertEncKey)
+	}
+}
+
+func TestAddr_HostEmptyMeansAllInterfaces(t *testing.T) {
+	cfg := Default()
+	if got := cfg.Addr(cfg.Gateway.HTTP.Port); got != ":8000" {
+		t.Fatalf("default Addr(http) = %q, want :8000", got)
+	}
+	cfg.Listen.Host = "0.0.0.0"
+	if got := cfg.Addr(cfg.Management.Port); got != "0.0.0.0:4000" {
+		t.Fatalf("Addr(mgmt) with host = %q, want 0.0.0.0:4000", got)
+	}
+	cfg.Listen.Host = "127.0.0.1"
+	if got := cfg.Addr(cfg.Gateway.HTTP.Port); got != "127.0.0.1:8000" {
+		t.Fatalf("Addr(http) with 127.0.0.1 = %q", got)
 	}
 }
 

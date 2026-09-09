@@ -35,11 +35,14 @@ services:
     environment:
       MAPLE_DATABASE_URL: postgres://maple:maple@postgres:5432/maple?sslmode=disable
       MAPLE_ADMIN_TOKEN: dev-admin-token
-      MAPLE_GATEWAY_HTTP_ADDR: ":80"
-      MAPLE_MANAGEMENT_ADDR: ":4000"
+      MAPLE_LISTEN_HOST: 0.0.0.0
+      MAPLE_GATEWAY_HTTP_PORT: "80"
+      MAPLE_GATEWAY_HTTPS_PORT: "443"
+      MAPLE_MANAGEMENT_PORT: "8090"
     ports:
-      - "80:80"          # 数据平面
-      - "4000:4000"      # Management API
+      - "80:80"          # 数据平面 HTTP
+      - "443:443"        # 数据平面 HTTPS
+      - "8090:8090"      # Management API
     restart: unless-stopped
 
   # ---- 开发测试容器（模拟租户实例，供数据平面转发验证） ----
