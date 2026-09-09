@@ -42,7 +42,7 @@ func main() {
 	var (
 		configPath  = flag.String("config", "", "config file path (YAML)")
 		routesPath  = flag.String("routes", "", "static routes file path (YAML), S2 阶段用")
-		migrate     = flag.Bool("migrate", false, "run database migrations then seed admin, then exit")
+		migrate     = flag.Bool("migrate", false, "run database migrations, then exit")
 		showExample = flag.Bool("print-config", false, "print effective config and exit")
 	)
 	flag.Parse()
@@ -93,7 +93,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}
 	}
 
-	// -migrate：执行迁移 + seed 默认管理员后退出。
+	// -migrate：执行迁移后退出。种子数据填充由独立命令 cmd/seed 负责。
 	if migrate {
 		if cfg.Database.URL == "" {
 			return fmt.Errorf("migrate requires database.url")
@@ -282,7 +282,7 @@ func resolveUIDir(configured string) string {
 	return ""
 }
 
-// runMigration 连接 DB 并执行迁移与 seed。
+// runMigration 连接 DB 并执行 SQL 迁移（建表/演进），不负责填充种子数据。
 func runMigration(ctx context.Context, dbURL string) error {
 	appCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -302,11 +302,7 @@ func runMigration(ctx context.Context, dbURL string) error {
 	if err := mig.Run(appCtx); err != nil {
 		return err
 	}
-	entClient := pkg.NewEntClient(db)
-	if err := seedDefaultAdmin(appCtx, entClient); err != nil {
-		return err
-	}
-	pkg.Log().Info("migrations applied, admin seeded")
+	pkg.Log().Info("migrations applied")
 	return nil
 }
 
