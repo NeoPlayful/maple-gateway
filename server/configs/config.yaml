@@ -52,4 +52,5 @@ security:
 # 配此项或环境变量 MAPLE_TLS_CERT_ENC_KEY；不配则证书管理 API（/api/admin/certificates）不注册。
 # 生成：openssl rand -base64 32。存量证书换 key 会解不开旧私钥，需保持同一把。
 tls:
+  mode: direct                       # direct（按 SNI 动态选每域名证书）/ global（单全局证书）。direct 需 DB + 证书服务
   cert_enc_key: "u+IBv5z9z+RqwIbEV9WPfedoJLm/gj0MwM6QmF1+MYs="

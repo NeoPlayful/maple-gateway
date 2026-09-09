@@ -172,7 +172,7 @@ func Default() *Config {
 			SampleRatio: 0.01,  // 默认低采样 1%
 		},
 		TLS: TLSConfig{
-			Mode:                "global", // 默认保持 Phase 4 单全局证书行为
+			Mode:                "direct", // 默认按 SNI 动态选每域名证书（Phase 5）；global 需显式指定单全局证书
 			MinVersion:          "tls1.2",
 			EnforceSNIHostMatch: true,
 			// 默认 false（隔离优先）：未知 SNI/无 SNI 拒绝握手，不向任意域名发全局证书。

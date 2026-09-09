@@ -4,13 +4,13 @@ gateway:
   http:
     address: ":80"          # 数据平面 HTTP（Docker 生产），开发常用 :8000
   https:
-    enabled: false          # Phase 2 起按需启用；enabled 时需同时提供 cert/key
+    enabled: false          # 按需启用；enabled 时需同时提供 cert/key
     address: ":443"         # 数据平面 HTTPS
-    cert: /etc/maple-gateway/tls.crt
-    key: /etc/maple-gateway/tls.key
+    cert: certs/test-cert.pem
+    key: certs/test-key.pem
 
 management:
-  address: ":4000"          # 控制面 API
+  address: ":8090"          # 控制面 API
 
 health:
   interval: 10s
@@ -67,7 +67,7 @@ trace:
 
 # ---- Phase 5：Direct TLS ----
 tls:
-  mode: global                       # global（单全局证书，Phase 4 兼容）/ direct（按 SNI 动态选每域名证书）
+  mode: direct                       # global（单全局证书，Phase 4 兼容）/ direct（按 SNI 动态选每域名证书）
   min_version: tls1.2                # tls1.2 / tls1.3
   enforce_sni_host_match: true       # direct 模式：SNI 与 Host 不一致返回 421 Misdirected Request
   fallback_cert_enabled: false       # direct 模式：未知 SNI/无 SNI 默认拒绝握手（隔离优先）；需内网泛兜底时改 true

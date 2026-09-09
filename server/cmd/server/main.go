@@ -299,7 +299,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// 数据面（server.go direct 分支）会注入恒拒占位——HTTPS 全部拒绝握手，进程不退出（B 方案）。
 	tlsMode := gateway.TLSMode(cfg.TLS.Mode)
 	if tlsMode == "" {
-		tlsMode = gateway.TLSModeGlobal
+		tlsMode = gateway.TLSModeDirect
 	}
 	var sniGetter gateway.TLSCertGetter
 	if tlsMode == gateway.TLSModeDirect && certSvc != nil {
