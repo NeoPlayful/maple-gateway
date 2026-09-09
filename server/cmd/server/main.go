@@ -191,7 +191,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}
 		coord = ha.NewCoordinator(ha.NewRepository(entClient), redisClient, logger, ha.Config{
 			InstanceID: instanceID,
-			Addr:       cfg.Management.Address,
+			Addr:       cfg.Addr(cfg.Management.Port),
 			Version:    pkg.Version,
 			Enabled:    cfg.HA.Enabled,
 			Heartbeat:  cfg.HA.Heartbeat,
@@ -269,8 +269,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 
 	logger.Info("maple-gateway starting",
-		zap.String("http_addr", cfg.Gateway.HTTP.Address),
-		zap.String("management_addr", cfg.Management.Address),
+		zap.String("http_addr", cfg.Addr(cfg.Gateway.HTTP.Port)),
+		zap.String("management_addr", cfg.Addr(cfg.Management.Port)),
 		zap.Bool("route_cache_enabled", routeCache != nil),
 		zap.Bool("static_routes", routesPath != ""),
 	)
@@ -286,11 +286,11 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// 组装并启动数据平面（HTTP 与 HTTPS 可并行；证书齐全才启用 HTTPS）。
 	httpAddr := ""
 	if cfg.Gateway.HTTP.Enabled {
-		httpAddr = cfg.Gateway.HTTP.Address
+		httpAddr = cfg.Addr(cfg.Gateway.HTTP.Port)
 	}
 	httpsAddr, certFile, keyFile := "", "", ""
 	if cfg.Gateway.HTTPS.Enabled && cfg.Gateway.HTTPS.Cert != "" && cfg.Gateway.HTTPS.Key != "" {
-		httpsAddr = cfg.Gateway.HTTPS.Address
+		httpsAddr = cfg.Addr(cfg.Gateway.HTTPS.Port)
 		certFile = cfg.Gateway.HTTPS.Cert
 		keyFile = cfg.Gateway.HTTPS.Key
 	}
@@ -372,15 +372,15 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir})
 	}
 	go func() {
-		logger.Info("management api listening", zap.String("addr", cfg.Management.Address))
-		if err := mgmtApp.Listen(cfg.Management.Address); err != nil {
+		logger.Info("management api listening", zap.String("addr", cfg.Addr(cfg.Management.Port)))
+		if err := mgmtApp.Listen(cfg.Addr(cfg.Management.Port)); err != nil {
 			logger.Error("management api listen failed", zap.String("err", err.Error()))
 		}
 	}()
 
 	// 等 Fiber 打印完启动 banner 后再打进程状态汇总，避免输出顺序错乱。
 	time.Sleep(150 * time.Millisecond)
-	printStartupSummary(cfg.Management.Address, db, redisClient)
+	printStartupSummary(cfg.Addr(cfg.Management.Port), db, redisClient)
 
 	select {
 	case <-ctx.Done():

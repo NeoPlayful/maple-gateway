@@ -4,17 +4,21 @@
 # 注：MAPLE_INTERNAL_TOKEN（discovery 认证）与 seed 账号 MAPLE_ADMIN_EMAIL/PASSWORD
 # 由代码直读 os.Getenv、不经本配置，仅由 .env 提供。
 
+# 全局唯一监听 host：所有监听口（gateway http/https、management）共用此网卡。
+listen:
+  host: 0.0.0.0             # 0.0.0.0 全接口 / 127.0.0.1 仅回环；空等价全接口
+
 gateway:
   http:
-    address: ":8091"        # 数据平面地址（开发 e2e：数据面 8091 / 管理面 8090）
+    port: 8091              # 数据平面端口（开发 e2e：数据面 8091 / 管理面 8090）
   https:
     enabled: true           # 开发验证启用 HTTPS（需同时提供 cert/key）
-    address: ":8093"        # 数据面 HTTPS
+    port: 8093              # 数据面 HTTPS
     cert: certs/test-cert.pem
     key: certs/test-key.pem
 
 management:
-  address: ":8090"          # 管理面 API 地址
+  port: 8090                # 管理面 API 端口
 
 health:
   interval: 10s

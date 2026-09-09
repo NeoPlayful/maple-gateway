@@ -4,9 +4,9 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -14,6 +14,10 @@ import (
 
 // Config 是完整启动配置。
 type Config struct {
+	// Listen 全局监听配置：唯一 host（监听网卡） + 各监听端口。
+	// 语义变更：旧的 gateway.http/https、management 各自 address: ":port"
+	// 改为 listen 提供唯一 host，gateway/management 只保留 port。
+	Listen     ListenConfig     `yaml:"listen"`
 	Gateway    GatewayConfig    `yaml:"gateway"`
 	Management ManagementConfig `yaml:"management"`
 	Health     HealthConfig     `yaml:"health"`
@@ -29,6 +33,21 @@ type Config struct {
 	TLS        TLSConfig        `yaml:"tls"`
 }
 
+// ListenConfig 全局监听网卡配置：所有监听口共用同一 host，各自只配端口。
+type ListenConfig struct {
+	// Host 绑定网卡地址：空（缺省）或 "" 等价旧 `:port` 写法，绑定本机全部网卡；
+	// 显式 0.0.0.0 同理（全接口），127.0.0.1 则仅回环。
+	Host string `yaml:"host"`
+}
+
+// Config.Addr 用全局 listen.host 拼装完整监听地址（host 空 → JoinHostPort 输出 :port）。
+func (c *Config) Addr(port int) string {
+	if port == 0 {
+		return ""
+	}
+	return net.JoinHostPort(c.Listen.Host, strconv.Itoa(port))
+}
+
 // TraceConfig 是 OpenTelemetry 数据面追踪配置。
 type TraceConfig struct {
 	Enabled     bool    `yaml:"enabled"`      // 是否开启数据面 span 采集与导出
@@ -41,14 +60,14 @@ type GatewayConfig struct {
 }
 
 type HTTPListener struct {
-	Address string `yaml:"address"`
+	Port    int    `yaml:"port"` // 监听端口（host 见顶层 listen.host）
 	Enabled bool   `yaml:"enabled"`
 	Cert    string `yaml:"cert"` // TLS 证书路径（Phase 2）
 	Key     string `yaml:"key"`  // TLS 私钥路径（Phase 2）
 }
 
 type ManagementConfig struct {
-	Address string `yaml:"address"`
+	Port int `yaml:"port"` // 管理面端口（host 见顶层 listen.host）
 	// UIDir 管理后台前端构建产物目录（dist）；空则不托管 UI。
 	UIDir string `yaml:"ui_dir"`
 }
@@ -133,10 +152,12 @@ type TLSConfig struct {
 // Default 返回内建默认配置（作为 env / 缺省兜底）。
 func Default() *Config {
 	return &Config{
+		// Listen.Host 默认空 = 全接口监听（等价旧 ":port" 写法）。
+		Listen: ListenConfig{},
 		Gateway: GatewayConfig{
-			HTTP: HTTPListener{Address: ":8000", Enabled: true},
+			HTTP: HTTPListener{Port: 8000, Enabled: true},
 		},
-		Management: ManagementConfig{Address: ":4000"},
+		Management: ManagementConfig{Port: 4000},
 		Health: HealthConfig{
 			Interval:         10 * time.Second,
 			Timeout:          3 * time.Second,
@@ -199,11 +220,18 @@ func Load(path string) (*Config, error) {
 
 // applyEnv 用 MAPLE_* 环境变量覆盖配置项。
 func (c *Config) applyEnv() {
-	if v := os.Getenv("MAPLE_GATEWAY_HTTP_ADDR"); v != "" {
-		c.Gateway.HTTP.Address = v
+	if v := os.Getenv("MAPLE_LISTEN_HOST"); v != "" {
+		c.Listen.Host = v
 	}
-	if v := os.Getenv("MAPLE_MANAGEMENT_ADDR"); v != "" {
-		c.Management.Address = v
+	if v := os.Getenv("MAPLE_GATEWAY_HTTP_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			c.Gateway.HTTP.Port = p
+		}
+	}
+	if v := os.Getenv("MAPLE_MANAGEMENT_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			c.Management.Port = p
+		}
 	}
 	if v := os.Getenv("MAPLE_UI_DIR"); v != "" {
 		c.Management.UIDir = v
@@ -229,8 +257,10 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_GATEWAY_HTTP_ENABLED"); v != "" {
 		c.Gateway.HTTP.Enabled = parseBool(v, c.Gateway.HTTP.Enabled)
 	}
-	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_ADDR"); v != "" {
-		c.Gateway.HTTPS.Address = v
+	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			c.Gateway.HTTPS.Port = p
+		}
 	}
 	if v := os.Getenv("MAPLE_GATEWAY_HTTPS_ENABLED"); v != "" {
 		c.Gateway.HTTPS.Enabled = parseBool(v, c.Gateway.HTTPS.Enabled)
@@ -290,17 +320,30 @@ func parseBool(v string, def bool) bool {
 	return def
 }
 
+// validatePort 校验监听端口：缺省(0)或越界时报错。
+func validatePort(name string, port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("%s.port must be 1-65535, got %d", name, port)
+	}
+	return nil
+}
+
 // Validate 校验关键配置，返回错误。
 func (c *Config) Validate() error {
 	if !c.Gateway.HTTP.Enabled && !c.Gateway.HTTPS.Enabled {
 		return fmt.Errorf("at least one data-plane listener must be enabled")
 	}
-	if strings.TrimSpace(c.Management.Address) == "" {
-		return fmt.Errorf("management address must not be empty")
+	if err := validatePort("management", c.Management.Port); err != nil {
+		return err
+	}
+	if c.Gateway.HTTP.Enabled {
+		if err := validatePort("gateway.http", c.Gateway.HTTP.Port); err != nil {
+			return err
+		}
 	}
 	if c.Gateway.HTTPS.Enabled {
-		if strings.TrimSpace(c.Gateway.HTTPS.Address) == "" {
-			return fmt.Errorf("gateway.https.address must not be empty when https enabled")
+		if err := validatePort("gateway.https", c.Gateway.HTTPS.Port); err != nil {
+			return err
 		}
 		if c.Gateway.HTTPS.Cert == "" || c.Gateway.HTTPS.Key == "" {
 			return fmt.Errorf("gateway.https.cert and key are required when https enabled")

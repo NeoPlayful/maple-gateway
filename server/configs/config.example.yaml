@@ -1,16 +1,20 @@
 # Maple Gateway 配置示例。复制为 config.yaml 或全部通过环境变量覆盖。
 
+# 全局唯一监听 host：所有监听口（gateway http/https、management）共用此网卡。
+listen:
+  host: 0.0.0.0             # 0.0.0.0 全接口 / 127.0.0.1 仅回环；空等价全接口
+
 gateway:
   http:
-    address: ":80"          # 数据平面 HTTP（Docker 生产），开发常用 :8000
+    port: 80                # 数据平面 HTTP（Docker 生产），开发常用 8000
   https:
     enabled: false          # 按需启用；enabled 时需同时提供 cert/key
-    address: ":443"         # 数据平面 HTTPS
+    port: 443               # 数据平面 HTTPS
     cert: certs/test-cert.pem
     key: certs/test-key.pem
 
 management:
-  address: ":8090"          # 控制面 API
+  port: 8090                # 控制面 API 端口
 
 health:
   interval: 10s
