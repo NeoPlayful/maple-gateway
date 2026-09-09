@@ -8,12 +8,14 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	entadmin "github.com/NeoPlayful/maple-gateway/server/ent/admin"
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// seedDefaultAdmin 创建默认管理员（幂等：已存在则跳过）。
+// seedAdmin 创建默认管理员（幂等：已存在则跳过）。
 // 邮箱/密码来自环境变量，缺省用开发默认值。
-func seedDefaultAdmin(ctx context.Context, client *ent.Client) error {
+func seedAdmin(ctx context.Context, client *ent.Client) error {
 	email := os.Getenv("MAPLE_ADMIN_EMAIL")
 	if email == "" {
 		email = "admin@maple.com"
@@ -28,6 +30,7 @@ func seedDefaultAdmin(ctx context.Context, client *ent.Client) error {
 		return fmt.Errorf("check admin exists: %w", err)
 	}
 	if exists {
+		pkg.Log().Info("default admin already exists, skip", zap.String("email", email))
 		return nil
 	}
 
@@ -46,5 +49,6 @@ func seedDefaultAdmin(ctx context.Context, client *ent.Client) error {
 		Save(ctx); err != nil {
 		return fmt.Errorf("insert admin: %w", err)
 	}
+	pkg.Log().Info("default admin seeded", zap.String("email", email))
 	return nil
 }
