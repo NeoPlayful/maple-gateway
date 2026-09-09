@@ -20,6 +20,10 @@
     "operateFailed": "操作失败",
     "createSuccess": "创建成功",
     "createFailed": "创建失败",
+    "edit": "编辑",
+    "cancel": "取消",
+    "updateSuccess": "保存成功",
+    "updateFailed": "保存失败",
     "loadFailed": "加载失败",
     "rollback": "回滚",
     "select": "选择…",
@@ -124,7 +128,11 @@
   },
   "domains": {
     "title": "域名管理",
-    "hostnamePh": "如 shop-a.com"
+    "hostnamePh": "如 shop-a.com",
+    "tlsCloudflare": "Cloudflare SaaS",
+    "tlsManaged": "Managed",
+    "tlsManual": "Direct TLS",
+    "tlsDisabled": "Disabled"
   },
   "certificates": {
     "title": "证书管理",

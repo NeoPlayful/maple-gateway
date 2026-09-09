@@ -29,6 +29,37 @@ const def: PageDef = {
     },
     { key: 'hostname', label: 'fields.hostname', required: true, placeholder: 'domains.hostnamePh' },
   ],
+  editFields: [
+    { key: 'hostname', label: 'fields.hostname', required: true, placeholder: 'domains.hostnamePh' },
+    {
+      key: 'tls_mode',
+      label: 'fields.tlsMode',
+      type: 'select',
+      options: [
+        { value: 'cloudflare', label: 'domains.tlsCloudflare' },
+        { value: 'managed', label: 'domains.tlsManaged' },
+        { value: 'manual', label: 'domains.tlsManual' },
+        { value: 'disabled', label: 'domains.tlsDisabled' },
+      ],
+    },
+    {
+      key: 'status',
+      label: 'fields.status',
+      type: 'select',
+      options: [
+        { value: 'active', label: 'status.active' },
+        { value: 'disabled', label: 'status.disabled' },
+        { value: 'pending', label: 'status.pending' },
+      ],
+    },
+    {
+      key: 'service_id',
+      label: 'fields.service',
+      type: 'select',
+      loadOptions: { path: '/api/admin/services', valueKey: 'id', labelKey: 'name' },
+      clearOnEmpty: true,
+    },
+  ],
   statusActions: ['enable', 'disable'],
 };
 
