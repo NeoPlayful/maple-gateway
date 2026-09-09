@@ -3,7 +3,6 @@ package certificate
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"time"
 
@@ -21,9 +20,22 @@ type encIface interface {
 	Decrypt(encoded string) ([]byte, error)
 }
 
+// repoIface 证书仓储抽象（*Repository 实现，测试可注入内存 fake）。
+type repoIface interface {
+	All(ctx context.Context) ([]*Certificate, error)
+	Create(ctx context.Context, in *Certificate) (*Certificate, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*Certificate, error)
+	GetByHostname(ctx context.Context, hostname string) (*Certificate, error)
+	List(ctx context.Context, limit, offset int) ([]*Certificate, int, error)
+	UpdateContent(ctx context.Context, id uuid.UUID, in *Certificate) (*Certificate, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	ActiveByExpiryBefore(ctx context.Context, deadline time.Time) ([]*Certificate, error)
+	UpdateStatus(ctx context.Context, id uuid.UUID, status Status, lastErr string) (*Certificate, error)
+}
+
 // Service 编排证书业务：上传校验 → 加密 → 落库 → 刷新缓存。
 type Service struct {
-	repo       *Repository
+	repo       repoIface
 	cache      *Cache
 	enc        encIface
 	log        *zap.Logger
@@ -39,7 +51,7 @@ func WithDomainSync(repo *domain.Repository) ServiceOption {
 }
 
 // NewService 构造。enc 密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。
-func NewService(repo *Repository, cache *Cache, log *zap.Logger, opts ...ServiceOption) (*Service, error) {
+func NewService(repo repoIface, cache *Cache, log *zap.Logger, opts ...ServiceOption) (*Service, error) {
 	enc, err := certenc.New()
 	if err != nil {
 		return nil, err
@@ -52,7 +64,7 @@ func NewService(repo *Repository, cache *Cache, log *zap.Logger, opts ...Service
 }
 
 // newServiceWithDeps 供测试注入 enc 实现（绕过 MAPLE_CERT_ENC_KEY 依赖）。
-func newServiceWithDeps(repo *Repository, cache *Cache, enc encIface, log *zap.Logger) *Service {
+func newServiceWithDeps(repo repoIface, cache *Cache, enc encIface, log *zap.Logger) *Service {
 	return &Service{repo: repo, cache: cache, enc: enc, log: log}
 }
 
@@ -155,6 +167,8 @@ func (s *Service) Reload(ctx context.Context, id uuid.UUID) (*Certificate, error
 }
 
 // ReloadAll 全量重载缓存（启动 / 周期对账用），原子整体替换。
+// 准入只看证书内容能否装载成功（密钥可解密、PEM 可组装）；status 是告警维度，
+// expiring/expired 一律继续服务，避免 5s 对账把临期/已过期证书踢出缓存。
 func (s *Service) ReloadAll(ctx context.Context) error {
 	recs, err := s.repo.All(ctx)
 	if err != nil {
@@ -162,10 +176,6 @@ func (s *Service) ReloadAll(ctx context.Context) error {
 	}
 	next := make(map[string]*Loaded, len(recs))
 	for _, r := range recs {
-		// 已过期/错误状态不入缓存（不对外发过期证书）。
-		if r.Status != StatusActive && r.Status != StatusPending {
-			continue
-		}
 		loaded, err := s.decryptAndLoad(r)
 		if err != nil {
 			s.log.Warn("certificate skipped at reload",
@@ -208,7 +218,9 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]*Certificate, 
 	return s.repo.List(ctx, limit, offset)
 }
 
-// ScanExpiring 把 warnWindow 内过期的 active/pending 证书置 expiring，已过期置 expired 并从缓存摘除。
+// ScanExpiring 更新证书到期状态（告警维度）：warnWindow 内到期置 expiring，已过期置 expired。
+// 只改 DB 状态用于展示/提醒，绝不摘缓存——证书服务以"内容可装载"为准，
+// 过期继续服务直到运维替换/删除，否则此处摘除会与 5s ReloadAll 全量重载形成拉锯。
 func (s *Service) ScanExpiring(ctx context.Context, warnWindow time.Duration) (int, error) {
 	deadline := time.Now().Add(warnWindow)
 	recs, err := s.repo.ActiveByExpiryBefore(ctx, deadline)
@@ -223,7 +235,6 @@ func (s *Service) ScanExpiring(ctx context.Context, warnWindow time.Duration) (i
 		}
 		if now.After(*r.ExpiresAt) {
 			if _, err := s.repo.UpdateStatus(ctx, r.ID, StatusExpired, "证书已过期"); err == nil {
-				s.cache.Delete(r.Hostname)
 				count++
 			}
 			continue
@@ -238,11 +249,9 @@ func (s *Service) ScanExpiring(ctx context.Context, warnWindow time.Duration) (i
 // Cache 暴露只读句柄供数据面 GetCertificate 使用。
 func (s *Service) Cache() *Cache { return s.cache }
 
-// reloadIntoCache 单条解密并装载缓存。仅 active/pending 可入缓存。
+// reloadIntoCache 单条解密并装载缓存（上传热加载 / 手动 reload）。
+// 与 ReloadAll 同语义：不按 status 拦截，仅内容可装载即入缓存。
 func (s *Service) reloadIntoCache(rec *Certificate) error {
-	if rec.Status != StatusActive && rec.Status != StatusPending {
-		return errors.New("certificate not in serviceable status")
-	}
 	loaded, err := s.decryptAndLoad(rec)
 	if err != nil {
 		return err
