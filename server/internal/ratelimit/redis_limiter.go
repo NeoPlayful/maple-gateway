@@ -35,7 +35,7 @@ func (r *RedisLimiter) Allow(key string, limit, windowSec, burst int, now time.T
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	bucketKey := fixedWindowKey(key, windowSec, now)
+	bucketKey := fixedWindowKey(r.redis.Prefix, key, windowSec, now)
 	pipe := r.redis.Client.Pipeline()
 	incr := pipe.Incr(ctx, bucketKey)
 	pipe.Expire(ctx, bucketKey, time.Duration(windowSec)*time.Second)
@@ -65,9 +65,13 @@ func (r *RedisLimiter) Allow(key string, limit, windowSec, burst int, now time.T
 }
 
 // fixedWindowKey 生成固定窗口 Redis 键：当前窗口起点秒作为桶。
-func fixedWindowKey(key string, windowSec int, now time.Time) string {
+// prefix 为命名空间前缀（prefix:rl:<key>:<bucket>），空则仅 rl:<key>:<bucket>。
+func fixedWindowKey(prefix, key string, windowSec int, now time.Time) string {
 	bucket := now.Unix() / int64(windowSec)
-	return "maple:rl:" + key + ":" + itoa64(bucket)
+	if prefix == "" {
+		return "rl:" + key + ":" + itoa64(bucket)
+	}
+	return prefix + ":rl:" + key + ":" + itoa64(bucket)
 }
 
 func itoa64(v int64) string {

@@ -143,12 +143,12 @@ func (c *Coordinator) tick(ctx context.Context) {
 //   - Redis 异常/未配置 → DB lease 原子续期（lease_until 比较）。
 func (c *Coordinator) renewLeader(ctx context.Context) bool {
 	if c.redis != nil {
-		v, err := c.redis.Client.Get(ctx, leaderKey()).Result()
+		v, err := c.redis.Client.Get(ctx, c.redis.Key(leaderKeyName)).Result()
 		switch {
 		case err == nil && v == c.cfg.InstanceID:
 			// 锁仍归本实例：EXPIRE 续期 Redis 锁，并同步刷新 DB role/lease，
 			// 使 HA 查询（读 DB）始终能看到当前有效 leader。
-			if e := c.redis.Client.Expire(ctx, leaderKey(), c.cfg.LeaseTTL).Err(); e == nil {
+			if e := c.redis.Client.Expire(ctx, c.redis.Key(leaderKeyName), c.cfg.LeaseTTL).Err(); e == nil {
 				c.updateRole(ctx, RoleLeader)
 				return true
 			}
@@ -186,7 +186,7 @@ func (c *Coordinator) renewLeader(ctx context.Context) bool {
 func (c *Coordinator) acquireLeader(ctx context.Context) bool {
 	// Redis 优先：SET NX PX 原子抢锁。
 	if c.redis != nil {
-		acquired, err := c.redis.Client.SetNX(ctx, leaderKey(), c.cfg.InstanceID,
+		acquired, err := c.redis.Client.SetNX(ctx, c.redis.Key(leaderKeyName), c.cfg.InstanceID,
 			c.cfg.LeaseTTL).Result()
 		if err != nil {
 			// Redis 异常 → 降级 DB lease（DB 原子比较保证单主）。
@@ -238,9 +238,9 @@ func (c *Coordinator) updateRole(ctx context.Context, role Role) {
 func (c *Coordinator) releaseLeader(ctx context.Context) {
 	if c.isLeader && c.redis != nil {
 		// 仅当锁仍由本实例持有时删除，避免误删他人锁。
-		v, err := c.redis.Client.Get(ctx, leaderKey()).Result()
+		v, err := c.redis.Client.Get(ctx, c.redis.Key(leaderKeyName)).Result()
 		if err == nil && v == c.cfg.InstanceID {
-			_ = c.redis.Client.Del(ctx, leaderKey()).Err()
+			_ = c.redis.Client.Del(ctx, c.redis.Key(leaderKeyName)).Err()
 		}
 	}
 	if c.dbID != uuid.Nil {
@@ -249,8 +249,9 @@ func (c *Coordinator) releaseLeader(ctx context.Context) {
 	}
 }
 
-// leaderKey 是全局 Leader 锁键（所有实例竞逐同一把锁，value 存持有者 instance_id）。
-func leaderKey() string { return "maple:ha:leader" }
+// leaderKeyName 是全局 Leader 锁键名（所有实例竞逐同一把锁，value 存持有者 instance_id）。
+// 实际 Redis 键由 redis.Prefix 统一前缀：prefix:ha:leader。
+const leaderKeyName = "ha:leader"
 
 func leaseUntil(ttl time.Duration) time.Time { return time.Now().Add(ttl) }
 func leaseUntilPtr(ttl time.Duration) *time.Time {
