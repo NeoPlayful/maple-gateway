@@ -39,6 +39,7 @@ type Service struct {
 	cache      *Cache
 	enc        encIface
 	log        *zap.Logger
+	encKey     string            // 显式配置的加密密钥（config 提供）；空则回退 env
 	domainRepo *domain.Repository // 可空：联动 Domain TLS 状态
 }
 
@@ -50,17 +51,32 @@ func WithDomainSync(repo *domain.Repository) ServiceOption {
 	return func(s *Service) { s.domainRepo = repo }
 }
 
-// NewService 构造。enc 密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。
+// WithEncKey 显式指定私钥加密密钥（base64 32 字节）。优先级高于环境变量
+// MAPLE_CERT_ENC_KEY；不传时 NewService 回退读环境变量。
+func WithEncKey(key string) ServiceOption {
+	return func(s *Service) { s.encKey = key }
+}
+
+// NewService 构造。密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。
 func NewService(repo repoIface, cache *Cache, log *zap.Logger, opts ...ServiceOption) (*Service, error) {
-	enc, err := certenc.New()
-	if err != nil {
-		return nil, err
-	}
-	s := &Service{repo: repo, cache: cache, enc: enc, log: log}
+	s := &Service{repo: repo, cache: cache, log: log}
 	for _, o := range opts {
 		o(s)
 	}
+	enc, err := newEncrypter(s.encKey)
+	if err != nil {
+		return nil, err
+	}
+	s.enc = enc
 	return s, nil
+}
+
+// newEncrypter 按显式密钥优先、环境变量兜底构造加解密器。
+func newEncrypter(configured string) (encIface, error) {
+	if configured != "" {
+		return certenc.NewFromEnv(configured)
+	}
+	return certenc.New()
 }
 
 // newServiceWithDeps 供测试注入 enc 实现（绕过 MAPLE_CERT_ENC_KEY 依赖）。

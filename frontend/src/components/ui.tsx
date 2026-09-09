@@ -21,6 +21,10 @@ const color: Record<string, string> = {
   unhealthy: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
   failed: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
   rolled_back: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+  // 证书状态（Direct TLS）
+  error: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+  expiring: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+  expired: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
   // 版本/发布状态
   stable: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
   canary: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',

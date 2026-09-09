@@ -15,6 +15,7 @@ import {
   HeartIcon,
   DocumentTextIcon,
   Cog6ToothIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 export interface NavItem {
@@ -28,6 +29,7 @@ export const nav: NavItem[] = [
   { to: '/admin', label: 'nav.dashboard', end: true, icon: Squares2X2Icon },
   { to: '/admin/tenants', label: 'nav.tenants', icon: BuildingOffice2Icon },
   { to: '/admin/domains', label: 'nav.domains', icon: GlobeAltIcon },
+  { to: '/admin/certificates', label: 'nav.certificates', icon: ShieldCheckIcon },
   { to: '/admin/services', label: 'nav.services', icon: ServerStackIcon },
   { to: '/admin/deployments', label: 'nav.deployments', icon: RocketLaunchIcon },
   { to: '/admin/instances', label: 'nav.instances', icon: CubeIcon },

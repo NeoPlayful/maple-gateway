@@ -2,11 +2,13 @@ package certificate
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/certenc"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -277,5 +279,48 @@ func TestScanExpiringMarksButNeverEvicts(t *testing.T) {
 		if svc.cache.Get(host) == nil {
 			t.Errorf("host %s must remain in cache after ScanExpiring (service keeps running)", host)
 		}
+	}
+}
+
+// TestNewServiceUsesConfiguredEncKey: WithEncKey 传入合法 base64 密钥时，
+// NewService 用真实 AES 加密而非回退（密文能被同一把解密、不等于明文）。
+func TestNewServiceUsesConfiguredEncKey(t *testing.T) {
+	raw := make([]byte, 32)
+	for i := range raw {
+		raw[i] = byte(i)
+	}
+	key := base64.StdEncoding.EncodeToString(raw)
+
+	svc, err := NewService(newFakeRepo(), NewCache(), zap.NewNop(), WithEncKey(key))
+	if err != nil {
+		t.Fatalf("NewService with configured key: %v", err)
+	}
+	plain := []byte("-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----")
+	ct, err := svc.enc.Encrypt(plain)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	if string(ct) == string(plain) {
+		t.Fatal("configured key must actually encrypt, not round-trip as plaintext")
+	}
+	// 用独立构造的同一把 key 解密，证明走的是真实 AES 且可逆。
+	box, err := certenc.NewFromEnv(key)
+	if err != nil {
+		t.Fatalf("new certenc box: %v", err)
+	}
+	got, err := box.Decrypt(ct)
+	if err != nil {
+		t.Fatalf("decrypt: %v", err)
+	}
+	if string(got) != string(plain) {
+		t.Fatal("round trip mismatch")
+	}
+}
+
+// TestNewServiceWithoutKeyFails: 无 key（config 与 env 均空）时 NewService 返回 ErrNoKey。
+func TestNewServiceWithoutKeyFails(t *testing.T) {
+	t.Setenv("MAPLE_CERT_ENC_KEY", "")
+	if _, err := NewService(newFakeRepo(), NewCache(), zap.NewNop()); err == nil {
+		t.Fatal("NewService without any key must fail (ErrNoKey)")
 	}
 }

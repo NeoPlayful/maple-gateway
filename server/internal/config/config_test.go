@@ -145,6 +145,31 @@ gateway:
 	}
 }
 
+func TestLoad_CertEncKeyFromYAMLAndEnv(t *testing.T) {
+	// yaml 提供 tls.cert_enc_key。
+	path := writeTemp(t, `
+tls:
+  cert_enc_key: "yaml-key"
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.TLS.CertEncKey != "yaml-key" {
+		t.Fatalf("yaml cert_enc_key = %q", cfg.TLS.CertEncKey)
+	}
+
+	// 环境变量 MAPLE_TLS_CERT_ENC_KEY 优先于 yaml。
+	t.Setenv("MAPLE_TLS_CERT_ENC_KEY", "env-key")
+	cfg2, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg2.TLS.CertEncKey != "env-key" {
+		t.Fatalf("env cert_enc_key should beat yaml, got %q", cfg2.TLS.CertEncKey)
+	}
+}
+
 func TestValidate(t *testing.T) {
 	cfg := Default()
 	if err := cfg.Validate(); err != nil {

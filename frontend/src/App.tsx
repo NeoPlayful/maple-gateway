@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import TenantsPage from './pages/admin/TenantsPage';
 import DomainsPage from './pages/admin/DomainsPage';
+import CertificatesPage from './pages/admin/CertificatesPage';
 import ServicesPage from './pages/admin/ServicesPage';
 import DeploymentsPage from './pages/admin/DeploymentsPage';
 import InstancesPage from './pages/admin/InstancesPage';
@@ -52,6 +53,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="tenants" element={<TenantsPage />} />
           <Route path="domains" element={<DomainsPage />} />
+          <Route path="certificates" element={<CertificatesPage />} />
           <Route path="services" element={<ServicesPage />} />
           <Route path="deployments" element={<DeploymentsPage />} />
           <Route path="instances" element={<InstancesPage />} />

@@ -204,13 +204,19 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// 密钥未配置或表未迁移时告警禁用，不影响既有 global 模式启动。
 	var certSvc *certificate.Service
 	var certH *certificate.Handler
+	if db == nil {
+		logger.Debug("certificate management API disabled: database unavailable " +
+			"(certificates endpoints not registered)")
+	}
 	if db != nil {
 		certCache := certificate.NewCache()
 		certSvc, err = certificate.NewService(certificate.NewRepository(entClient), certCache, logger,
-			certificate.WithDomainSync(domain.NewRepository(entClient)))
+			certificate.WithDomainSync(domain.NewRepository(entClient)),
+			certificate.WithEncKey(cfg.TLS.CertEncKey))
 		if err != nil {
-			logger.Warn("certificate service disabled (Direct TLS)",
-				zap.String("err", err.Error()))
+			logger.Debug("certificate service disabled (Direct TLS)",
+				zap.String("err", err.Error()),
+				zap.Bool("cert_enc_key_set", cfg.TLS.CertEncKey != "" || os.Getenv("MAPLE_CERT_ENC_KEY") != ""))
 		} else {
 			if err := certSvc.ReloadAll(ctx); err != nil {
 				logger.Warn("certificate cache initial reload failed",
@@ -220,6 +226,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 					zap.Int("certs", certSvc.Cache().Len()))
 			}
 			certH = certificate.NewHandler(certSvc)
+			logger.Debug("certificate management API mounted",
+				zap.Bool("cert_enc_key_set", cfg.TLS.CertEncKey != "" || os.Getenv("MAPLE_CERT_ENC_KEY") != ""))
 		}
 	}
 	// 证书缓存多实例对账：周期全量重载（对齐 Phase 4"先轮询"决策）。

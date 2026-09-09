@@ -124,6 +124,10 @@ type TLSConfig struct {
 	// FallbackCertEnabled direct 模式未知 SNI / 无 SNI（裸 IP、健康检查）用全局回退证书兜底。
 	// 默认 false（隔离优先）：未知域名直接拒绝握手；需要内网泛兜底时显式开启。
 	FallbackCertEnabled bool `yaml:"fallback_cert_enabled"`
+	// CertEncKey 证书私钥存储加密密钥（base64 的 32 字节，AES-256-GCM）。
+	// 优先级高于环境变量 MAPLE_CERT_ENC_KEY；两者都不配则证书管理服务禁用
+	// （Direct TLS 私钥加密不可降级为明文落库）。
+	CertEncKey string `yaml:"cert_enc_key"`
 }
 
 // Default 返回内建默认配置（作为 env / 缺省兜底）。
@@ -273,6 +277,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_TLS_FALLBACK_CERT_ENABLED"); v != "" {
 		c.TLS.FallbackCertEnabled = parseBool(v, c.TLS.FallbackCertEnabled)
+	}
+	if v := os.Getenv("MAPLE_TLS_CERT_ENC_KEY"); v != "" {
+		c.TLS.CertEncKey = v
 	}
 }
 
