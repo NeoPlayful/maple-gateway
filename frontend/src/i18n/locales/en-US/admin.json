@@ -51,12 +51,16 @@
     "paused": "Paused",
     "completed": "Completed",
     "rolled_back": "Rolled back",
-    "failed": "Failed"
+    "failed": "Failed",
+    "error": "Error",
+    "expiring": "Expiring",
+    "expired": "Expired"
   },
   "nav": {
     "dashboard": "Dashboard",
     "tenants": "Tenants",
     "domains": "Domains",
+    "certificates": "Certificates",
     "services": "Services",
     "deployments": "Deployments",
     "instances": "Instances",
@@ -104,7 +108,11 @@
     "version": "Version",
     "weight": "Weight",
     "tlsMode": "TLS Mode",
-    "certificateStatus": "Cert Status"
+    "certificateStatus": "Cert Status",
+    "issuer": "Issuer",
+    "source": "Source",
+    "expiresAt": "Expires at",
+    "domainId": "Domain"
   },
   "tenants": {
     "title": "Tenants",
@@ -117,6 +125,25 @@
   "domains": {
     "title": "Domains",
     "hostnamePh": "e.g. shop-a.com"
+  },
+  "certificates": {
+    "title": "Certificates",
+    "upload": "Upload certificate",
+    "uploading": "Uploading…",
+    "hostname": "Hostname",
+    "hostnamePh": "e.g. shop-a.com",
+    "certPem": "Certificate (PEM)",
+    "certPemPh": "-----BEGIN CERTIFICATE-----\\n…",
+    "keyPem": "Private key (PEM)",
+    "keyPemPh": "-----BEGIN PRIVATE KEY-----\\n…",
+    "reload": "Reload",
+    "reloadSuccess": "Reloaded into memory cache",
+    "reloadFailed": "Reload failed",
+    "uploadSuccess": "Uploaded",
+    "uploadFailed": "Upload failed",
+    "errFill": "Fill in hostname, certificate and private key",
+    "confirmDelete": "Delete this certificate? The domain will no longer serve a TLS certificate.",
+    "none": "No certificates"
   },
   "deployments": {
     "title": "Deployments",

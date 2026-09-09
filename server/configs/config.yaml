@@ -47,3 +47,9 @@ security:
   admin_token: dev-admin-token       # 与 .env MAPLE_ADMIN_TOKEN 对齐；加载时 .env 仍会覆盖本值
   trusted_proxies: []                # 如 ["127.0.0.1", "::1"]
   instance_allow_private: true       # Instance 地址默认允许内网段
+
+# Phase 5 Direct TLS：证书存储加密密钥（base64 32 字节，AES-256-GCM）。
+# 配此项或环境变量 MAPLE_TLS_CERT_ENC_KEY；不配则证书管理 API（/api/admin/certificates）不注册。
+# 生成：openssl rand -base64 32。存量证书换 key 会解不开旧私钥，需保持同一把。
+tls:
+  cert_enc_key: "u+IBv5z9z+RqwIbEV9WPfedoJLm/gj0MwM6QmF1+MYs="

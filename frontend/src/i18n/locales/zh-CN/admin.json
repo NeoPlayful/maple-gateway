@@ -51,12 +51,16 @@
     "paused": "已暂停",
     "completed": "已完成",
     "rolled_back": "已回滚",
-    "failed": "失败"
+    "failed": "失败",
+    "error": "错误",
+    "expiring": "即将到期",
+    "expired": "已过期"
   },
   "nav": {
     "dashboard": "概览",
     "tenants": "租户",
     "domains": "域名",
+    "certificates": "证书",
     "services": "服务",
     "deployments": "发布",
     "instances": "实例",
@@ -104,7 +108,11 @@
     "version": "版本",
     "weight": "权重",
     "tlsMode": "TLS 模式",
-    "certificateStatus": "证书状态"
+    "certificateStatus": "证书状态",
+    "issuer": "颁发者",
+    "source": "来源",
+    "expiresAt": "到期时间",
+    "domainId": "所属域名"
   },
   "tenants": {
     "title": "租户管理",
@@ -117,6 +125,25 @@
   "domains": {
     "title": "域名管理",
     "hostnamePh": "如 shop-a.com"
+  },
+  "certificates": {
+    "title": "证书管理",
+    "upload": "上传证书",
+    "uploading": "上传中…",
+    "hostname": "证书域名 (hostname)",
+    "hostnamePh": "如 shop-a.com",
+    "certPem": "证书 (Certificate PEM)",
+    "certPemPh": "-----BEGIN CERTIFICATE-----\\n…",
+    "keyPem": "私钥 (Private Key PEM)",
+    "keyPemPh": "-----BEGIN PRIVATE KEY-----\\n…",
+    "reload": "重载",
+    "reloadSuccess": "已重载到内存缓存",
+    "reloadFailed": "重载失败",
+    "uploadSuccess": "上传成功",
+    "uploadFailed": "上传失败",
+    "errFill": "请填写域名、证书与私钥",
+    "confirmDelete": "确认删除该证书？删除后该域名将不再提供 TLS 证书。",
+    "none": "暂无证书"
   },
   "deployments": {
     "title": "部署与版本",
