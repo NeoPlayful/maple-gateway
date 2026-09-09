@@ -20,6 +20,10 @@
     "operateFailed": "Failed",
     "createSuccess": "Created",
     "createFailed": "Failed to create",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "updateSuccess": "Saved",
+    "updateFailed": "Failed to save",
     "loadFailed": "Failed to load",
     "rollback": "Rollback",
     "select": "Select…",
@@ -124,7 +128,11 @@
   },
   "domains": {
     "title": "Domains",
-    "hostnamePh": "e.g. shop-a.com"
+    "hostnamePh": "e.g. shop-a.com",
+    "tlsCloudflare": "Cloudflare SaaS",
+    "tlsManaged": "Managed",
+    "tlsManual": "Direct TLS",
+    "tlsDisabled": "Disabled"
   },
   "certificates": {
     "title": "Certificates",
