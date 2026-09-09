@@ -287,7 +287,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		keyFile = cfg.Gateway.HTTPS.Key
 	}
 	// Phase 5 Direct TLS：tls.mode=direct 且证书缓存可用时注入 SNI GetCertificate。
-	// Getter miss 时根据 fallback_cert_enabled 决定：回退全局证书 / 拒绝握手（隔离）。
+	// 证书源缺失（无 DB / 无 MAPLE_CERT_ENC_KEY）时 certSvc==nil：
+	// 数据面（server.go direct 分支）会注入恒拒占位——HTTPS 全部拒绝握手，进程不退出（B 方案）。
 	tlsMode := gateway.TLSMode(cfg.TLS.Mode)
 	if tlsMode == "" {
 		tlsMode = gateway.TLSModeGlobal
@@ -307,6 +308,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		logger.Info("data plane tls mode direct (dynamic sni)",
 			zap.Bool("fallback_cert_enabled", cfg.TLS.FallbackCertEnabled),
 			zap.Int("cached_certs", certSvc.Cache().Len()))
+	} else if tlsMode == gateway.TLSModeDirect {
+		logger.Warn("data plane tls mode direct but certificate source unavailable: " +
+			"no database or MAPLE_CERT_ENC_KEY - all HTTPS handshakes will be rejected")
 	} else {
 		logger.Info("data plane tls mode",
 			zap.String("mode", string(tlsMode)))
