@@ -102,7 +102,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// 连接失败只告警降级，不阻断启动（组件可按需接入）。
 	var redisClient *pkg.Redis
 	if cfg.Redis.Enabled && cfg.Redis.URL != "" {
-		redisClient, err = pkg.NewRedis(ctx, cfg.Redis.URL)
+		redisClient, err = pkg.NewRedis(ctx, cfg.Redis.URL, cfg.Redis.Prefix)
 		if err != nil {
 			logger.Warn("redis connect failed, running without redis",
 				zap.String("err", err.Error()))

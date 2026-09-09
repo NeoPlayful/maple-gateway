@@ -1,13 +1,17 @@
-# Maple Gateway 开发默认配置（本地用）。生产建议用环境变量覆盖。
+# Maple Gateway 本地开发默认配置（值与 server/.env 对齐，本地以 .env 为准）。
+# main.go 从 cwd 读 .env（godotenv）；本文件仅当显式传 -config 时参与合并，
+# 故各字段值与 .env 保持一致，避免端口/凭据双头漂移。生产建议用环境变量覆盖。
+# 注：MAPLE_INTERNAL_TOKEN（discovery 认证）与 seed 账号 MAPLE_ADMIN_EMAIL/PASSWORD
+# 由代码直读 os.Getenv、不经本配置，仅由 .env 提供。
 
 gateway:
   http:
-    address: ":8000"        # 开发默认 8000，Docker 内映射 80
+    address: ":8091"        # 数据平面地址（开发 e2e：数据面 8091 / 管理面 8090）
   https:
-    address: ":8443"        # Phase 1 默认不启用 TLS，保留端口位
+    address: ":8443"        # 默认不启用 TLS，保留端口位
 
 management:
-  address: ":4000"
+  address: ":8090"          # 管理面 API 地址
 
 health:
   interval: 10s
@@ -29,13 +33,14 @@ database:
 
 redis:
   enabled: true
-  url: "redis://localhost:6379/0"
+  url: "redis://localhost:6379"
+  prefix: maple                # 业务 key 命名空间前缀（与 .env MAPLE_REDIS_PREFIX 对齐）
 
 logging:
   level: info
   pretty: true
 
 security:
-  admin_token: ""                 # 优先用环境变量 MAPLE_ADMIN_TOKEN
-  trusted_proxies: []             # 如 ["127.0.0.1", "::1"]
-  instance_allow_private: true    # Instance 地址默认允许内网段
+  admin_token: dev-admin-token       # 与 .env MAPLE_ADMIN_TOKEN 对齐；加载时 .env 仍会覆盖本值
+  trusted_proxies: []                # 如 ["127.0.0.1", "::1"]
+  instance_allow_private: true       # Instance 地址默认允许内网段

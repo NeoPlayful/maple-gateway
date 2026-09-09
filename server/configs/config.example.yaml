@@ -32,7 +32,8 @@ database:
 
 redis:
   enabled: false
-  url: "redis://localhost:6379/0"
+  url: "redis://localhost:6379"
+  prefix: maple                # 业务 key 命名空间前缀（空默认 maple）
 
 logging:
   level: info

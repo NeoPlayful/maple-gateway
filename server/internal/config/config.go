@@ -76,6 +76,7 @@ type DatabaseConfig struct {
 type RedisConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	URL     string `yaml:"url"`
+	Prefix  string `yaml:"prefix"` // 业务 key 命名空间前缀；空则用 maple
 }
 
 type LoggingConfig struct {
@@ -190,6 +191,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_REDIS_ENABLED"); v != "" {
 		c.Redis.Enabled = parseBool(v, c.Redis.Enabled)
+	}
+	if v := os.Getenv("MAPLE_REDIS_PREFIX"); v != "" {
+		c.Redis.Prefix = v
 	}
 	if v := os.Getenv("MAPLE_ADMIN_TOKEN"); v != "" {
 		c.Security.AdminToken = v

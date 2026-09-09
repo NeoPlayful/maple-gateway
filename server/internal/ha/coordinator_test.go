@@ -6,9 +6,10 @@ import (
 )
 
 func TestLeaderKey(t *testing.T) {
-	// Leader 锁为全局单一键：所有实例竞逐同一把锁（避免 per-instance 双主）。
-	if got := leaderKey(); got != "maple:ha:leader" {
-		t.Fatalf("leaderKey = %q", got)
+	// Leader 锁为全局单一键名：所有实例竞逐同一把锁（避免 per-instance 双主）；
+	// 实际 Redis 键由 pkg.Redis.Key 前缀化为 <prefix>:ha:leader，默认前缀 maple。
+	if leaderKeyName != "ha:leader" {
+		t.Fatalf("leaderKeyName = %q", leaderKeyName)
 	}
 }
 
