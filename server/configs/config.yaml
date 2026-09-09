@@ -8,7 +8,7 @@ gateway:
   http:
     address: ":8091"        # 数据平面地址（开发 e2e：数据面 8091 / 管理面 8090）
   https:
-    address: ":8443"        # 默认不启用 TLS，保留端口位
+    address: ":8093"        # 默认不启用 TLS，保留端口位
 
 management:
   address: ":8090"          # 管理面 API 地址
