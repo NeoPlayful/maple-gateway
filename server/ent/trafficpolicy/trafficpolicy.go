@@ -29,6 +29,8 @@ const (
 	FieldWeight = "weight"
 	// FieldSticky holds the string denoting the sticky field in the database.
 	FieldSticky = "sticky"
+	// FieldBalance holds the string denoting the balance field in the database.
+	FieldBalance = "balance"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -58,6 +60,7 @@ var Columns = []string{
 	FieldTargetVersionID,
 	FieldWeight,
 	FieldSticky,
+	FieldBalance,
 	FieldStatus,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -82,6 +85,8 @@ var (
 	DefaultMatch json.RawMessage
 	// DefaultWeight holds the default value on creation for the "weight" field.
 	DefaultWeight int
+	// DefaultBalance holds the default value on creation for the "balance" field.
+	DefaultBalance string
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// DefaultID holds the default value on creation for the "id" field.
@@ -119,6 +124,11 @@ func ByTargetVersionID(opts ...sql.OrderTermOption) OrderOption {
 // ByWeight orders the results by the weight field.
 func ByWeight(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWeight, opts...).ToFunc()
+}
+
+// ByBalance orders the results by the balance field.
+func ByBalance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBalance, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

@@ -117,6 +117,18 @@ func (f DomainFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DomainMutation", m)
 }
 
+// The GatewayInstanceFunc type is an adapter to allow the use of ordinary
+// function as GatewayInstance mutator.
+type GatewayInstanceFunc func(context.Context, *ent.GatewayInstanceMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GatewayInstanceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GatewayInstanceMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GatewayInstanceMutation", m)
+}
+
 // The InstanceFunc type is an adapter to allow the use of ordinary
 // function as Instance mutator.
 type InstanceFunc func(context.Context, *ent.InstanceMutation) (ent.Value, error)

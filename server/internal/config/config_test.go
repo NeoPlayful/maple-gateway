@@ -31,6 +31,48 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Health.Interval != 10*time.Second {
 		t.Fatalf("default health interval = %v", cfg.Health.Interval)
 	}
+	if cfg.HA.Heartbeat != 5*time.Second || cfg.HA.LeaseTTL != 15*time.Second {
+		t.Fatalf("default ha = %+v", cfg.HA)
+	}
+	if cfg.HA.Enabled {
+		t.Fatalf("ha should default disabled")
+	}
+	if cfg.CanaryAuto.Enabled {
+		t.Fatalf("canary auto should default disabled")
+	}
+	if cfg.CanaryAuto.ErrRateMax != 5 {
+		t.Fatalf("canary auto default err rate max = %v", cfg.CanaryAuto.ErrRateMax)
+	}
+}
+
+func TestLoad_CanaryAutoEnv(t *testing.T) {
+	t.Setenv("MAPLE_CANARY_AUTO_ENABLED", "true")
+	t.Setenv("MAPLE_CANARY_AUTO_ERR_RATE_MAX", "8")
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !cfg.CanaryAuto.Enabled {
+		t.Fatalf("env canary auto enabled not applied")
+	}
+	if cfg.CanaryAuto.ErrRateMax != 8 {
+		t.Fatalf("env canary auto err rate = %v", cfg.CanaryAuto.ErrRateMax)
+	}
+}
+
+func TestLoad_HAEnvOverride(t *testing.T) {
+	t.Setenv("MAPLE_HA_ENABLED", "true")
+	t.Setenv("MAPLE_HA_INSTANCE_ID", "gw-1")
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !cfg.HA.Enabled {
+		t.Fatalf("env ha enabled not applied")
+	}
+	if cfg.HA.InstanceID != "gw-1" {
+		t.Fatalf("env ha instance id = %q", cfg.HA.InstanceID)
+	}
 }
 
 func TestLoad_YAMLOverride(t *testing.T) {
@@ -111,5 +153,16 @@ func TestValidate(t *testing.T) {
 	cfg.Gateway.HTTP.Enabled = false
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected error when all listeners disabled")
+	}
+	// ha.enabled 需要 database.url。
+	cfg2 := Default()
+	cfg2.HA.Enabled = true
+	cfg2.Database.URL = ""
+	if err := cfg2.Validate(); err == nil {
+		t.Fatal("expected error when ha enabled without database.url")
+	}
+	cfg2.Database.URL = "postgres://u:p@db/maple"
+	if err := cfg2.Validate(); err != nil {
+		t.Fatalf("ha enabled with db url should validate ok: %v", err)
 	}
 }

@@ -21,6 +21,7 @@ type NewInput struct {
 	Match           *Match     `json:"match"`
 	TargetVersionID *uuid.UUID `json:"target_version_id"`
 	Weight          int        `json:"weight"`
+	Balance         Balance    `json:"balance"` // 缺省 round_robin
 	Sticky          *Sticky    `json:"sticky"`
 }
 
@@ -31,6 +32,7 @@ type UpdateInput struct {
 	Match           *Match     `json:"match"`
 	TargetVersionID *uuid.UUID `json:"target_version_id"` // uuid.Nil 表示清空定向
 	Weight          *int       `json:"weight"`
+	Balance         *Balance   `json:"balance"`
 	Sticky          *Sticky    `json:"sticky"`
 	Status          *Status    `json:"status"`
 }
@@ -54,6 +56,7 @@ func fromEnt(e *ent.TrafficPolicy) (*Policy, error) {
 		Priority:        e.Priority,
 		TargetVersionID: e.TargetVersionID,
 		Weight:          e.Weight,
+		Balance:         Balance(e.Balance),
 		Status:          Status(e.Status),
 		CreatedAt:       e.CreatedAt,
 		UpdatedAt:       e.UpdatedAt,
@@ -101,6 +104,10 @@ func (r *Repository) Create(ctx context.Context, in NewInput) (*Policy, error) {
 	if priority == 0 {
 		priority = 100
 	}
+	balance := in.Balance
+	if !ValidBalance(balance) {
+		balance = BalanceRoundRobin
+	}
 	now := time.Now()
 	cb := r.ent.TrafficPolicy.Create().
 		SetServiceID(in.ServiceID).
@@ -109,6 +116,7 @@ func (r *Repository) Create(ctx context.Context, in NewInput) (*Policy, error) {
 		SetMatch(matchRaw).
 		SetNillableTargetVersionID(in.TargetVersionID).
 		SetWeight(in.Weight).
+		SetBalance(string(balance)).
 		SetStatus(string(StatusEnabled)).
 		SetCreatedAt(now).
 		SetUpdatedAt(now)
@@ -218,6 +226,13 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (
 	}
 	if in.Weight != nil {
 		upd = upd.SetWeight(*in.Weight)
+	}
+	if in.Balance != nil {
+		b := *in.Balance
+		if !ValidBalance(b) {
+			b = BalanceRoundRobin
+		}
+		upd = upd.SetBalance(string(b))
 	}
 	if in.Sticky != nil {
 		stickyRaw, err := marshalSticky(in.Sticky)

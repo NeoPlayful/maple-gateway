@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 // 路由层哨兵错误。S6 动态 resolver 返回更精细的 *pkg.AppError；
@@ -25,6 +27,12 @@ var (
 type Target struct {
 	Scheme string // http / https
 	Host   string // host:port（内部实例地址）
+	// InstanceID 是命中目标的实例 UUID（least-connections 计数/诊断用）。
+	// 空值表示未知（极少，通常总有实例 ID）。
+	InstanceID string
+	// VersionID 是命中该目标的 deployment version（若走版本分流）。
+	// 空值表示 Phase 1 直挂实例 / 未启用版本分流，观测层可据此标记"无版本"。
+	VersionID uuid.UUID
 	// SetSticky 非空表示本次响应需下发 Sticky 会话 cookie（首访无会话键时）。
 	SetSticky *StickyCookie
 }
@@ -60,6 +68,14 @@ type MatchView struct {
 // Resolver 若实现它，数据平面会传入真实请求信息；否则退化为无上下文 Resolve。
 type ContextResolver interface {
 	ResolveWith(ctx context.Context, host string, mv MatchView) (*Target, error)
+}
+
+// ConnReporter 是数据平面转发连接计数上报的可选接口。
+// 数据平面在转发到某实例前后调用 Inc/Dec，供 Least-Connections 选择器感知在途连接。
+// Resolver 若实现它（如基于 cache 的动态 resolver），数据平面会接上真实计数。
+type ConnReporter interface {
+	IncConn(instanceID string)
+	DecConn(instanceID string)
 }
 
 // Resolver 把请求的 hostname 解析为转发目标。

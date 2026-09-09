@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
 	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
+	"github.com/NeoPlayful/maple-gateway/server/internal/tracex"
 	"go.uber.org/zap"
 )
 
@@ -32,6 +34,7 @@ type Config struct {
 	Metrics   *metrics.Registry // 可空；nil 时不采集数据平面指标
 	AccessLog *logs.AccessLog   // 可空；nil 时不记录访问日志
 	ErrLog    *logs.ErrLog      // 可空；nil 时不记录错误日志
+	Tracer    tracex.Tracer     // 可空；nil 时不埋 trace span
 }
 
 // Proxy 是数据平面反向代理。
@@ -42,6 +45,7 @@ type Proxy struct {
 	metrics  *metrics.Registry
 	access   *logs.AccessLog
 	errLog   *logs.ErrLog
+	tracer   tracex.Tracer
 }
 
 // New 构造 Proxy。transport 为空时使用默认配置。
@@ -62,12 +66,15 @@ func New(cfg Config) *Proxy {
 		metrics:  cfg.Metrics,
 		access:   cfg.AccessLog,
 		errLog:   cfg.ErrLog,
+		tracer:   cfg.Tracer,
 	}
 	p.director = &httputil.ReverseProxy{
 		Transport:     transport,
 		FlushInterval: -1, // 立即 flush，保证 SSE / 流式低延迟
 		Rewrite:       p.rewrite,
-		ErrorHandler:  p.handleUpstreamError,
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			p.handleUpstreamError(w, r, requestIDFromContext(r.Context()), err)
+		},
 		ModifyResponse: func(resp *http.Response) error {
 			if p.metrics != nil {
 				p.metrics.Inc("maple_upstream_requests_total", map[string]string{
@@ -96,12 +103,37 @@ func New(cfg Config) *Proxy {
 
 // ServeHTTP 实现 http.Handler，数据平面入口。
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 请求 ID：客户端已带则透传，否则生成。贯穿路由解析/转发/日志/trace。
+	r, requestID := ensureRequestID(r)
+	w.Header().Set(RequestIDHeader, requestID)
+
+	// OTel：server span（host+method）作为根，路由解析为子 span。
+	// 请求 ID 一旦确定即在根 span 记录 request_id 属性，任何结果路径都可与日志关联。
+	var root *tracex.Span
+	var rs *tracex.Span
+	// respStatus 记录最终响应码供 span 结束用（错误路径也写入）。
+	respStatus := http.StatusInternalServerError
+	if p.tracer != nil {
+		var ctx context.Context
+		ctx, root = p.tracer.StartServer(r.Context(), r.Method+" "+normalizeHostLabel(r.Host))
+		r = r.WithContext(ctx)
+		root.SetRequestID(requestID)
+		root.SetTargetPath(r.URL.Path)
+	}
+	defer func() {
+		if root != nil {
+			root.FinishHTTP(respStatus, nil)
+		}
+	}()
+
 	// Host 规范化：畸形 Host 直接拒绝（400），不进入路由。
 	host, err := router.NormalizeHost(r.Host)
 	if err != nil {
 		if p.logger != nil {
-			p.logger.Warn("invalid host rejected", zap.String("host", r.Host))
+			p.logger.Warn("invalid host rejected",
+				zap.String("host", r.Host), zap.String("request_id", requestID))
 		}
+		respStatus = http.StatusBadRequest
 		http.Error(w, "invalid host", http.StatusBadRequest)
 		return
 	}
@@ -112,24 +144,44 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	start := time.Now()
 
+	if p.tracer != nil {
+		var rctx context.Context
+		rctx, rs = p.tracer.Start(r.Context(), "route.resolve")
+		r = r.WithContext(rctx)
+	}
 	target, err := p.resolve(host, r)
 	if err != nil {
-		p.handleResolveError(w, r, err)
+		if rs != nil {
+			rs.Finish(err)
+		}
+		respStatus = p.handleResolveError(w, r, requestID, err)
 		return
+	}
+	if rs != nil {
+		rs.Finish(nil)
 	}
 
 	rec := &statusRecorder{ResponseWriter: w, status: 200}
 	r = r.WithContext(withTarget(r.Context(), target))
 	elapsed := time.Since(start)
+	// Least-Connections 计数：转发前 +1，结束后 -1（数据面若实现 ConnReporter）。
+	if cr, ok := p.resolver.(router.ConnReporter); ok && target.InstanceID != "" {
+		cr.IncConn(target.InstanceID)
+		defer cr.DecConn(target.InstanceID)
+	}
 	p.director.ServeHTTP(rec, r)
 	if p.metrics != nil {
+		// version 标签：命中版本分流的请求记录其 deployment version，供自动 Canary
+		// 按版本聚合错误率/延迟；直挂实例（无版本）记为空串。
 		p.metrics.Inc("maple_requests_total", map[string]string{
-			"host":   host,
-			"status": itoa(rec.status),
+			"host":    host,
+			"status":  itoa(rec.status),
+			"version": target.VersionID.String(),
 		})
 		p.metrics.ObserveDuration("maple_request_duration_seconds", elapsed,
-			map[string]string{"host": host})
+			map[string]string{"host": host, "version": target.VersionID.String()})
 	}
+	respStatus = rec.status
 	if p.access != nil {
 		p.access.Append(logs.AccessEntry{
 			Timestamp:  time.Now(),
@@ -138,6 +190,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Path:       r.URL.Path,
 			Status:     rec.status,
 			ClientIP:   clientIP(r.RemoteAddr),
+			RequestID:  requestID,
 			DurationMS: elapsed.Milliseconds(),
 		})
 	}
@@ -252,7 +305,8 @@ func (p *Proxy) rewrite(pr *httputil.ProxyRequest) {
 	pr.Out.Host = pr.In.Host
 }
 
-func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, err error) {
+// handleResolveError 记录路由拒绝并回写错误响应；返回响应状态码（供 trace 结束）。
+func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, requestID string, err error) int {
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, router.ErrNotFound):
@@ -269,23 +323,26 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, err e
 	if p.logger != nil {
 		p.logger.Warn("route resolve rejected",
 			zap.String("host", r.Host),
+			zap.String("request_id", requestID),
 			zap.String("err", err.Error()),
 			zap.Int("status", status),
 		)
 	}
-	p.appendErr(r, status, err.Error())
+	p.appendErr(r, requestID, status, err.Error())
 	http.Error(w, http.StatusText(status), status)
+	return status
 }
 
-func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, err error) {
+func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, requestID string, err error) {
 	// 上游 502 由 statusRecorder 经 129 行统一计数，这里不重复计。
 	if p.logger != nil {
 		p.logger.Error("upstream error",
 			zap.String("host", r.Host),
+			zap.String("request_id", requestID),
 			zap.String("err", err.Error()),
 		)
 	}
-	p.appendErr(r, http.StatusBadGateway, err.Error())
+	p.appendErr(r, requestID, http.StatusBadGateway, err.Error())
 	http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 }
 
@@ -305,7 +362,7 @@ func (p *Proxy) countRequest(r *http.Request, status int) {
 }
 
 // appendErr 写入错误日志缓冲（若启用）。
-func (p *Proxy) appendErr(r *http.Request, status int, msg string) {
+func (p *Proxy) appendErr(r *http.Request, requestID string, status int, msg string) {
 	if p.errLog == nil {
 		return
 	}
@@ -314,6 +371,7 @@ func (p *Proxy) appendErr(r *http.Request, status int, msg string) {
 		Host:      normalizeHostLabel(r.Host),
 		Path:      r.URL.Path,
 		Status:    status,
+		RequestID: requestID,
 		Error:     msg,
 	})
 }

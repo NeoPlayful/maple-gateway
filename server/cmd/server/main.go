@@ -15,10 +15,12 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/internal/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
+	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
 	"github.com/NeoPlayful/maple-gateway/server/internal/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/gateway"
+	"github.com/NeoPlayful/maple-gateway/server/internal/ha"
 	"github.com/NeoPlayful/maple-gateway/server/internal/health"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
 	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
@@ -26,14 +28,17 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/node"
 	"github.com/NeoPlayful/maple-gateway/server/internal/proxy"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
+
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
 	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
+	"github.com/NeoPlayful/maple-gateway/server/internal/tracex"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -78,6 +83,21 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 
 	logger := pkg.Log()
 
+	// OTel 追踪（可选）：开启时初始化 stdout exporter + 采样；span 记录 request_id 关联日志。
+	trc, closeTracer, err := tracex.Setup(tracex.Config{
+		Enabled:     cfg.Trace.Enabled,
+		SampleRatio: cfg.Trace.SampleRatio,
+		ServiceName: "maple-gateway",
+	})
+	if err != nil {
+		return fmt.Errorf("init trace: %w", err)
+	}
+	defer closeTracer()
+	if trc != nil {
+		logger.Info("otel tracing enabled",
+			zap.Float64("sample_ratio", cfg.Trace.SampleRatio))
+	}
+
 	// Redis（可选组件）：enabled && url 配置时才建立连接并探测；
 	// 连接失败只告警降级，不阻断启动（组件可按需接入）。
 	var redisClient *pkg.Redis
@@ -106,6 +126,14 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	resolver, routeCache, db, entClient, err := buildResolver(ctx, cfg, routesPath, logger, metricReg)
 	if err != nil {
 		return err
+	}
+	// 分布式限流（可选）：mode=redis 且 Redis 可用时，把路由解析器的限流计数切到
+	// Redis（跨实例共享配额）；否则保持默认单机内存。Redis 断连由 RedisLimiter fail-open。
+	if cr, ok := resolver.(*cache.CacheResolver); ok && cfg.RateLimit.Mode == "redis" && redisClient != nil {
+		if rl := ratelimit.NewRedisLimiter(redisClient); rl != nil {
+			cr.WithLimiter(rl)
+			logger.Info("rate limit backend: redis (shared across instances)")
+		}
 	}
 	// 数据平面趋势时间桶：周期快照差分，供 Dashboard 趋势接口。15s/窗口，保留 30 分钟。
 	series := metrics.NewTimeSeries(metricReg, metrics.SeriesConfig{Window: 15 * time.Second, Buckets: 120})
@@ -136,6 +164,39 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			Timeout:  30 * time.Second,
 			Logger:   logger,
 		})
+	}
+	// 自动 Canary：指标驱动自动推进/回滚（需 db + 指标时间桶；默认关闭）。
+	if db != nil && cfg.CanaryAuto.Enabled {
+		canaryRepo := canary.NewRepository(entClient)
+		autoRunner := canary.NewAuto(canary.NewService(canaryRepo), canaryRepo,
+			canary.NewVersionMetricReader(series), logger, canary.AutoConfig{
+				Enabled:      cfg.CanaryAuto.Enabled,
+				Interval:     cfg.CanaryAuto.Interval,
+				ErrRateMax:   cfg.CanaryAuto.ErrRateMax,
+				ErrLatencyMS: cfg.CanaryAuto.ErrLatencyMS,
+				MinRequests:  cfg.CanaryAuto.MinRequests,
+			})
+		go autoRunner.Run(ctx)
+		logger.Info("auto canary enabled")
+	}
+
+	// 多实例 HA：本进程在 gateway_instances 注册 + 心跳；启用协调时竞逐 Leader
+	// （Redis 锁优先，断连降级 DB lease）。实例 ID 缺省自动生成，进程内保持稳定。
+	var coord *ha.Coordinator
+	if db != nil {
+		instanceID := cfg.HA.InstanceID
+		if instanceID == "" {
+			instanceID = uuid.NewString()[:8]
+		}
+		coord = ha.NewCoordinator(ha.NewRepository(entClient), redisClient, logger, ha.Config{
+			InstanceID: instanceID,
+			Addr:       cfg.Management.Address,
+			Version:    pkg.Version,
+			Enabled:    cfg.HA.Enabled,
+			Heartbeat:  cfg.HA.Heartbeat,
+			LeaseTTL:   cfg.HA.LeaseTTL,
+		})
+		go coord.Run(ctx)
 	}
 
 	logger.Info("maple-gateway starting",
@@ -180,6 +241,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		Metrics:           metricReg,
 		AccessLog:         accessLog,
 		ErrLog:            errLog,
+		Tracer:            trc,
 	})
 	dpErrCh := dp.Start()
 
@@ -202,7 +264,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			settings.SyncLogLevel(setRepo)
 		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
-			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series, UIDir: uiDir})
+			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series,
+			HA: ha.NewHandler(ha.NewRepository(entClient), coord), UIDir: uiDir})
 	} else {
 		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir})
 	}

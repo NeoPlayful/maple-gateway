@@ -92,6 +92,20 @@ func (tpc *TrafficPolicyCreate) SetSticky(jm json.RawMessage) *TrafficPolicyCrea
 	return tpc
 }
 
+// SetBalance sets the "balance" field.
+func (tpc *TrafficPolicyCreate) SetBalance(s string) *TrafficPolicyCreate {
+	tpc.mutation.SetBalance(s)
+	return tpc
+}
+
+// SetNillableBalance sets the "balance" field if the given value is not nil.
+func (tpc *TrafficPolicyCreate) SetNillableBalance(s *string) *TrafficPolicyCreate {
+	if s != nil {
+		tpc.SetBalance(*s)
+	}
+	return tpc
+}
+
 // SetStatus sets the "status" field.
 func (tpc *TrafficPolicyCreate) SetStatus(s string) *TrafficPolicyCreate {
 	tpc.mutation.SetStatus(s)
@@ -184,6 +198,10 @@ func (tpc *TrafficPolicyCreate) defaults() {
 		v := trafficpolicy.DefaultWeight
 		tpc.mutation.SetWeight(v)
 	}
+	if _, ok := tpc.mutation.Balance(); !ok {
+		v := trafficpolicy.DefaultBalance
+		tpc.mutation.SetBalance(v)
+	}
 	if _, ok := tpc.mutation.Status(); !ok {
 		v := trafficpolicy.DefaultStatus
 		tpc.mutation.SetStatus(v)
@@ -215,6 +233,9 @@ func (tpc *TrafficPolicyCreate) check() error {
 	}
 	if _, ok := tpc.mutation.Weight(); !ok {
 		return &ValidationError{Name: "weight", err: errors.New(`ent: missing required field "TrafficPolicy.weight"`)}
+	}
+	if _, ok := tpc.mutation.Balance(); !ok {
+		return &ValidationError{Name: "balance", err: errors.New(`ent: missing required field "TrafficPolicy.balance"`)}
 	}
 	if _, ok := tpc.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "TrafficPolicy.status"`)}
@@ -287,6 +308,10 @@ func (tpc *TrafficPolicyCreate) createSpec() (*TrafficPolicy, *sqlgraph.CreateSp
 	if value, ok := tpc.mutation.Sticky(); ok {
 		_spec.SetField(trafficpolicy.FieldSticky, field.TypeJSON, value)
 		_node.Sticky = value
+	}
+	if value, ok := tpc.mutation.Balance(); ok {
+		_spec.SetField(trafficpolicy.FieldBalance, field.TypeString, value)
+		_node.Balance = value
 	}
 	if value, ok := tpc.mutation.Status(); ok {
 		_spec.SetField(trafficpolicy.FieldStatus, field.TypeString, value)
@@ -474,6 +499,18 @@ func (u *TrafficPolicyUpsert) UpdateSticky() *TrafficPolicyUpsert {
 // ClearSticky clears the value of the "sticky" field.
 func (u *TrafficPolicyUpsert) ClearSticky() *TrafficPolicyUpsert {
 	u.SetNull(trafficpolicy.FieldSticky)
+	return u
+}
+
+// SetBalance sets the "balance" field.
+func (u *TrafficPolicyUpsert) SetBalance(v string) *TrafficPolicyUpsert {
+	u.Set(trafficpolicy.FieldBalance, v)
+	return u
+}
+
+// UpdateBalance sets the "balance" field to the value that was provided on create.
+func (u *TrafficPolicyUpsert) UpdateBalance() *TrafficPolicyUpsert {
+	u.SetExcluded(trafficpolicy.FieldBalance)
 	return u
 }
 
@@ -675,6 +712,20 @@ func (u *TrafficPolicyUpsertOne) UpdateSticky() *TrafficPolicyUpsertOne {
 func (u *TrafficPolicyUpsertOne) ClearSticky() *TrafficPolicyUpsertOne {
 	return u.Update(func(s *TrafficPolicyUpsert) {
 		s.ClearSticky()
+	})
+}
+
+// SetBalance sets the "balance" field.
+func (u *TrafficPolicyUpsertOne) SetBalance(v string) *TrafficPolicyUpsertOne {
+	return u.Update(func(s *TrafficPolicyUpsert) {
+		s.SetBalance(v)
+	})
+}
+
+// UpdateBalance sets the "balance" field to the value that was provided on create.
+func (u *TrafficPolicyUpsertOne) UpdateBalance() *TrafficPolicyUpsertOne {
+	return u.Update(func(s *TrafficPolicyUpsert) {
+		s.UpdateBalance()
 	})
 }
 
@@ -1047,6 +1098,20 @@ func (u *TrafficPolicyUpsertBulk) UpdateSticky() *TrafficPolicyUpsertBulk {
 func (u *TrafficPolicyUpsertBulk) ClearSticky() *TrafficPolicyUpsertBulk {
 	return u.Update(func(s *TrafficPolicyUpsert) {
 		s.ClearSticky()
+	})
+}
+
+// SetBalance sets the "balance" field.
+func (u *TrafficPolicyUpsertBulk) SetBalance(v string) *TrafficPolicyUpsertBulk {
+	return u.Update(func(s *TrafficPolicyUpsert) {
+		s.SetBalance(v)
+	})
+}
+
+// UpdateBalance sets the "balance" field to the value that was provided on create.
+func (u *TrafficPolicyUpsertBulk) UpdateBalance() *TrafficPolicyUpsertBulk {
+	return u.Update(func(s *TrafficPolicyUpsert) {
+		s.UpdateBalance()
 	})
 }
 

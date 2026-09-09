@@ -18,9 +18,12 @@ Management API 管理员认证。
 |------|------|------|
 | POST | `/api/auth/login` | 管理员登录 |
 | POST | `/api/auth/logout` | 管理员退出 |
-| GET | `/api/auth/me` | 获取当前管理员信息 |
+| GET | `/api/auth/me` | 获取当前管理员信息（v0.1.18 起含 `role`：super_admin / operator / viewer） |
 | POST | `/api/auth/refresh` | 刷新 Token |
 | POST | `/api/auth/change-password` | 修改密码 |
+
+> 认证：Bearer JWT，载荷含 admin id + email + role（RBAC 授权依据）。登录/刷新/me 均返回管理员 `role`。
+> 管理员账号管理（超管专属）：`GET/POST /api/admin/admins`、`PATCH /api/admin/admins/:id/role`、`PATCH /api/admin/admins/:id/status`。
 
 ------------------------------------------------------------------------
 
@@ -290,14 +293,11 @@ Management API 修改配置 → PostgreSQL → Route Cache Sync
 
 支持策略：
 
--   round_robin
+-   round_robin（默认）
 -   weighted_round_robin
 -   sticky
-
-后续：
-
--   least_connections
--   consistent_hash
+-   least_connections（v0.1.18 已实现，`traffic_policies.balance=least_conn`）
+-   consistent_hash（v0.1.18 已实现，`traffic_policies.balance=consistent_hash`）
 
 ------------------------------------------------------------------------
 
@@ -445,6 +445,8 @@ Maple Gateway 配合 Container Manager 完成 Rolling Update。
 -   Service
 -   IP
 
+后端（v0.1.18）：默认单机内存滑动窗口；`MAPLE_RATE_LIMIT_MODE=redis` 时走 Redis 固定窗口（INCR+EXPIRE，键含 scope+窗口桶，跨实例共享配额），Redis 异常 fail-open 降级，主链路不断。
+
 ------------------------------------------------------------------------
 
 # 二十一、Metrics
@@ -466,8 +468,8 @@ Maple Gateway 配合 Container Manager 完成 Rolling Update。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/admin/logs/access` | Access Log |
-| GET | `/api/admin/logs/error` | Error Log |
+| GET | `/api/admin/logs/access` | Access Log（v0.1.18 支持 `?request_id=` 过滤） |
+| GET | `/api/admin/logs/error` | Error Log（v0.1.18 支持 `?request_id=` 过滤） |
 | GET | `/api/admin/logs/routing` | Routing Log |
 | GET | `/api/admin/logs/health` | Health Log |
 | GET | `/api/admin/logs/security` | Security Log |
@@ -605,14 +607,15 @@ Maple Gateway API 分为三类。
 
 原则：
 
-1.  `/api/admin/*` 必须认证。
+1.  `/api/admin/*` 必须认证（Bearer JWT）。
 2.  `/api/internal/*` 不对公网开放。
-3.  Internal API 使用独立认证机制。
+3.  Internal API 使用独立认证机制（与 RBAC 正交）。
 4.  Data Plane 的 80 / 443 与 Management API 端口分离。
 5.  PostgreSQL / Redis 不暴露公网。
 6.  Cloudflare API Token 不写入日志。
 7.  Instance Upstream 地址必须校验，防止 SSRF。
 8.  所有管理操作写入 Audit Log。
+9.  RBAC（v0.1.18）：`/api/admin/*` 经角色授权 —— super_admin 全量 / operator 资源配置与发布 / viewer 只读；越权 403 且写 audit（DENY）。
 
 ------------------------------------------------------------------------
 
@@ -622,7 +625,9 @@ Maple Gateway API 分为三类。
 |--------|------|
 | P0 | Auth、Tenant、Domain、Service、Instance、Route、Route Cache、Health Check、Load Balancing、System |
 | P1 | Node、Deployment、Traffic Policy、Canary、Failover、Rate Limit、Metrics、Logs、Container Manager Internal API |
-| P2 | Blue / Green、Rolling Update 高级控制、Cloudflare 集成、自动 Canary、HA 配置同步 |
+| P2 | Blue / Green、Rolling Update 高级控制、Cloudflare 集成 |
+
+> v0.1.18 已交付：自动 Canary（/api/admin/canary 之上叠加自动执行器，MAPLE_CANARY_AUTO_ENABLED）、HA（/api/admin/ha 实例/Leader 查看）、分布式限流 Redis、Request ID / OTel、RBAC。均从"后续/P2"移至已实现。
 
 ------------------------------------------------------------------------
 

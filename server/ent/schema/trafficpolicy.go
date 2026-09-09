@@ -26,6 +26,8 @@ func (TrafficPolicy) Fields() []ent.Field {
 		field.UUID("target_version_id", uuid.UUID{}).Optional().Nillable(),
 		field.Int("weight").Default(100),
 		field.JSON("sticky", json.RawMessage{}).Optional(),
+		// balance 指定命中该策略后的实例选择算法：round_robin / consistent_hash / least_conn。
+		field.String("balance").Default("round_robin"),
 		field.String("status").Default("enabled"),
 		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),

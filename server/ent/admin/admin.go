@@ -18,6 +18,8 @@ const (
 	FieldPasswordHash = "password_hash"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldRole holds the string denoting the role field in the database.
+	FieldRole = "role"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -34,6 +36,7 @@ var Columns = []string{
 	FieldEmail,
 	FieldPasswordHash,
 	FieldName,
+	FieldRole,
 	FieldStatus,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -54,6 +57,8 @@ var (
 	EmailValidator func(string) error
 	// PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	PasswordHashValidator func(string) error
+	// DefaultRole holds the default value on creation for the "role" field.
+	DefaultRole string
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// DefaultID holds the default value on creation for the "id" field.
@@ -81,6 +86,11 @@ func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
 // ByName orders the results by the name field.
 func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
+// ByRole orders the results by the role field.
+func ByRole(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRole, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

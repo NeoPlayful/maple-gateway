@@ -152,6 +152,20 @@ func (tpu *TrafficPolicyUpdate) ClearSticky() *TrafficPolicyUpdate {
 	return tpu
 }
 
+// SetBalance sets the "balance" field.
+func (tpu *TrafficPolicyUpdate) SetBalance(s string) *TrafficPolicyUpdate {
+	tpu.mutation.SetBalance(s)
+	return tpu
+}
+
+// SetNillableBalance sets the "balance" field if the given value is not nil.
+func (tpu *TrafficPolicyUpdate) SetNillableBalance(s *string) *TrafficPolicyUpdate {
+	if s != nil {
+		tpu.SetBalance(*s)
+	}
+	return tpu
+}
+
 // SetStatus sets the "status" field.
 func (tpu *TrafficPolicyUpdate) SetStatus(s string) *TrafficPolicyUpdate {
 	tpu.mutation.SetStatus(s)
@@ -287,6 +301,9 @@ func (tpu *TrafficPolicyUpdate) sqlSave(ctx context.Context) (n int, err error) 
 	}
 	if tpu.mutation.StickyCleared() {
 		_spec.ClearField(trafficpolicy.FieldSticky, field.TypeJSON)
+	}
+	if value, ok := tpu.mutation.Balance(); ok {
+		_spec.SetField(trafficpolicy.FieldBalance, field.TypeString, value)
 	}
 	if value, ok := tpu.mutation.Status(); ok {
 		_spec.SetField(trafficpolicy.FieldStatus, field.TypeString, value)
@@ -463,6 +480,20 @@ func (tpuo *TrafficPolicyUpdateOne) ClearSticky() *TrafficPolicyUpdateOne {
 	return tpuo
 }
 
+// SetBalance sets the "balance" field.
+func (tpuo *TrafficPolicyUpdateOne) SetBalance(s string) *TrafficPolicyUpdateOne {
+	tpuo.mutation.SetBalance(s)
+	return tpuo
+}
+
+// SetNillableBalance sets the "balance" field if the given value is not nil.
+func (tpuo *TrafficPolicyUpdateOne) SetNillableBalance(s *string) *TrafficPolicyUpdateOne {
+	if s != nil {
+		tpuo.SetBalance(*s)
+	}
+	return tpuo
+}
+
 // SetStatus sets the "status" field.
 func (tpuo *TrafficPolicyUpdateOne) SetStatus(s string) *TrafficPolicyUpdateOne {
 	tpuo.mutation.SetStatus(s)
@@ -628,6 +659,9 @@ func (tpuo *TrafficPolicyUpdateOne) sqlSave(ctx context.Context) (_node *Traffic
 	}
 	if tpuo.mutation.StickyCleared() {
 		_spec.ClearField(trafficpolicy.FieldSticky, field.TypeJSON)
+	}
+	if value, ok := tpuo.mutation.Balance(); ok {
+		_spec.SetField(trafficpolicy.FieldBalance, field.TypeString, value)
 	}
 	if value, ok := tpuo.mutation.Status(); ok {
 		_spec.SetField(trafficpolicy.FieldStatus, field.TypeString, value)

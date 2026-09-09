@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
 	"github.com/NeoPlayful/maple-gateway/server/internal/bluegreen"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
@@ -15,18 +16,20 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
+	"github.com/NeoPlayful/maple-gateway/server/internal/ha"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
 	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
 	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/node"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
+	"github.com/NeoPlayful/maple-gateway/server/internal/rbac"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
 	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/system"
 	"github.com/NeoPlayful/maple-gateway/server/internal/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/internal/traffic"
-	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/gofiber/fiber/v3/middleware/static"
 )
 
@@ -34,13 +37,14 @@ import (
 type Deps struct {
 	Ent        *ent.Client                 // nil 表示未接入 DB（禁用 admin 与业务接口）
 	ReadyDB    func(context.Context) error // DB 就绪探针；nil 表示无 DB（health/ready 报 not-ready）
-	RouteCache *cache.Cache           // 可空；用于 route/cache 查看与手动重建
-	Metrics    *metrics.Registry      // 可空；提供 /metrics 导出
-	AccessLog  *logs.AccessLog        // 可空；提供访问日志查询
-	ErrLog     *logs.ErrLog           // 可空；提供错误日志查询
-	Settings   *settings.Repository   // 可空；提供动态 Settings 读写
-	Series     dashboard.SeriesReader // 可空；提供 Dashboard 趋势时序数据
-	UIDir      string                 // 可空；管理后台前端产物目录（dist），空则不托管 UI
+	RouteCache *cache.Cache                // 可空；用于 route/cache 查看与手动重建
+	Metrics    *metrics.Registry           // 可空；提供 /metrics 导出
+	AccessLog  *logs.AccessLog             // 可空；提供访问日志查询
+	ErrLog     *logs.ErrLog                // 可空；提供错误日志查询
+	Settings   *settings.Repository        // 可空；提供动态 Settings 读写
+	Series     dashboard.SeriesReader      // 可空；提供 Dashboard 趋势时序数据
+	HA         *ha.Handler                 // 可空；提供 Gateway 自身实例（HA）查看
+	UIDir      string                      // 可空；管理后台前端产物目录（dist），空则不托管 UI
 }
 
 // New 构造 Fiber app 并注册全部 Management API 路由。
@@ -50,6 +54,9 @@ func New(d Deps) *fiber.App {
 		BodyLimit:   4 * 1024 * 1024,
 		Concurrency: 1024 * 10,
 	})
+
+	// 管理面请求 ID：客户端已带则透传，否则生成（与数据平面同头名，日志/trace 可关联）。
+	app.Use(requestid.New(requestid.Config{Header: "X-Request-Id"}))
 
 	// 系统接口（无需认证）。
 	sys := system.NewHandler(d.ReadyDB)
@@ -74,14 +81,26 @@ func New(d Deps) *fiber.App {
 	app.Post("/api/auth/login", authH.Login)
 	app.Post("/api/auth/refresh", authH.Refresh)
 
-	// 需要登录的管理面路由（含审计）。
-	admin := app.Group("/api/admin", auth.Middleware(authSvc), auditMiddleware(d.Ent))
+	// 需要登录的管理面路由（含审计 + RBAC）。
+	admin := app.Group("/api/admin",
+		auth.Middleware(authSvc),
+		rbac.Middleware(newDenyAuditer(d.Ent)),
+		auditMiddleware(d.Ent),
+	)
 	admin.Get("/system/info", sys.Info)
 
 	// Auth me/logout/change-password 也放在认证组内。
 	admin.Get("/auth/me", authH.Me)
 	admin.Post("/auth/logout", authH.Logout)
 	admin.Post("/auth/change-password", authH.ChangePassword)
+
+	// 管理员账号管理（super_admin 专属，写操作经 RBAC 拦截为仅超管）。
+	adminsH := &adminHandler{ent: d.Ent}
+	am := admin.Group("/admins")
+	am.Get("/", adminsH.List)
+	am.Post("/", adminsH.Create)
+	am.Patch("/:id/role", adminsH.SetRole)
+	am.Patch("/:id/status", adminsH.ToggleStatus)
 
 	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
 	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent))
@@ -151,6 +170,14 @@ func New(d Deps) *fiber.App {
 	nd.Post("/:id/disable", nodeH.Disable)
 	nd.Post("/:id/maintenance", nodeH.Maintenance)
 	nd.Post("/:id/heartbeat", nodeH.Heartbeat)
+
+	// Gateway 自身实例（多实例 HA）查看。
+	if d.HA != nil {
+		hag := admin.Group("/ha")
+		hag.Get("/instances", d.HA.List)
+		hag.Get("/instances/:id", d.HA.Get)
+		hag.Get("/leader", d.HA.Leader)
+	}
 
 	deployH := deployment.NewHandler(deployment.NewRepository(d.Ent))
 	dpl := admin.Group("/deployments")

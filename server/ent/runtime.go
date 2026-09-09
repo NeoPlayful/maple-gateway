@@ -14,6 +14,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
+	"github.com/NeoPlayful/maple-gateway/server/ent/gatewayinstance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
@@ -40,8 +41,12 @@ func init() {
 	adminDescPasswordHash := adminFields[2].Descriptor()
 	// admin.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	admin.PasswordHashValidator = adminDescPasswordHash.Validators[0].(func(string) error)
+	// adminDescRole is the schema descriptor for role field.
+	adminDescRole := adminFields[4].Descriptor()
+	// admin.DefaultRole holds the default value on creation for the role field.
+	admin.DefaultRole = adminDescRole.Default.(string)
 	// adminDescStatus is the schema descriptor for status field.
-	adminDescStatus := adminFields[4].Descriptor()
+	adminDescStatus := adminFields[5].Descriptor()
 	// admin.DefaultStatus holds the default value on creation for the status field.
 	admin.DefaultStatus = adminDescStatus.Default.(string)
 	// adminDescID is the schema descriptor for id field.
@@ -176,6 +181,36 @@ func init() {
 	domainDescID := domainFields[0].Descriptor()
 	// domain.DefaultID holds the default value on creation for the id field.
 	domain.DefaultID = domainDescID.Default.(func() uuid.UUID)
+	gatewayinstanceFields := schema.GatewayInstance{}.Fields()
+	_ = gatewayinstanceFields
+	// gatewayinstanceDescInstanceID is the schema descriptor for instance_id field.
+	gatewayinstanceDescInstanceID := gatewayinstanceFields[1].Descriptor()
+	// gatewayinstance.InstanceIDValidator is a validator for the "instance_id" field. It is called by the builders before save.
+	gatewayinstance.InstanceIDValidator = gatewayinstanceDescInstanceID.Validators[0].(func(string) error)
+	// gatewayinstanceDescAddr is the schema descriptor for addr field.
+	gatewayinstanceDescAddr := gatewayinstanceFields[2].Descriptor()
+	// gatewayinstance.AddrValidator is a validator for the "addr" field. It is called by the builders before save.
+	gatewayinstance.AddrValidator = gatewayinstanceDescAddr.Validators[0].(func(string) error)
+	// gatewayinstanceDescHostname is the schema descriptor for hostname field.
+	gatewayinstanceDescHostname := gatewayinstanceFields[3].Descriptor()
+	// gatewayinstance.DefaultHostname holds the default value on creation for the hostname field.
+	gatewayinstance.DefaultHostname = gatewayinstanceDescHostname.Default.(string)
+	// gatewayinstanceDescStatus is the schema descriptor for status field.
+	gatewayinstanceDescStatus := gatewayinstanceFields[4].Descriptor()
+	// gatewayinstance.DefaultStatus holds the default value on creation for the status field.
+	gatewayinstance.DefaultStatus = gatewayinstanceDescStatus.Default.(string)
+	// gatewayinstanceDescRole is the schema descriptor for role field.
+	gatewayinstanceDescRole := gatewayinstanceFields[5].Descriptor()
+	// gatewayinstance.DefaultRole holds the default value on creation for the role field.
+	gatewayinstance.DefaultRole = gatewayinstanceDescRole.Default.(string)
+	// gatewayinstanceDescVersion is the schema descriptor for version field.
+	gatewayinstanceDescVersion := gatewayinstanceFields[7].Descriptor()
+	// gatewayinstance.DefaultVersion holds the default value on creation for the version field.
+	gatewayinstance.DefaultVersion = gatewayinstanceDescVersion.Default.(string)
+	// gatewayinstanceDescID is the schema descriptor for id field.
+	gatewayinstanceDescID := gatewayinstanceFields[0].Descriptor()
+	// gatewayinstance.DefaultID holds the default value on creation for the id field.
+	gatewayinstance.DefaultID = gatewayinstanceDescID.Default.(func() uuid.UUID)
 	instanceFields := schema.Instance{}.Fields()
 	_ = instanceFields
 	// instanceDescVersion is the schema descriptor for version field.
@@ -356,8 +391,12 @@ func init() {
 	trafficpolicyDescWeight := trafficpolicyFields[6].Descriptor()
 	// trafficpolicy.DefaultWeight holds the default value on creation for the weight field.
 	trafficpolicy.DefaultWeight = trafficpolicyDescWeight.Default.(int)
+	// trafficpolicyDescBalance is the schema descriptor for balance field.
+	trafficpolicyDescBalance := trafficpolicyFields[8].Descriptor()
+	// trafficpolicy.DefaultBalance holds the default value on creation for the balance field.
+	trafficpolicy.DefaultBalance = trafficpolicyDescBalance.Default.(string)
 	// trafficpolicyDescStatus is the schema descriptor for status field.
-	trafficpolicyDescStatus := trafficpolicyFields[8].Descriptor()
+	trafficpolicyDescStatus := trafficpolicyFields[9].Descriptor()
 	// trafficpolicy.DefaultStatus holds the default value on creation for the status field.
 	trafficpolicy.DefaultStatus = trafficpolicyDescStatus.Default.(string)
 	// trafficpolicyDescID is the schema descriptor for id field.

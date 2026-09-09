@@ -57,7 +57,7 @@ func validateTimeRange(c fiber.Ctx) (time.Time, bool, time.Time, bool, error) {
 	return from, hasFrom, to, hasTo, nil
 }
 
-// Access GET /api/admin/logs/access?host=&status=&from=&to=&limit=&offset=
+// Access GET /api/admin/logs/access?request_id=&host=&status=&from=&to=&limit=&offset=
 func (h *Handler) Access(c fiber.Ctx) error {
 	if h.access == nil {
 		return pkg.OKMeta(c, []AccessEntry{}, fiber.Map{"total": 0, "count": 0})
@@ -68,12 +68,12 @@ func (h *Handler) Access(c fiber.Ctx) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
-	items := h.access.Query(c.Query("host"), status, from, to, limit, offset)
+	items := h.access.Query(c.Query("host"), status, c.Query("request_id"), from, to, limit, offset)
 	return pkg.OKMeta(c, items, fiber.Map{"total": len(items), "count": h.access.Count(),
 		"limit": limit, "offset": offset})
 }
 
-// Error GET /api/admin/logs/error?host=&status=&from=&to=&limit=&offset=
+// Error GET /api/admin/logs/error?request_id=&host=&status=&from=&to=&limit=&offset=
 func (h *Handler) Error(c fiber.Ctx) error {
 	if h.errLog == nil {
 		return pkg.OKMeta(c, []ErrEntry{}, fiber.Map{"total": 0, "count": 0})
@@ -84,7 +84,7 @@ func (h *Handler) Error(c fiber.Ctx) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
-	items := h.errLog.Query(c.Query("host"), status, from, to, limit, offset)
+	items := h.errLog.Query(c.Query("host"), status, c.Query("request_id"), from, to, limit, offset)
 	return pkg.OKMeta(c, items, fiber.Map{"total": len(items), "count": h.errLog.Count(),
 		"limit": limit, "offset": offset})
 }

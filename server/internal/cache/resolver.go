@@ -22,7 +22,7 @@ import (
 type CacheResolver struct {
 	cache    *Cache
 	balancer *loadbalancer.Balancer
-	limiter  *ratelimit.Limiter
+	limiter  ratelimit.Backend // 单机内存 Limiter（默认）或 RedisLimiter（多实例共享）
 	metrics  *metrics.Registry // 可选；nil 时不采集限流命中指标
 }
 
@@ -40,6 +40,20 @@ func (r *CacheResolver) WithMetrics(m *metrics.Registry) *CacheResolver {
 	r.metrics = m
 	return r
 }
+
+// WithLimiter 注入限流后端（可选）。nil 时用默认单机内存 Limiter。
+// 多实例共享配额时可注入基于 Redis 的 RedisLimiter（跨实例计数）。
+func (r *CacheResolver) WithLimiter(l ratelimit.Backend) *CacheResolver {
+	if l != nil {
+		r.limiter = l
+	}
+	return r
+}
+
+// IncConn / DecConn 实现 router.ConnReporter：把数据平面请求的在途连接
+// 计入 balancer 的 Least-Connections 计数（按选中实例 ID）。
+func (r *CacheResolver) IncConn(instanceID string) { r.balancer.IncConn(instanceID) }
+func (r *CacheResolver) DecConn(instanceID string) { r.balancer.DecConn(instanceID) }
 
 // Resolve 实现 router.Resolver：Host → 目标实例。
 // 无请求上下文（无法匹配 header/path）时，版本分流仅按版本权重进行。
@@ -73,7 +87,7 @@ func (r *CacheResolver) resolveWith(host string, rv traffic.RequestView) (*route
 	if m == nil {
 		return nil, router.ErrNoHealthy
 	}
-	return targetFromMember(e, m), nil
+	return targetFromMember(e, m, uuid.Nil), nil
 }
 
 // selectVersioned 版本分流：策略命中优先（含 sticky 会话保持），否则按版本权重 WRR。
@@ -92,7 +106,7 @@ func (r *CacheResolver) selectVersioned(e *RouteEntry, rv traffic.RequestView) (
 		if p.Sticky != nil {
 			return r.pickSticky(e, p, *p.TargetVersionID, rv)
 		}
-		return r.pickFromVersion(e, *p.TargetVersionID)
+		return r.pickFromVersionBalanced(e, *p.TargetVersionID, p.Balance, rv)
 	}
 
 	// 2. 无显式条件命中：存在 percent-only 策略时按比例抽签定向其版本。
@@ -134,7 +148,7 @@ func (r *CacheResolver) pickPercentPolicy(e *RouteEntry, rv traffic.RequestView)
 	}
 	bucket := hashBucket(key)
 	if bucket < chosen.Match.Percent {
-		t, err := r.pickFromVersion(e, *chosen.TargetVersionID)
+		t, err := r.pickFromVersionBalanced(e, *chosen.TargetVersionID, chosen.Balance, rv)
 		return t, err == nil, err
 	}
 	return nil, false, nil
@@ -241,7 +255,7 @@ func (r *CacheResolver) pickSticky(e *RouteEntry, p *traffic.Policy, versionID u
 	if p.Sticky.HeaderName != "" {
 		if v := rv.Header.Get(p.Sticky.HeaderName); v != "" {
 			m := stickySelect(pool, "h:"+v)
-			return stickyTarget(e, m, nil), nil
+			return stickyTarget(e, m, nil, versionID), nil
 		}
 	}
 
@@ -254,7 +268,7 @@ func (r *CacheResolver) pickSticky(e *RouteEntry, p *traffic.Policy, versionID u
 		if id := cookieValue(raw, name); id != "" {
 			for i := range pool {
 				if pool[i].ID == id {
-					return stickyTarget(e, &pool[i], nil), nil
+					return stickyTarget(e, &pool[i], nil, versionID), nil
 				}
 			}
 			// cookie 指向已摘除实例：按权重另选并刷新 cookie。
@@ -281,7 +295,7 @@ func (r *CacheResolver) pickFromVersionWithSticky(e *RouteEntry, s *traffic.Stic
 		Name:       cookieName,
 		Value:      m.ID,
 		TTLSeconds: s.TTLSeconds,
-	}), nil
+	}, versionID), nil
 }
 
 // versionPool 取某版本的健康实例池。
@@ -295,8 +309,8 @@ func (r *CacheResolver) versionPool(e *RouteEntry, versionID uuid.UUID) []router
 }
 
 // stickyTarget 构造目标；cookie 非空时携带 Set-Cookie 下发信息。
-func stickyTarget(e *RouteEntry, m *router.PoolMember, c *router.StickyCookie) *router.Target {
-	t := targetFromMember(e, m)
+func stickyTarget(e *RouteEntry, m *router.PoolMember, c *router.StickyCookie, versionID uuid.UUID) *router.Target {
+	t := targetFromMember(e, m, versionID)
 	t.SetSticky = c
 	return t
 }
@@ -311,9 +325,20 @@ func (r *CacheResolver) pickWeightedVersion(e *RouteEntry) (*router.Target, erro
 	return r.pickFromVersion(e, e.Versions[vi].VersionID)
 }
 
-// pickFromVersion 从指定版本的健康实例池中选一个实例。
+// pickFromVersion 从指定版本的健康实例池中选一个实例（默认 round_robin）。
 // 该版本无健康实例时回退到其余版本按权重分配（版本自身健康摘除语义）。
 func (r *CacheResolver) pickFromVersion(e *RouteEntry, versionID uuid.UUID) (*router.Target, error) {
+	return r.pickFromVersionBalanced(e, versionID, traffic.BalanceRoundRobin, traffic.RequestView{})
+}
+
+// pickFromVersionBalanced 按 balance 从版本池中选实例：
+//   - round_robin：平滑加权轮询（默认，与既有行为一致）；
+//   - consistent_hash：用会话键（优先 sticky header / cookie / IP）一致性哈希钉实例；
+//   - least_conn：选在途连接最少实例。
+//
+// 该版本无健康实例时回退到其余版本按权重分配（版本自身健康摘除语义）。
+func (r *CacheResolver) pickFromVersionBalanced(e *RouteEntry, versionID uuid.UUID,
+	balance traffic.Balance, rv traffic.RequestView) (*router.Target, error) {
 	var pool []router.PoolMember
 	for _, v := range e.Versions {
 		if v.VersionID == versionID {
@@ -324,11 +349,49 @@ func (r *CacheResolver) pickFromVersion(e *RouteEntry, versionID uuid.UUID) (*ro
 	if len(pool) == 0 {
 		return r.pickFallback(e, versionID)
 	}
-	m := r.balancer.Select(e.DomainID.String()+"#inst:"+versionID.String(), pool)
+
+	var m *router.PoolMember
+	switch balance {
+	case traffic.BalanceConsistentHash:
+		if key := r.sessionKey(e, rv); key != "" {
+			m = loadbalancer.ConsistentHash(pool, key)
+		}
+		if m == nil {
+			// 无会话键：退化为 RR（保持可用）。
+			m = r.balancer.Select(e.DomainID.String()+"#inst:"+versionID.String(), pool)
+		}
+	case traffic.BalanceLeastConnection:
+		m = r.balancer.SelectLeastConnections(pool)
+	default:
+		m = r.balancer.Select(e.DomainID.String()+"#inst:"+versionID.String(), pool)
+	}
 	if m == nil {
 		return nil, router.ErrNoHealthy
 	}
-	return targetFromMember(e, m), nil
+	return targetFromMember(e, m, versionID), nil
+}
+
+// sessionKey 构造一致性哈希的会话键：优先命中策略的 sticky header / cookie，兜底客户端 IP。
+func (r *CacheResolver) sessionKey(e *RouteEntry, rv traffic.RequestView) string {
+	// 命中策略若声明 sticky header，优先用它（与会话一致性同源）。
+	for i := range e.Policies {
+		p := &e.Policies[i]
+		if p.Status != traffic.StatusEnabled || p.Sticky == nil || p.Sticky.HeaderName == "" {
+			continue
+		}
+		if v := rv.Header.Get(p.Sticky.HeaderName); v != "" {
+			return "h:" + v
+		}
+	}
+	if raw := rv.Header.Get("Cookie"); raw != "" {
+		if v := cookieValue(raw, "MAPLE_SRV"); v != "" {
+			return "c:" + v
+		}
+	}
+	if rv.ClientIP != "" {
+		return "ip:" + rv.ClientIP
+	}
+	return ""
 }
 
 // pickVersionIndex 在候选版本池中按平滑加权选一个下标；weight<=0 的版本不参与分配。
@@ -393,7 +456,7 @@ func matchPolicy(e *RouteEntry, rv traffic.RequestView) *traffic.Policy {
 	return best
 }
 
-func targetFromMember(e *RouteEntry, m *router.PoolMember) *router.Target {
+func targetFromMember(e *RouteEntry, m *router.PoolMember, versionID uuid.UUID) *router.Target {
 	scheme := m.Protocol
 	if scheme == "" {
 		scheme = e.Protocol
@@ -401,7 +464,7 @@ func targetFromMember(e *RouteEntry, m *router.PoolMember) *router.Target {
 	if scheme == "" {
 		scheme = "http"
 	}
-	return &router.Target{Scheme: scheme, Host: m.Endpoint}
+	return &router.Target{Scheme: scheme, Host: m.Endpoint, InstanceID: m.ID, VersionID: versionID}
 }
 
 // stickySelect 用会话键对池做一致性哈希选择（同 key 恒同实例，pool 变化时重映射）。

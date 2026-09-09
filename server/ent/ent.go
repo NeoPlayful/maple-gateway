@@ -21,6 +21,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
+	"github.com/NeoPlayful/maple-gateway/server/ent/gatewayinstance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
@@ -98,6 +99,7 @@ func checkColumn(table, column string) error {
 			deployment.Table:          deployment.ValidColumn,
 			deploymentversion.Table:   deploymentversion.ValidColumn,
 			domain.Table:              domain.ValidColumn,
+			gatewayinstance.Table:     gatewayinstance.ValidColumn,
 			instance.Table:            instance.ValidColumn,
 			node.Table:                node.ValidColumn,
 			ratelimit.Table:           ratelimit.ValidColumn,
