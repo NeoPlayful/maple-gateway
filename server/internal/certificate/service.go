@@ -3,7 +3,9 @@ package certificate
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/certenc"
@@ -28,6 +30,7 @@ type repoIface interface {
 	GetByHostname(ctx context.Context, hostname string) (*Certificate, error)
 	List(ctx context.Context, limit, offset int) ([]*Certificate, int, error)
 	UpdateContent(ctx context.Context, id uuid.UUID, in *Certificate) (*Certificate, error)
+	UpdateDomainID(ctx context.Context, id uuid.UUID, domainID *uuid.UUID) (*Certificate, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	ActiveByExpiryBefore(ctx context.Context, deadline time.Time) ([]*Certificate, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status, lastErr string) (*Certificate, error)
@@ -97,85 +100,21 @@ func newServiceWithDeps(repo repoIface, cache *Cache, enc encIface, log *zap.Log
 }
 
 // Upload 上传/替换某域名的 Manual Certificate。
-// 校验通过 → 私钥加密落库 → 更新内存缓存 → 返回不含私钥的模型。
+// 校验通过 → 解析绑定域名 → 私钥加密落库 → 更新内存缓存 → 返回不含私钥的模型。
 func (s *Service) Upload(ctx context.Context, in New) (*Certificate, error) {
 	hostname, err := router.NormalizeHost(in.Hostname)
 	if err != nil {
 		return nil, pkg.ErrValidation("域名格式无效")
 	}
 	// 校验 PEM 可解析、证书/私钥匹配、未过期、SAN 覆盖 hostname。
-	if _, leaf, err := validateAndLoad(in.CertificatePEM, in.PrivateKeyPEM, hostname); err != nil {
-		return nil, pkg.ErrValidation(err.Error())
-	} else {
-		rec := &Certificate{
-			DomainID:       in.DomainID,
-			Hostname:       hostname,
-			Source:         SourceManual,
-			Status:         StatusActive,
-			CertificatePEM: in.CertificatePEM,
-			Issuer:         leaf.Issuer.String(),
-			SerialNumber:   leaf.SerialNumber.String(),
-			IssuedAt:       &leaf.NotBefore,
-			ExpiresAt:      &leaf.NotAfter,
-		}
-		encKey, err := s.enc.Encrypt([]byte(in.PrivateKeyPEM))
-		if err != nil {
-			s.log.Error("certificate private key encrypt failed", zap.Error(err))
-			return nil, pkg.ErrSystem("私钥加密失败")
-		}
-		rec.PrivateKeyEncrypted = encKey
-
-		// 同 hostname 已有证书 → 覆盖内容保留记录；否则新建。
-		var saved *Certificate
-		existing, err := s.repo.GetByHostname(ctx, hostname)
-		switch {
-		case err == nil:
-			saved, err = s.repo.UpdateContent(ctx, existing.ID, rec)
-			if err != nil {
-				return nil, pkg.ErrSystem("证书更新失败")
-			}
-		case pkg.ErrCode(err) == pkg.CodeNotFound:
-			saved, err = s.repo.Create(ctx, rec)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, err
-		}
-
-		// 刷新内存缓存（热加载）：解密私钥后重建 tls.Certificate。
-		if err := s.reloadIntoCache(saved); err != nil {
-			s.log.Warn("certificate cache reload failed",
-				zap.String("hostname", hostname), zap.Error(err))
-		}
-		// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
-		s.syncDomainTLS(ctx, hostname, "manual", saved.Status)
-		return saved, nil
-	}
-}
-
-// Update 更换指定证书的材料（续期/替换）。按 id 定位，hostname 保持不变；
-// 重新校验 PEM、加密私钥、解析派生字段（issuer/serial/有效期）落库，并热加载缓存。
-// domain 绑定为三态：in.DomainID 非空→换绑；in.ClearDomainID→解绑；皆否→保持原绑定。
-func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateRequest) (*Certificate, error) {
-	// 先取原记录：hostname 与既定 domain 绑定由它决定，且不存在时提前 NotFound。
-	old, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	hostname := old.Hostname
-	// 校验 PEM 可解析、证书/私钥匹配、未过期、SAN 覆盖 hostname。
 	_, leaf, err := validateAndLoad(in.CertificatePEM, in.PrivateKeyPEM, hostname)
 	if err != nil {
 		return nil, pkg.ErrValidation(err.Error())
 	}
-	// domain 三态：未指定则沿用原绑定。
-	domainID := old.DomainID
-	switch {
-	case in.DomainID != nil:
-		domainID = in.DomainID
-	case in.ClearDomainID:
-		domainID = nil
+	// 解析绑定域名：显式 domain_id 优先并校验一致，否则按 hostname 反查。
+	domainID, err := s.resolveDomainID(ctx, hostname, in.DomainID)
+	if err != nil {
+		return nil, err
 	}
 	rec := &Certificate{
 		DomainID:       domainID,
@@ -195,43 +134,184 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateRequest) (*
 	}
 	rec.PrivateKeyEncrypted = encKey
 
-	saved, err := s.repo.UpdateContent(ctx, id, rec)
-	if err != nil {
-		if pkg.ErrCode(err) == pkg.CodeNotFound {
+	// 同 hostname 已有证书 → 覆盖内容保留记录；否则新建。
+	var saved *Certificate
+	existing, err := s.repo.GetByHostname(ctx, hostname)
+	switch {
+	case err == nil:
+		saved, err = s.repo.UpdateContent(ctx, existing.ID, rec)
+		if err != nil {
+			return nil, pkg.ErrSystem("证书更新失败")
+		}
+	case pkg.ErrCode(err) == pkg.CodeNotFound:
+		saved, err = s.repo.Create(ctx, rec)
+		if err != nil {
 			return nil, err
 		}
-		return nil, pkg.ErrSystem("证书更新失败")
+	default:
+		return nil, err
 	}
+
 	// 刷新内存缓存（热加载）：解密私钥后重建 tls.Certificate。
 	if err := s.reloadIntoCache(saved); err != nil {
 		s.log.Warn("certificate cache reload failed",
 			zap.String("hostname", hostname), zap.Error(err))
 	}
 	// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
-	s.syncDomainTLS(ctx, hostname, "manual", saved.Status)
+	s.syncDomainTLS(ctx, domainID, "manual", saved.Status)
 	return saved, nil
 }
 
-// syncDomainTLS 更新 hostname 对应 Domain 的 TLS 状态（可空 repo 时静默跳过）。
-// tlsMode 取值 manual / managed / disabled；certStatus 为证书状态（active/pending/error…）。
-func (s *Service) syncDomainTLS(ctx context.Context, hostname, tlsMode string, certStatus Status) {
+// Update 更换指定证书的材料（续期/替换）。按 id 定位，hostname 保持不变；
+// 重新校验 PEM、加密私钥、解析派生字段（issuer/serial/有效期）落库，并热加载缓存。
+// domain 绑定为三态：in.DomainID 非空→换绑；in.ClearDomainID→解绑；皆否→保持原绑定。
+// Update 编辑证书：按 id 定位，hostname 不变。材料与绑定可各自独立变更——
+// 材料成对提供了则替换证书内容，均缺省则仅更新域名绑定。
+// 绑定三态：in.DomainID 非空→换绑（校验一致）；in.ClearDomainID→解绑；皆否→保持原绑定。
+func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateRequest) (*Certificate, error) {
+	// 先取原记录：hostname 与既定 domain 绑定由它决定，且不存在时提前 NotFound。
+	old, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	hostname := old.Hostname
+
+	// 绑定三态：换绑 → 解析+校验一致；解绑 → 置空；保持 → 沿用原绑定。
+	var domainID *uuid.UUID
+	switch {
+	case in.DomainID != nil:
+		domainID, err = s.resolveDomainID(ctx, hostname, in.DomainID)
+		if err != nil {
+			return nil, err
+		}
+	case in.ClearDomainID:
+		domainID = nil
+	default:
+		// 保持原绑定；原绑定为空时按 hostname 尝试补绑。
+		domainID = old.DomainID
+		if domainID == nil {
+			if resolved, rerr := s.resolveDomainID(ctx, hostname, nil); rerr == nil {
+				domainID = resolved
+			}
+		}
+	}
+
+	// 材料成对校验：只填其一为非法，二者皆空则视为"仅改绑定"。
+	certPEM := deref(in.CertificatePEM)
+	keyPEM := deref(in.PrivateKeyPEM)
+	hasCert := strings.TrimSpace(certPEM) != ""
+	hasKey := strings.TrimSpace(keyPEM) != ""
+	if hasCert != hasKey {
+		return nil, pkg.ErrValidation("证书与私钥需同时提供")
+	}
+
+	var saved *Certificate
+	if !hasCert {
+		// 仅更新绑定：不触碰证书材料，无需重载缓存。
+		saved, err = s.repo.UpdateDomainID(ctx, id, domainID)
+		if err != nil {
+			if pkg.ErrCode(err) == pkg.CodeNotFound {
+				return nil, err
+			}
+			return nil, pkg.ErrSystem("证书更新失败")
+		}
+	} else {
+		// 替换材料：校验 PEM 可解析、证书/私钥匹配、未过期、SAN 覆盖 hostname。
+		_, leaf, verr := validateAndLoad(certPEM, keyPEM, hostname)
+		if verr != nil {
+			return nil, pkg.ErrValidation(verr.Error())
+		}
+		encKey, eerr := s.enc.Encrypt([]byte(keyPEM))
+		if eerr != nil {
+			s.log.Error("certificate private key encrypt failed", zap.Error(eerr))
+			return nil, pkg.ErrSystem("私钥加密失败")
+		}
+		rec := &Certificate{
+			DomainID:            domainID,
+			Hostname:            hostname,
+			Source:              SourceManual,
+			Status:              StatusActive,
+			CertificatePEM:      certPEM,
+			PrivateKeyEncrypted: encKey,
+			Issuer:              leaf.Issuer.String(),
+			SerialNumber:        leaf.SerialNumber.String(),
+			IssuedAt:            &leaf.NotBefore,
+			ExpiresAt:           &leaf.NotAfter,
+		}
+		saved, err = s.repo.UpdateContent(ctx, id, rec)
+		if err != nil {
+			if pkg.ErrCode(err) == pkg.CodeNotFound {
+				return nil, err
+			}
+			return nil, pkg.ErrSystem("证书更新失败")
+		}
+		// 刷新内存缓存（热加载）：解密私钥后重建 tls.Certificate。
+		if err := s.reloadIntoCache(saved); err != nil {
+			s.log.Warn("certificate cache reload failed",
+				zap.String("hostname", hostname), zap.Error(err))
+		}
+	}
+
+	// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
+	s.syncDomainTLS(ctx, domainID, "manual", saved.Status)
+	// 绑定发生变化时回落旧域名 TLS 状态，避免残留指向已不属于它的证书。
+	if old.DomainID != nil && (domainID == nil || *domainID != *old.DomainID) {
+		s.syncDomainTLS(ctx, old.DomainID, "disabled", "")
+	}
+	return saved, nil
+}
+
+// deref 解引用可空字符串；nil 视为空串。
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// resolveDomainID 解析证书应绑定的域名 ID：
+//   - 显式传入 domainID：加载域名并校验 hostname 与之一致，返回该 ID；
+//   - 未传入：按 hostname 反查域名，命中返回其 ID；未命中（裸证书）返回 nil。
+//
+// 无 domain 仓库（精简部署/测试）时原样返回入参，不做校验。
+func (s *Service) resolveDomainID(ctx context.Context, hostname string, domainID *uuid.UUID) (*uuid.UUID, error) {
 	if s.domainRepo == nil {
-		return
+		return domainID, nil
+	}
+	if domainID != nil {
+		d, err := s.domainRepo.GetByID(ctx, *domainID)
+		if err != nil {
+			return nil, err
+		}
+		if d.Hostname != hostname {
+			return nil, pkg.ErrValidation("所选域名与证书 hostname 不一致")
+		}
+		return domainID, nil
 	}
 	d, err := s.domainRepo.GetByHostname(ctx, hostname)
 	if err != nil {
-		// hostname 可能尚无 Domain 记录（裸证书管理）；不阻断证书本身。
-		s.log.Debug("certificate changed without matching domain",
-			zap.String("hostname", hostname))
+		if pkg.ErrCode(err) == pkg.CodeNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	id := d.ID
+	return &id, nil
+}
+
+// syncDomainTLS 更新证书所绑定 Domain 的 TLS 状态（domainID 为空或无仓库时跳过）。
+// tlsMode 取值 manual / managed / disabled；certStatus 为证书状态（active/pending/error…）。
+func (s *Service) syncDomainTLS(ctx context.Context, domainID *uuid.UUID, tlsMode string, certStatus Status) {
+	if s.domainRepo == nil || domainID == nil {
 		return
 	}
 	cs := string(certStatus)
-	if _, err := s.domainRepo.Update(ctx, d.ID, domain.Update{
+	if _, err := s.domainRepo.Update(ctx, *domainID, domain.Update{
 		TLSMode:           &tlsMode,
 		CertificateStatus: &cs,
 	}); err != nil {
 		s.log.Warn("sync domain tls state failed",
-			zap.String("hostname", hostname), zap.Error(err))
+			zap.String("domain_id", domainID.String()), zap.Error(err))
 	}
 }
 
@@ -271,24 +351,43 @@ func (s *Service) ReloadAll(ctx context.Context) error {
 	return nil
 }
 
-// Delete 删除证书并从缓存摘除；如该 hostname 已无证书则回落 disabled。
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+// DeleteOutcome 描述删除的 CA 副作用结果。
+type DeleteOutcome struct {
+	// RevokeError 非空表示 CA 侧撤销失败（本地记录仍已删除，CA 证书可能仍有效）。
+	RevokeError string `json:"revoke_error,omitempty"`
+}
+
+// Delete 删除证书并移除本地记录。来源支持 CA 撤销时先尽力向 CA 作废，
+// 再删记录、摘缓存、域名回落。CA 撤销失败不阻断本地删除，通过返回值回报。
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) (*DeleteOutcome, error) {
 	rec, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	out := &DeleteOutcome{}
+	// CA 撤销：须在删除前取用证书材料；manual/未注册来源跳过。
+	if p, perr := s.providers.For(rec.Source); perr == nil {
+		if rerr := p.Revoke(ctx, RevokeRequest{CertificateID: id, Hostname: rec.Hostname}); rerr != nil && !errors.Is(rerr, ErrNotSupported) {
+			out.RevokeError = rerr.Error()
+			s.log.Warn("certificate CA revoke failed before delete",
+				zap.String("hostname", rec.Hostname), zap.Error(rerr))
+		}
 	}
 	hostname := rec.Hostname
 	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
+		return nil, err
 	}
 	s.cache.Delete(hostname)
 	// 仍有其他证书则该域名保留 manual，否则回落 disabled。
 	if s.domainRepo != nil {
 		if _, lerr := s.repo.GetByHostname(ctx, hostname); lerr != nil {
-			s.syncDomainTLS(ctx, hostname, "disabled", "")
+			if d, derr := s.domainRepo.GetByHostname(ctx, hostname); derr == nil {
+				did := d.ID
+				s.syncDomainTLS(ctx, &did, "disabled", "")
+			}
 		}
 	}
-	return nil
+	return out, nil
 }
 
 // Get 详情。

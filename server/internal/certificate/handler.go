@@ -108,15 +108,22 @@ func (h *Handler) Update(c fiber.Ctx) error {
 }
 
 // Delete DELETE /api/admin/certificates/:id
+// 语义等同于"撤销并移除"：来源支持时先向 CA 作废，再删本地记录。
+// CA 撤销失败不阻断删除，在响应 revoke_error 中回报。
 func (h *Handler) Delete(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return pkg.Err(c, pkg.ErrValidation("无效的证书 ID"))
 	}
-	if err := h.svc.Delete(c.Context(), id); err != nil {
+	out, err := h.svc.Delete(c.Context(), id)
+	if err != nil {
 		return pkg.Err(c, err)
 	}
-	return pkg.OK(c, fiber.Map{"deleted": true})
+	res := fiber.Map{"deleted": true}
+	if out != nil && out.RevokeError != "" {
+		res["revoke_error"] = out.RevokeError
+	}
+	return pkg.OK(c, res)
 }
 
 // Reload POST /api/admin/certificates/:id/reload
@@ -132,10 +139,10 @@ func (h *Handler) Reload(c fiber.Ctx) error {
 	return pkg.OK(c, rec)
 }
 
-// IssueReq 是签发请求体。
+// IssueReq 是签发请求体。domain_id 必填：证书必须绑定到具体域名。
 type IssueReq struct {
 	Hostname  string     `json:"hostname" validate:"required"`
-	DomainID  *uuid.UUID `json:"domain_id"`
+	DomainID  *uuid.UUID `json:"domain_id" validate:"required"`
 	Source    string     `json:"source"`    // acme（默认）/ manual
 	Challenge string     `json:"challenge"` // http-01（默认）
 }
@@ -172,11 +179,6 @@ func (h *Handler) Issue(c fiber.Ctx) error {
 	return pkg.OK(c, rec)
 }
 
-// RevokeBody 撤销请求体。Reason 为 RFC 5280 原因码，缺省 0。
-type RevokeBody struct {
-	Reason int `json:"reason"`
-}
-
 // Renew POST /api/admin/certificates/:id/renew
 // 立即续期（跳过临期窗口）；来源不支持续期时返回校验错误。
 func (h *Handler) Renew(c fiber.Ctx) error {
@@ -189,20 +191,6 @@ func (h *Handler) Renew(c fiber.Ctx) error {
 		return pkg.Err(c, err)
 	}
 	return pkg.OK(c, rec)
-}
-
-// Revoke POST /api/admin/certificates/:id/revoke
-func (h *Handler) Revoke(c fiber.Ctx) error {
-	id, err := uuid.Parse(c.Params("id"))
-	if err != nil {
-		return pkg.Err(c, pkg.ErrValidation("无效的证书 ID"))
-	}
-	var body RevokeBody
-	_ = c.Bind().Body(&body)
-	if err := h.svc.Revoke(c.Context(), id, body.Reason); err != nil {
-		return pkg.Err(c, err)
-	}
-	return pkg.OK(c, fiber.Map{"revoked": true})
 }
 
 // Status GET /api/admin/certificates/:id/status（直接复用详情；返回证书状态视图）

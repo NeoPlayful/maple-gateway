@@ -106,7 +106,7 @@ func (s *Service) renewOne(ctx context.Context, rec *Certificate, cfg RenewConfi
 		s.log.Warn("certificate cache reload after renew failed",
 			zap.String("hostname", rec.Hostname), zap.Error(err))
 	}
-	s.syncDomainTLS(ctx, rec.Hostname, "managed", saved.Status)
+	s.syncDomainTLS(ctx, rec.DomainID, "managed", saved.Status)
 	s.log.Info("certificate renewed",
 		zap.String("hostname", rec.Hostname),
 		zap.Time("expires_at", issued.NotAfter),

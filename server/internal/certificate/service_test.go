@@ -80,6 +80,17 @@ func (f *fakeRepo) UpdateContent(_ context.Context, id uuid.UUID, in *Certificat
 	return r, nil
 }
 
+func (f *fakeRepo) UpdateDomainID(_ context.Context, id uuid.UUID, domainID *uuid.UUID) (*Certificate, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	r, ok := f.byID[id]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	r.DomainID = domainID
+	return r, nil
+}
+
 func (f *fakeRepo) Delete(_ context.Context, id uuid.UUID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -358,8 +369,8 @@ func TestServiceUpdateReplacesMaterialKeepingHostname(t *testing.T) {
 
 	newCertPEM, newKeyPEM, newLeaf := genCert(t, []string{"keep.test"}, now, now.Add(365*24*time.Hour))
 	got, err := svc.Update(context.Background(), old.ID, UpdateRequest{
-		CertificatePEM: newCertPEM,
-		PrivateKeyPEM:  newKeyPEM,
+		CertificatePEM: &newCertPEM,
+		PrivateKeyPEM:  &newKeyPEM,
 	})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
@@ -433,8 +444,8 @@ func TestServiceUpdateDomainBindingThreeState(t *testing.T) {
 
 			newDomain := uuid.New()
 			var in UpdateRequest
-			in.CertificatePEM = certPEM
-			in.PrivateKeyPEM = keyPEM
+			in.CertificatePEM = &certPEM
+			in.PrivateKeyPEM = &keyPEM
 			tc.mutate(&in, newDomain)
 
 			got, err := svc.Update(context.Background(), old.ID, in)
@@ -459,8 +470,8 @@ func TestServiceUpdateRejectsMismatchedPEM(t *testing.T) {
 	_, mismatchedKey, _ := genCert(t, []string{"bad.test"}, now, now.Add(24*time.Hour))
 
 	if _, err := svc.Update(context.Background(), old.ID, UpdateRequest{
-		CertificatePEM: certPEM,
-		PrivateKeyPEM:  mismatchedKey,
+		CertificatePEM: &certPEM,
+		PrivateKeyPEM:  &mismatchedKey,
 	}); err == nil {
 		t.Fatal("mismatched cert/key must be rejected")
 	}
