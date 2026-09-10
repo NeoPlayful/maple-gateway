@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { list, create, update, remove, statusAction } from '../lib/modules';
-import { StatusBadge, ActionBtn, Modal, ConfirmDialog } from '../components/ui';
+import { StatusBadge } from './admin/StatusBadge';
+import { ActionBtn } from './admin/ActionBtn';
+import { Modal } from './admin/Modal';
+import { ConfirmDialog } from './admin/ConfirmDialog';
 
 export interface FieldDef {
   key: string;

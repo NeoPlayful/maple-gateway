@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import type { Instance, Service } from '../../types';
-import { StatusBadge } from '../../components/ui';
+import { StatusBadge } from '../../components/admin/StatusBadge';
 import { PageHeader } from '../../themes';
 
 export default function HealthPage() {

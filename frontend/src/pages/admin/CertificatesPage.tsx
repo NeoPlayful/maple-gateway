@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { list, remove } from '../../lib/modules';
 import { api } from '../../lib/client';
-import { StatusBadge, ActionBtn, Field, Modal, ConfirmDialog } from '../../components/ui';
+import { StatusBadge } from '../../components/admin/StatusBadge';
+import { ActionBtn } from '../../components/admin/ActionBtn';
+import { Field } from '../../components/admin/Field';
+import { Modal } from '../../components/admin/Modal';
+import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { PageHeader } from '../../themes';
 
 // Certificate 与后端 /api/admin/certificates 返回字段对应。
