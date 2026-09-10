@@ -30,7 +30,8 @@ export interface PageDef {
   columns: { key: string; label: string; badge?: boolean; render?: (r: any) => ReactNode }[];
   createFields: FieldDef[];
   editFields?: FieldDef[]; // 声明后行内显示"编辑"，PATCH 部分更新
-  renderDetail?: (row: any) => ReactNode; // 声明后行首显示展开箭头，展开渲染该行详情
+  renderDetail?: (row: any, data: Record<string, any[]>) => ReactNode; // 声明后行首显示展开箭头，展开渲染该行详情
+  detailLoad?: string[]; // 详情所需的数据源路径，加载时预取后按路径作为 renderDetail 第二参传入
   statusActions?: ('enable' | 'disable')[]; // 提供 enable/disable 动作
   extraActions?: { label: string; act?: string; onClick?: (id: string) => void }[];
 }
@@ -39,6 +40,8 @@ export default function CrudPage({ def }: { def: PageDef }) {
   const { t } = useTranslation('admin');
   const [rows, setRows] = useState<any[]>([]);
   const [parents, setParents] = useState<Record<string, any[]>>({});
+  // 详情渲染所需的额外数据源（按 detailLoad 路径预取）。
+  const [detailData, setDetailData] = useState<Record<string, any[]>>({});
   // 弹窗态：null=关闭；否则为当前模式（新建/编辑）及表单值、编辑行 id。
   const [modal, setModal] = useState<{
     mode: 'create' | 'edit';
@@ -73,10 +76,26 @@ export default function CrudPage({ def }: { def: PageDef }) {
     setParents(out);
   }, [def.createFields, def.editFields]);
 
+  // 预取 detailLoad 声明的数据源（详情渲染同步读取，避免逐行异步）。
+  const loadDetail = useCallback(async () => {
+    const sources = def.detailLoad ?? [];
+    if (sources.length === 0) return;
+    const out: Record<string, any[]> = {};
+    for (const p of sources) {
+      try {
+        out[p] = await list(p);
+      } catch {
+        out[p] = [];
+      }
+    }
+    setDetailData(out);
+  }, [def.detailLoad]);
+
   useEffect(() => {
     load();
     loadParents();
-  }, [load, loadParents]);
+    loadDetail();
+  }, [load, loadParents, loadDetail]);
 
   const opt = (f: FieldDef) =>
     f.loadOptions
@@ -424,7 +443,7 @@ export default function CrudPage({ def }: { def: PageDef }) {
                 {def.renderDetail && expandedId === r.id && (
                   <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
                     <td colSpan={def.columns.length + 1} className="px-4 py-3">
-                      {def.renderDetail(r)}
+                      {def.renderDetail(r, detailData)}
                     </td>
                   </tr>
                 )}

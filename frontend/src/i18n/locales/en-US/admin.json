@@ -125,7 +125,12 @@
     "issuer": "Issuer",
     "source": "Source",
     "expiresAt": "Expires at",
-    "domainId": "Domain"
+    "domainId": "Domain",
+    "serialNumber": "Serial number",
+    "issuedAt": "Issued at",
+    "renewAttempts": "Renew attempts",
+    "lastError": "Last error",
+    "verifiedAt": "Verified at"
   },
   "tenants": {
     "title": "Tenants",
@@ -141,7 +146,10 @@
     "tlsCloudflare": "Cloudflare SaaS",
     "tlsManaged": "Managed",
     "tlsManual": "Direct TLS",
-    "tlsDisabled": "Disabled"
+    "tlsDisabled": "Disabled",
+    "detailDomain": "Domain",
+    "detailCert": "Certificate",
+    "noCert": "No certificate bound to this domain"
   },
   "certificates": {
     "title": "Certificates",

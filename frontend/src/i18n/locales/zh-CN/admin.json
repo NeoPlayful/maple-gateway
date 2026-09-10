@@ -125,7 +125,12 @@
     "issuer": "颁发者",
     "source": "来源",
     "expiresAt": "到期时间",
-    "domainId": "所属域名"
+    "domainId": "所属域名",
+    "serialNumber": "序列号",
+    "issuedAt": "签发时间",
+    "renewAttempts": "续期失败次数",
+    "lastError": "最近错误",
+    "verifiedAt": "验证时间"
   },
   "tenants": {
     "title": "租户管理",
@@ -141,7 +146,10 @@
     "tlsCloudflare": "Cloudflare SaaS",
     "tlsManaged": "Managed",
     "tlsManual": "Direct TLS",
-    "tlsDisabled": "Disabled"
+    "tlsDisabled": "Disabled",
+    "detailDomain": "域名信息",
+    "detailCert": "证书信息",
+    "noCert": "该域名未绑定证书"
   },
   "certificates": {
     "title": "证书管理",
