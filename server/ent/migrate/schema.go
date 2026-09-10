@@ -244,6 +244,45 @@ var (
 			},
 		},
 	}
+	// CertificateOperationsColumns holds the columns for the "certificate_operations" table.
+	CertificateOperationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "hostname", Type: field.TypeString},
+		{Name: "domain_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "action", Type: field.TypeString, Default: "issue"},
+		{Name: "status", Type: field.TypeString, Default: "queued"},
+		{Name: "message", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "error", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "started_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "finished_at", Type: field.TypeTime, Nullable: true},
+	}
+	// CertificateOperationsTable holds the schema information for the "certificate_operations" table.
+	CertificateOperationsTable = &schema.Table{
+		Name:       "certificate_operations",
+		Columns:    CertificateOperationsColumns,
+		PrimaryKey: []*schema.Column{CertificateOperationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "certificateoperation_hostname",
+				Unique:  true,
+				Columns: []*schema.Column{CertificateOperationsColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "status NOT IN ('active','failed')",
+				},
+			},
+			{
+				Name:    "certificateoperation_domain_id",
+				Unique:  false,
+				Columns: []*schema.Column{CertificateOperationsColumns[2]},
+			},
+			{
+				Name:    "certificateoperation_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{CertificateOperationsColumns[8]},
+			},
+		},
+	}
 	// DeploymentsColumns holds the columns for the "deployments" table.
 	DeploymentsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -642,6 +681,7 @@ var (
 		CanaryEventsTable,
 		CanaryReleasesTable,
 		CertificatesTable,
+		CertificateOperationsTable,
 		DeploymentsTable,
 		DeploymentVersionsTable,
 		DomainsTable,

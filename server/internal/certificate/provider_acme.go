@@ -20,7 +20,7 @@ func (p *acmeProvider) Name() string { return string(SourceACME) }
 
 // Issue 申请新证书。
 func (p *acmeProvider) Issue(ctx context.Context, req IssueRequest) (*Issued, error) {
-	out, err := p.client.Obtain(ctx, req.Hostname)
+	out, err := p.client.Obtain(ctx, req.Hostname, acme.ProgressFunc(req.Progress))
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func (p *acmeProvider) Issue(ctx context.Context, req IssueRequest) (*Issued, er
 
 // Renew 续期（ACME 语义上与首次签发相同：重新走一遍 order）。
 func (p *acmeProvider) Renew(ctx context.Context, req RenewRequest) (*Issued, error) {
-	out, err := p.client.Obtain(ctx, req.Hostname)
+	out, err := p.client.Obtain(ctx, req.Hostname, acme.ProgressFunc(req.Progress))
 	if err != nil {
 		return nil, err
 	}

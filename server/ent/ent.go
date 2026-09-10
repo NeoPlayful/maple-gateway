@@ -20,6 +20,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
@@ -92,26 +93,27 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			acmeaccount.Table:         acmeaccount.ValidColumn,
-			admin.Table:               admin.ValidColumn,
-			auditlog.Table:            auditlog.ValidColumn,
-			bluegreendeployment.Table: bluegreendeployment.ValidColumn,
-			bluegreenevent.Table:      bluegreenevent.ValidColumn,
-			canaryevent.Table:         canaryevent.ValidColumn,
-			canaryrelease.Table:       canaryrelease.ValidColumn,
-			certificate.Table:         certificate.ValidColumn,
-			deployment.Table:          deployment.ValidColumn,
-			deploymentversion.Table:   deploymentversion.ValidColumn,
-			domain.Table:              domain.ValidColumn,
-			gatewayinstance.Table:     gatewayinstance.ValidColumn,
-			instance.Table:            instance.ValidColumn,
-			node.Table:                node.ValidColumn,
-			ratelimit.Table:           ratelimit.ValidColumn,
-			service.Table:             service.ValidColumn,
-			setting.Table:             setting.ValidColumn,
-			settinghistory.Table:      settinghistory.ValidColumn,
-			tenant.Table:              tenant.ValidColumn,
-			trafficpolicy.Table:       trafficpolicy.ValidColumn,
+			acmeaccount.Table:          acmeaccount.ValidColumn,
+			admin.Table:                admin.ValidColumn,
+			auditlog.Table:             auditlog.ValidColumn,
+			bluegreendeployment.Table:  bluegreendeployment.ValidColumn,
+			bluegreenevent.Table:       bluegreenevent.ValidColumn,
+			canaryevent.Table:          canaryevent.ValidColumn,
+			canaryrelease.Table:        canaryrelease.ValidColumn,
+			certificate.Table:          certificate.ValidColumn,
+			certificateoperation.Table: certificateoperation.ValidColumn,
+			deployment.Table:           deployment.ValidColumn,
+			deploymentversion.Table:    deploymentversion.ValidColumn,
+			domain.Table:               domain.ValidColumn,
+			gatewayinstance.Table:      gatewayinstance.ValidColumn,
+			instance.Table:             instance.ValidColumn,
+			node.Table:                 node.ValidColumn,
+			ratelimit.Table:            ratelimit.ValidColumn,
+			service.Table:              service.ValidColumn,
+			setting.Table:              setting.ValidColumn,
+			settinghistory.Table:       settinghistory.ValidColumn,
+			tenant.Table:               tenant.ValidColumn,
+			trafficpolicy.Table:        trafficpolicy.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

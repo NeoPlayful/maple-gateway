@@ -28,6 +28,8 @@ type Tx struct {
 	CanaryRelease *CanaryReleaseClient
 	// Certificate is the client for interacting with the Certificate builders.
 	Certificate *CertificateClient
+	// CertificateOperation is the client for interacting with the CertificateOperation builders.
+	CertificateOperation *CertificateOperationClient
 	// Deployment is the client for interacting with the Deployment builders.
 	Deployment *DeploymentClient
 	// DeploymentVersion is the client for interacting with the DeploymentVersion builders.
@@ -191,6 +193,7 @@ func (tx *Tx) init() {
 	tx.CanaryEvent = NewCanaryEventClient(tx.config)
 	tx.CanaryRelease = NewCanaryReleaseClient(tx.config)
 	tx.Certificate = NewCertificateClient(tx.config)
+	tx.CertificateOperation = NewCertificateOperationClient(tx.config)
 	tx.Deployment = NewDeploymentClient(tx.config)
 	tx.DeploymentVersion = NewDeploymentVersionClient(tx.config)
 	tx.Domain = NewDomainClient(tx.config)

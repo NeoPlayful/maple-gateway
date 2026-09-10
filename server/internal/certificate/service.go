@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/certenc"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
+	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
@@ -49,6 +51,15 @@ type Service struct {
 	encKey     string             // 显式配置的加密密钥（config 提供）；空则回退 env
 	domainRepo *domain.Repository // 可空：联动 Domain TLS 状态
 	providers  *ProviderRegistry  // 证书来源注册表（manual 内建注册，acme 由 main 注入）
+
+	// 异步签发进度：opRepo 记录过程，jobCtx 为后台任务根上下文（随进程关闭取消）。
+	// 二者任一为空则退化为同步签发（无进度可视化），保证未启用时行为不变。
+	opRepo     *OperationRepository
+	jobCtx     context.Context
+	jobTimeout time.Duration
+	bgWG       sync.WaitGroup // 后台签发任务，供优雅关闭等待
+
+	metrics *metrics.Registry // 可空：签发/续期成功失败计数
 }
 
 // ServiceOption 供可选依赖注入。
@@ -63,6 +74,34 @@ func WithDomainSync(repo *domain.Repository) ServiceOption {
 // MAPLE_CERT_ENC_KEY；不传时 NewService 回退读环境变量。
 func WithEncKey(key string) ServiceOption {
 	return func(s *Service) { s.encKey = key }
+}
+
+// WithOperations 注入操作记录仓储，并按 rootCtx 派生后台任务上下文，启用异步签发进度。
+// rootCtx 应为进程根上下文（随关闭取消）；timeout 为单次签发总超时（<=0 使用默认 10 分钟）。
+func WithOperations(repo *OperationRepository, rootCtx context.Context, timeout time.Duration) ServiceOption {
+	return func(s *Service) {
+		if timeout <= 0 {
+			timeout = 10 * time.Minute
+		}
+		s.opRepo = repo
+		s.jobCtx = rootCtx
+		s.jobTimeout = timeout
+	}
+}
+
+// WaitBackground 等待后台签发任务结束（优雅关闭时调用，避免任务中途写入已关闭的 DB）。
+func (s *Service) WaitBackground() { s.bgWG.Wait() }
+
+// WithMetrics 注入指标注册表（可空）：签发/续期成功失败计数。
+func WithMetrics(reg *metrics.Registry) ServiceOption {
+	return func(s *Service) { s.metrics = reg }
+}
+
+// incMetric 安全递增指标（未注入时忽略）。hostname 不进 label，避免高基数。
+func (s *Service) incMetric(name, result string) {
+	if s.metrics != nil {
+		s.metrics.Inc(name, map[string]string{"result": result})
+	}
 }
 
 // NewService 构造。密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。

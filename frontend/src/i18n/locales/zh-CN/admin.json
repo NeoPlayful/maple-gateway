@@ -181,6 +181,7 @@
     "deleteRevokeFailed": "已删除本地记录，但向 CA 撤销失败，该证书在 CA 侧可能仍然有效",
     "issue": "签发证书",
     "issueTitle": "签发证书（Managed / ACME）",
+    "issueProgressTitle": "证书签发进度",
     "issueHint": "将向 CA 自动签发证书。域名须已解析到本网关且 80 端口可从公网访问（http-01 校验）。",
     "issuing": "签发中…",
     "issueSuccess": "签发成功",
@@ -191,6 +192,17 @@
     "lastRenewed": "上次续期",
     "nextRenew": "下次续期",
     "none": "暂无证书"
+  },
+  "operation": {
+    "step": {
+      "queued": "已受理",
+      "account_ready": "CA 账户就绪",
+      "order_created": "订单已创建",
+      "challenge_presented": "等待 CA 验证域名",
+      "challenge_validated": "域名验证通过",
+      "finalizing": "正在签发并下载证书",
+      "active": "完成"
+    }
   },
   "deployments": {
     "title": "部署与版本",

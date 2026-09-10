@@ -25,6 +25,13 @@ const color: Record<string, string> = {
   error: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
   expiring: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
   expired: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+  // 签发/续期进度阶段（进行中）
+  queued: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  account_ready: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+  order_created: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+  challenge_presented: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+  challenge_validated: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+  finalizing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
   // 版本/发布状态
   stable: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
   canary: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
