@@ -21,7 +21,7 @@ func (Certificate) Fields() []ent.Field {
 		field.UUID("domain_id", uuid.UUID{}).Optional().Nillable(),
 		// 冗余存 hostname，缓存/检索/指标免 join；与 domain.hostname 同源。
 		field.String("hostname").NotEmpty(),
-		// source: manual / cloudflare / acme / origin（本期只落 manual，余为枚举预留）。
+		// source: manual / cloudflare / acme / origin（本期落 manual、acme；余为枚举预留）。
 		field.String("source").Default("manual"),
 		// status: active / pending / error / expiring / expired（证书自身状态，与 Domain 路由状态分离）。
 		field.String("status").Default("pending"),
@@ -34,6 +34,13 @@ func (Certificate) Fields() []ent.Field {
 		field.Time("expires_at").Optional().Nillable(),
 		field.Time("last_renewed_at").Optional().Nillable(),
 		field.String("last_error").Optional().Default(""),
+		// 续期引擎：provider_meta 存来源侧上下文（ACME order/challenge，脱敏）；
+		// renew_attempts 连续续期失败计数（退避用，成功清零）；next_renew_at 下次续期时间；
+		// last_renew_error 最近一次续期失败原因（与 last_error 区分：后者含签发期错误）。
+		field.JSON("provider_meta", map[string]string{}).Optional(),
+		field.Int("renew_attempts").Default(0),
+		field.Time("next_renew_at").Optional().Nillable(),
+		field.String("last_renew_error").Optional().Default(""),
 		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),
 	}

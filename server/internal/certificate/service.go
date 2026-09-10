@@ -31,6 +31,10 @@ type repoIface interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ActiveByExpiryBefore(ctx context.Context, deadline time.Time) ([]*Certificate, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status, lastErr string) (*Certificate, error)
+	// 续期引擎：候选查询 + 续期成功/失败落库。
+	DueForRenewal(ctx context.Context, deadline time.Time) ([]*Certificate, error)
+	RenewSuccess(ctx context.Context, id uuid.UUID, in *Certificate) (*Certificate, error)
+	RenewFailure(ctx context.Context, id uuid.UUID, attempts int, nextRenewAt *time.Time, errMsg string) (*Certificate, error)
 }
 
 // Service 编排证书业务：上传校验 → 加密 → 落库 → 刷新缓存。
@@ -39,8 +43,9 @@ type Service struct {
 	cache      *Cache
 	enc        encIface
 	log        *zap.Logger
-	encKey     string            // 显式配置的加密密钥（config 提供）；空则回退 env
+	encKey     string             // 显式配置的加密密钥（config 提供）；空则回退 env
 	domainRepo *domain.Repository // 可空：联动 Domain TLS 状态
+	providers  *ProviderRegistry  // 证书来源注册表（manual 内建注册，acme 由 main 注入）
 }
 
 // ServiceOption 供可选依赖注入。
@@ -59,7 +64,7 @@ func WithEncKey(key string) ServiceOption {
 
 // NewService 构造。密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。
 func NewService(repo repoIface, cache *Cache, log *zap.Logger, opts ...ServiceOption) (*Service, error) {
-	s := &Service{repo: repo, cache: cache, log: log}
+	s := &Service{repo: repo, cache: cache, log: log, providers: NewProviderRegistry()}
 	for _, o := range opts {
 		o(s)
 	}
@@ -68,8 +73,13 @@ func NewService(repo repoIface, cache *Cache, log *zap.Logger, opts ...ServiceOp
 		return nil, err
 	}
 	s.enc = enc
+	// manual 来源内建注册；acme 由 main 在构造后通过 Providers().Register 注入。
+	s.providers.Register(&manualProvider{repo: repo})
 	return s, nil
 }
+
+// Providers 暴露来源注册表，供 main 注入 ACME provider。
+func (s *Service) Providers() *ProviderRegistry { return s.providers }
 
 // newEncrypter 按显式密钥优先、环境变量兜底构造加解密器。
 func newEncrypter(configured string) (encIface, error) {
@@ -81,7 +91,9 @@ func newEncrypter(configured string) (encIface, error) {
 
 // newServiceWithDeps 供测试注入 enc 实现（绕过 MAPLE_CERT_ENC_KEY 依赖）。
 func newServiceWithDeps(repo repoIface, cache *Cache, enc encIface, log *zap.Logger) *Service {
-	return &Service{repo: repo, cache: cache, enc: enc, log: log}
+	s := &Service{repo: repo, cache: cache, enc: enc, log: log, providers: NewProviderRegistry()}
+	s.providers.Register(&manualProvider{repo: repo})
+	return s
 }
 
 // Upload 上传/替换某域名的 Manual Certificate。
@@ -137,7 +149,7 @@ func (s *Service) Upload(ctx context.Context, in New) (*Certificate, error) {
 				zap.String("hostname", hostname), zap.Error(err))
 		}
 		// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
-		s.syncDomainTLS(ctx, hostname, true, saved.Status)
+		s.syncDomainTLS(ctx, hostname, "manual", saved.Status)
 		return saved, nil
 	}
 }
@@ -196,25 +208,22 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateRequest) (*
 			zap.String("hostname", hostname), zap.Error(err))
 	}
 	// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
-	s.syncDomainTLS(ctx, hostname, true, saved.Status)
+	s.syncDomainTLS(ctx, hostname, "manual", saved.Status)
 	return saved, nil
 }
 
 // syncDomainTLS 更新 hostname 对应 Domain 的 TLS 状态（可空 repo 时静默跳过）。
-func (s *Service) syncDomainTLS(ctx context.Context, hostname string, manual bool, certStatus Status) {
+// tlsMode 取值 manual / managed / disabled；certStatus 为证书状态（active/pending/error…）。
+func (s *Service) syncDomainTLS(ctx context.Context, hostname, tlsMode string, certStatus Status) {
 	if s.domainRepo == nil {
 		return
 	}
 	d, err := s.domainRepo.GetByHostname(ctx, hostname)
 	if err != nil {
 		// hostname 可能尚无 Domain 记录（裸证书管理）；不阻断证书本身。
-		s.log.Debug("certificate uploaded without matching domain",
+		s.log.Debug("certificate changed without matching domain",
 			zap.String("hostname", hostname))
 		return
-	}
-	tlsMode := "disabled"
-	if manual {
-		tlsMode = "manual"
 	}
 	cs := string(certStatus)
 	if _, err := s.domainRepo.Update(ctx, d.ID, domain.Update{
@@ -276,7 +285,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	// 仍有其他证书则该域名保留 manual，否则回落 disabled。
 	if s.domainRepo != nil {
 		if _, lerr := s.repo.GetByHostname(ctx, hostname); lerr != nil {
-			s.syncDomainTLS(ctx, hostname, false, "")
+			s.syncDomainTLS(ctx, hostname, "disabled", "")
 		}
 	}
 	return nil

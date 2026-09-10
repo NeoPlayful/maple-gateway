@@ -277,9 +277,14 @@ func New(d Deps) *fiber.App {
 		cert.Delete("/:id", ch.Delete)
 		cert.Get("/:id/status", ch.Status)
 		cert.Post("/:id/reload", ch.Reload)
+		cert.Post("/:id/revoke", ch.Revoke)
+		cert.Post("/:id/renew", ch.Renew)
+		cert.Post("/issue", ch.Issue)
 		cert.Post("/", ch.Upload)
 		// 需求路径：POST /api/admin/domains/:id/certificate（域名维度上传）。
 		admin.Post("/domains/:id/certificate", ch.Upload)
+		// 域名维度签发（Managed/ACME）。
+		admin.Post("/domains/:id/certificate/issue", ch.Issue)
 	}
 
 	// 路由缓存查看/重建。

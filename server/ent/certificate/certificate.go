@@ -37,6 +37,14 @@ const (
 	FieldLastRenewedAt = "last_renewed_at"
 	// FieldLastError holds the string denoting the last_error field in the database.
 	FieldLastError = "last_error"
+	// FieldProviderMeta holds the string denoting the provider_meta field in the database.
+	FieldProviderMeta = "provider_meta"
+	// FieldRenewAttempts holds the string denoting the renew_attempts field in the database.
+	FieldRenewAttempts = "renew_attempts"
+	// FieldNextRenewAt holds the string denoting the next_renew_at field in the database.
+	FieldNextRenewAt = "next_renew_at"
+	// FieldLastRenewError holds the string denoting the last_renew_error field in the database.
+	FieldLastRenewError = "last_renew_error"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -69,6 +77,10 @@ var Columns = []string{
 	FieldExpiresAt,
 	FieldLastRenewedAt,
 	FieldLastError,
+	FieldProviderMeta,
+	FieldRenewAttempts,
+	FieldNextRenewAt,
+	FieldLastRenewError,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -100,6 +112,10 @@ var (
 	DefaultSerialNumber string
 	// DefaultLastError holds the default value on creation for the "last_error" field.
 	DefaultLastError string
+	// DefaultRenewAttempts holds the default value on creation for the "renew_attempts" field.
+	DefaultRenewAttempts int
+	// DefaultLastRenewError holds the default value on creation for the "last_renew_error" field.
+	DefaultLastRenewError string
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -170,6 +186,21 @@ func ByLastRenewedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByLastError orders the results by the last_error field.
 func ByLastError(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLastError, opts...).ToFunc()
+}
+
+// ByRenewAttempts orders the results by the renew_attempts field.
+func ByRenewAttempts(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRenewAttempts, opts...).ToFunc()
+}
+
+// ByNextRenewAt orders the results by the next_renew_at field.
+func ByNextRenewAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNextRenewAt, opts...).ToFunc()
+}
+
+// ByLastRenewError orders the results by the last_renew_error field.
+func ByLastRenewError(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastRenewError, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -37,6 +37,10 @@ func toModel(e *ent.Certificate) *Certificate {
 		ExpiresAt:           e.ExpiresAt,
 		LastRenewedAt:       e.LastRenewedAt,
 		LastError:           e.LastError,
+		ProviderMeta:        e.ProviderMeta,
+		RenewAttempts:       e.RenewAttempts,
+		NextRenewAt:         e.NextRenewAt,
+		LastRenewError:      e.LastRenewError,
 		CreatedAt:           e.CreatedAt,
 		UpdatedAt:           e.UpdatedAt,
 	}
@@ -232,6 +236,90 @@ func (r *Repository) UpdateContent(ctx context.Context, id uuid.UUID, in *Certif
 	e, err := upd.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("update certificate content: %w", err)
+	}
+	return toModel(e), nil
+}
+
+// DueForRenewal 返回在 deadline 前到期、且来源为 acme 的证书（自动续期候选）。
+// 仅 acme 来源具备 Renew 能力；manual/cloudflare 不参与自动续期。
+func (r *Repository) DueForRenewal(ctx context.Context, deadline time.Time) ([]*Certificate, error) {
+	es, err := r.ent.Certificate.Query().
+		Where(
+			entcert.Source(string(SourceACME)),
+			entcert.ExpiresAtNotNil(),
+			entcert.ExpiresAtLT(deadline),
+			entcert.StatusIn(string(StatusActive), string(StatusPending), string(StatusExpiring)),
+		).
+		Order(entcert.ByExpiresAt()).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query certificates due for renewal: %w", err)
+	}
+	out := make([]*Certificate, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
+	}
+	return out, nil
+}
+
+// RenewSuccess 落库续期成功结果：替换证书内容并刷新续期元数据
+// （last_renewed_at=now、renew_attempts=0、last_renew_error 清空、next_renew_at 前移）。
+func (r *Repository) RenewSuccess(ctx context.Context, id uuid.UUID, in *Certificate) (*Certificate, error) {
+	now := time.Now()
+	upd := r.ent.Certificate.UpdateOneID(id).
+		SetCertificatePem(in.CertificatePEM).
+		SetPrivateKeyEncrypted(in.PrivateKeyEncrypted).
+		SetSource(string(in.Source)).
+		SetStatus(string(StatusActive)).
+		SetLastRenewedAt(now).
+		SetRenewAttempts(0).
+		SetLastRenewError("").
+		SetUpdatedAt(now)
+	if in.Issuer != "" {
+		upd = upd.SetIssuer(in.Issuer)
+	}
+	if in.SerialNumber != "" {
+		upd = upd.SetSerialNumber(in.SerialNumber)
+	}
+	if in.IssuedAt != nil {
+		upd = upd.SetIssuedAt(*in.IssuedAt)
+	}
+	if in.ExpiresAt != nil {
+		upd = upd.SetExpiresAt(*in.ExpiresAt)
+	}
+	if in.ProviderMeta != nil {
+		upd = upd.SetProviderMeta(in.ProviderMeta)
+	}
+	if in.NextRenewAt != nil {
+		upd = upd.SetNextRenewAt(*in.NextRenewAt)
+	}
+	e, err := upd.Save(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("证书不存在")
+		}
+		return nil, fmt.Errorf("update certificate renewal success: %w", err)
+	}
+	return toModel(e), nil
+}
+
+// RenewFailure 落库续期失败结果：累加 attempts、写 last_renew_error、前移 next_renew_at（退避）。
+func (r *Repository) RenewFailure(ctx context.Context, id uuid.UUID, attempts int, nextRenewAt *time.Time, errMsg string) (*Certificate, error) {
+	now := time.Now()
+	upd := r.ent.Certificate.UpdateOneID(id).
+		SetRenewAttempts(attempts).
+		SetLastRenewError(errMsg).
+		SetLastError(errMsg).
+		SetUpdatedAt(now)
+	if nextRenewAt != nil {
+		upd = upd.SetNextRenewAt(*nextRenewAt)
+	}
+	e, err := upd.Save(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("证书不存在")
+		}
+		return nil, fmt.Errorf("update certificate renewal failure: %w", err)
 	}
 	return toModel(e), nil
 }

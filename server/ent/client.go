@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
@@ -42,6 +43,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// ACMEAccount is the client for interacting with the ACMEAccount builders.
+	ACMEAccount *ACMEAccountClient
 	// Admin is the client for interacting with the Admin builders.
 	Admin *AdminClient
 	// AuditLog is the client for interacting with the AuditLog builders.
@@ -91,6 +94,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.ACMEAccount = NewACMEAccountClient(c.config)
 	c.Admin = NewAdminClient(c.config)
 	c.AuditLog = NewAuditLogClient(c.config)
 	c.BluegreenDeployment = NewBluegreenDeploymentClient(c.config)
@@ -202,6 +206,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:                 ctx,
 		config:              cfg,
+		ACMEAccount:         NewACMEAccountClient(cfg),
 		Admin:               NewAdminClient(cfg),
 		AuditLog:            NewAuditLogClient(cfg),
 		BluegreenDeployment: NewBluegreenDeploymentClient(cfg),
@@ -240,6 +245,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:                 ctx,
 		config:              cfg,
+		ACMEAccount:         NewACMEAccountClient(cfg),
 		Admin:               NewAdminClient(cfg),
 		AuditLog:            NewAuditLogClient(cfg),
 		BluegreenDeployment: NewBluegreenDeploymentClient(cfg),
@@ -265,7 +271,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Admin.
+//		ACMEAccount.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -288,10 +294,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
-		c.CanaryRelease, c.Certificate, c.Deployment, c.DeploymentVersion, c.Domain,
-		c.GatewayInstance, c.Instance, c.Node, c.RateLimit, c.Service, c.Setting,
-		c.SettingHistory, c.Tenant, c.TrafficPolicy,
+		c.ACMEAccount, c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
+		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.Deployment,
+		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
+		c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant, c.TrafficPolicy,
 	} {
 		n.Use(hooks...)
 	}
@@ -301,10 +307,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent, c.CanaryEvent,
-		c.CanaryRelease, c.Certificate, c.Deployment, c.DeploymentVersion, c.Domain,
-		c.GatewayInstance, c.Instance, c.Node, c.RateLimit, c.Service, c.Setting,
-		c.SettingHistory, c.Tenant, c.TrafficPolicy,
+		c.ACMEAccount, c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
+		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.Deployment,
+		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
+		c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant, c.TrafficPolicy,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -313,6 +319,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *ACMEAccountMutation:
+		return c.ACMEAccount.mutate(ctx, m)
 	case *AdminMutation:
 		return c.Admin.mutate(ctx, m)
 	case *AuditLogMutation:
@@ -353,6 +361,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TrafficPolicy.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// ACMEAccountClient is a client for the ACMEAccount schema.
+type ACMEAccountClient struct {
+	config
+}
+
+// NewACMEAccountClient returns a client for the ACMEAccount from the given config.
+func NewACMEAccountClient(c config) *ACMEAccountClient {
+	return &ACMEAccountClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `acmeaccount.Hooks(f(g(h())))`.
+func (c *ACMEAccountClient) Use(hooks ...Hook) {
+	c.hooks.ACMEAccount = append(c.hooks.ACMEAccount, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `acmeaccount.Intercept(f(g(h())))`.
+func (c *ACMEAccountClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ACMEAccount = append(c.inters.ACMEAccount, interceptors...)
+}
+
+// Create returns a builder for creating a ACMEAccount entity.
+func (c *ACMEAccountClient) Create() *ACMEAccountCreate {
+	mutation := newACMEAccountMutation(c.config, OpCreate)
+	return &ACMEAccountCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ACMEAccount entities.
+func (c *ACMEAccountClient) CreateBulk(builders ...*ACMEAccountCreate) *ACMEAccountCreateBulk {
+	return &ACMEAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ACMEAccountClient) MapCreateBulk(slice any, setFunc func(*ACMEAccountCreate, int)) *ACMEAccountCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ACMEAccountCreateBulk{err: fmt.Errorf("calling to ACMEAccountClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ACMEAccountCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ACMEAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ACMEAccount.
+func (c *ACMEAccountClient) Update() *ACMEAccountUpdate {
+	mutation := newACMEAccountMutation(c.config, OpUpdate)
+	return &ACMEAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ACMEAccountClient) UpdateOne(aa *ACMEAccount) *ACMEAccountUpdateOne {
+	mutation := newACMEAccountMutation(c.config, OpUpdateOne, withACMEAccount(aa))
+	return &ACMEAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ACMEAccountClient) UpdateOneID(id uuid.UUID) *ACMEAccountUpdateOne {
+	mutation := newACMEAccountMutation(c.config, OpUpdateOne, withACMEAccountID(id))
+	return &ACMEAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ACMEAccount.
+func (c *ACMEAccountClient) Delete() *ACMEAccountDelete {
+	mutation := newACMEAccountMutation(c.config, OpDelete)
+	return &ACMEAccountDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ACMEAccountClient) DeleteOne(aa *ACMEAccount) *ACMEAccountDeleteOne {
+	return c.DeleteOneID(aa.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ACMEAccountClient) DeleteOneID(id uuid.UUID) *ACMEAccountDeleteOne {
+	builder := c.Delete().Where(acmeaccount.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ACMEAccountDeleteOne{builder}
+}
+
+// Query returns a query builder for ACMEAccount.
+func (c *ACMEAccountClient) Query() *ACMEAccountQuery {
+	return &ACMEAccountQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeACMEAccount},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ACMEAccount entity by its id.
+func (c *ACMEAccountClient) Get(ctx context.Context, id uuid.UUID) (*ACMEAccount, error) {
+	return c.Query().Where(acmeaccount.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ACMEAccountClient) GetX(ctx context.Context, id uuid.UUID) *ACMEAccount {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ACMEAccountClient) Hooks() []Hook {
+	return c.hooks.ACMEAccount
+}
+
+// Interceptors returns the client interceptors.
+func (c *ACMEAccountClient) Interceptors() []Interceptor {
+	return c.inters.ACMEAccount
+}
+
+func (c *ACMEAccountClient) mutate(ctx context.Context, m *ACMEAccountMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ACMEAccountCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ACMEAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ACMEAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ACMEAccountDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ACMEAccount mutation op: %q", m.Op())
 	}
 }
 
@@ -3110,13 +3251,13 @@ func (c *TrafficPolicyClient) mutate(ctx context.Context, m *TrafficPolicyMutati
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
+		ACMEAccount, Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
 		CanaryRelease, Certificate, Deployment, DeploymentVersion, Domain,
 		GatewayInstance, Instance, Node, RateLimit, Service, Setting, SettingHistory,
 		Tenant, TrafficPolicy []ent.Hook
 	}
 	inters struct {
-		Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
+		ACMEAccount, Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
 		CanaryRelease, Certificate, Deployment, DeploymentVersion, Domain,
 		GatewayInstance, Instance, Node, RateLimit, Service, Setting, SettingHistory,
 		Tenant, TrafficPolicy []ent.Interceptor

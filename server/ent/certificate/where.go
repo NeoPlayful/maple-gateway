@@ -116,6 +116,21 @@ func LastError(v string) predicate.Certificate {
 	return predicate.Certificate(sql.FieldEQ(FieldLastError, v))
 }
 
+// RenewAttempts applies equality check predicate on the "renew_attempts" field. It's identical to RenewAttemptsEQ.
+func RenewAttempts(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEQ(FieldRenewAttempts, v))
+}
+
+// NextRenewAt applies equality check predicate on the "next_renew_at" field. It's identical to NextRenewAtEQ.
+func NextRenewAt(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEQ(FieldNextRenewAt, v))
+}
+
+// LastRenewError applies equality check predicate on the "last_renew_error" field. It's identical to LastRenewErrorEQ.
+func LastRenewError(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEQ(FieldLastRenewError, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Certificate {
 	return predicate.Certificate(sql.FieldEQ(FieldCreatedAt, v))
@@ -854,6 +869,181 @@ func LastErrorEqualFold(v string) predicate.Certificate {
 // LastErrorContainsFold applies the ContainsFold predicate on the "last_error" field.
 func LastErrorContainsFold(v string) predicate.Certificate {
 	return predicate.Certificate(sql.FieldContainsFold(FieldLastError, v))
+}
+
+// ProviderMetaIsNil applies the IsNil predicate on the "provider_meta" field.
+func ProviderMetaIsNil() predicate.Certificate {
+	return predicate.Certificate(sql.FieldIsNull(FieldProviderMeta))
+}
+
+// ProviderMetaNotNil applies the NotNil predicate on the "provider_meta" field.
+func ProviderMetaNotNil() predicate.Certificate {
+	return predicate.Certificate(sql.FieldNotNull(FieldProviderMeta))
+}
+
+// RenewAttemptsEQ applies the EQ predicate on the "renew_attempts" field.
+func RenewAttemptsEQ(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEQ(FieldRenewAttempts, v))
+}
+
+// RenewAttemptsNEQ applies the NEQ predicate on the "renew_attempts" field.
+func RenewAttemptsNEQ(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldNEQ(FieldRenewAttempts, v))
+}
+
+// RenewAttemptsIn applies the In predicate on the "renew_attempts" field.
+func RenewAttemptsIn(vs ...int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldIn(FieldRenewAttempts, vs...))
+}
+
+// RenewAttemptsNotIn applies the NotIn predicate on the "renew_attempts" field.
+func RenewAttemptsNotIn(vs ...int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldNotIn(FieldRenewAttempts, vs...))
+}
+
+// RenewAttemptsGT applies the GT predicate on the "renew_attempts" field.
+func RenewAttemptsGT(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldGT(FieldRenewAttempts, v))
+}
+
+// RenewAttemptsGTE applies the GTE predicate on the "renew_attempts" field.
+func RenewAttemptsGTE(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldGTE(FieldRenewAttempts, v))
+}
+
+// RenewAttemptsLT applies the LT predicate on the "renew_attempts" field.
+func RenewAttemptsLT(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldLT(FieldRenewAttempts, v))
+}
+
+// RenewAttemptsLTE applies the LTE predicate on the "renew_attempts" field.
+func RenewAttemptsLTE(v int) predicate.Certificate {
+	return predicate.Certificate(sql.FieldLTE(FieldRenewAttempts, v))
+}
+
+// NextRenewAtEQ applies the EQ predicate on the "next_renew_at" field.
+func NextRenewAtEQ(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEQ(FieldNextRenewAt, v))
+}
+
+// NextRenewAtNEQ applies the NEQ predicate on the "next_renew_at" field.
+func NextRenewAtNEQ(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldNEQ(FieldNextRenewAt, v))
+}
+
+// NextRenewAtIn applies the In predicate on the "next_renew_at" field.
+func NextRenewAtIn(vs ...time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldIn(FieldNextRenewAt, vs...))
+}
+
+// NextRenewAtNotIn applies the NotIn predicate on the "next_renew_at" field.
+func NextRenewAtNotIn(vs ...time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldNotIn(FieldNextRenewAt, vs...))
+}
+
+// NextRenewAtGT applies the GT predicate on the "next_renew_at" field.
+func NextRenewAtGT(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldGT(FieldNextRenewAt, v))
+}
+
+// NextRenewAtGTE applies the GTE predicate on the "next_renew_at" field.
+func NextRenewAtGTE(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldGTE(FieldNextRenewAt, v))
+}
+
+// NextRenewAtLT applies the LT predicate on the "next_renew_at" field.
+func NextRenewAtLT(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldLT(FieldNextRenewAt, v))
+}
+
+// NextRenewAtLTE applies the LTE predicate on the "next_renew_at" field.
+func NextRenewAtLTE(v time.Time) predicate.Certificate {
+	return predicate.Certificate(sql.FieldLTE(FieldNextRenewAt, v))
+}
+
+// NextRenewAtIsNil applies the IsNil predicate on the "next_renew_at" field.
+func NextRenewAtIsNil() predicate.Certificate {
+	return predicate.Certificate(sql.FieldIsNull(FieldNextRenewAt))
+}
+
+// NextRenewAtNotNil applies the NotNil predicate on the "next_renew_at" field.
+func NextRenewAtNotNil() predicate.Certificate {
+	return predicate.Certificate(sql.FieldNotNull(FieldNextRenewAt))
+}
+
+// LastRenewErrorEQ applies the EQ predicate on the "last_renew_error" field.
+func LastRenewErrorEQ(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEQ(FieldLastRenewError, v))
+}
+
+// LastRenewErrorNEQ applies the NEQ predicate on the "last_renew_error" field.
+func LastRenewErrorNEQ(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldNEQ(FieldLastRenewError, v))
+}
+
+// LastRenewErrorIn applies the In predicate on the "last_renew_error" field.
+func LastRenewErrorIn(vs ...string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldIn(FieldLastRenewError, vs...))
+}
+
+// LastRenewErrorNotIn applies the NotIn predicate on the "last_renew_error" field.
+func LastRenewErrorNotIn(vs ...string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldNotIn(FieldLastRenewError, vs...))
+}
+
+// LastRenewErrorGT applies the GT predicate on the "last_renew_error" field.
+func LastRenewErrorGT(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldGT(FieldLastRenewError, v))
+}
+
+// LastRenewErrorGTE applies the GTE predicate on the "last_renew_error" field.
+func LastRenewErrorGTE(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldGTE(FieldLastRenewError, v))
+}
+
+// LastRenewErrorLT applies the LT predicate on the "last_renew_error" field.
+func LastRenewErrorLT(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldLT(FieldLastRenewError, v))
+}
+
+// LastRenewErrorLTE applies the LTE predicate on the "last_renew_error" field.
+func LastRenewErrorLTE(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldLTE(FieldLastRenewError, v))
+}
+
+// LastRenewErrorContains applies the Contains predicate on the "last_renew_error" field.
+func LastRenewErrorContains(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldContains(FieldLastRenewError, v))
+}
+
+// LastRenewErrorHasPrefix applies the HasPrefix predicate on the "last_renew_error" field.
+func LastRenewErrorHasPrefix(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldHasPrefix(FieldLastRenewError, v))
+}
+
+// LastRenewErrorHasSuffix applies the HasSuffix predicate on the "last_renew_error" field.
+func LastRenewErrorHasSuffix(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldHasSuffix(FieldLastRenewError, v))
+}
+
+// LastRenewErrorIsNil applies the IsNil predicate on the "last_renew_error" field.
+func LastRenewErrorIsNil() predicate.Certificate {
+	return predicate.Certificate(sql.FieldIsNull(FieldLastRenewError))
+}
+
+// LastRenewErrorNotNil applies the NotNil predicate on the "last_renew_error" field.
+func LastRenewErrorNotNil() predicate.Certificate {
+	return predicate.Certificate(sql.FieldNotNull(FieldLastRenewError))
+}
+
+// LastRenewErrorEqualFold applies the EqualFold predicate on the "last_renew_error" field.
+func LastRenewErrorEqualFold(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldEqualFold(FieldLastRenewError, v))
+}
+
+// LastRenewErrorContainsFold applies the ContainsFold predicate on the "last_renew_error" field.
+func LastRenewErrorContainsFold(v string) predicate.Certificate {
+	return predicate.Certificate(sql.FieldContainsFold(FieldLastRenewError, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

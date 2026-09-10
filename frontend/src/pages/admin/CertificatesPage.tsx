@@ -21,6 +21,10 @@ interface Certificate {
   serial_number?: string;
   issued_at?: string | null;
   expires_at?: string | null;
+  last_renewed_at?: string | null;
+  next_renew_at?: string | null;
+  renew_attempts?: number;
+  last_renew_error?: string;
   last_error?: string;
   created_at: string;
 }
@@ -61,6 +65,12 @@ export default function CertificatesPage() {
   const [editKeyPem, setEditKeyPem] = useState('');
   const [editDomain, setEditDomain] = useState(DOMAIN_KEEP);
 
+  // 签发弹窗（Managed / ACME 自动签发）。
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueHost, setIssueHost] = useState('');
+  // 待撤销证书 id：非空时显示确认弹窗。
+  const [revokeId, setRevokeId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       setRows(await list<Certificate>('/api/admin/certificates'));
@@ -100,6 +110,53 @@ export default function CertificatesPage() {
       toast.success(t('certificates.reloadSuccess'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('certificates.reloadFailed'));
+    }
+  };
+
+  // 签发（Managed / ACME）：向后端触发自动签发，成功后刷新列表。
+  const submitIssue = async () => {
+    if (!issueHost.trim()) {
+      toast.error(t('certificates.errFill'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post('/api/admin/certificates/issue', {
+        hostname: issueHost.trim(),
+        source: 'acme',
+      });
+      toast.success(t('certificates.issueSuccess'));
+      setIssueOpen(false);
+      setIssueHost('');
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('certificates.issueFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 立即续期（仅 ACME 来源有效）。
+  const doRenew = async (id: string) => {
+    try {
+      await api.post(`/api/admin/certificates/${id}/renew`);
+      toast.success(t('certificates.renewSuccess'));
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('certificates.renewFailed'));
+    }
+  };
+
+  // 撤销：向 CA 提交撤销并删除本地记录。
+  const doRevoke = async () => {
+    if (!revokeId) return;
+    try {
+      await api.post(`/api/admin/certificates/${revokeId}/revoke`);
+      toast.success(t('certificates.revokeSuccess'));
+      setRevokeId(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('certificates.revokeFailed'));
     }
   };
 
@@ -176,12 +233,20 @@ export default function CertificatesPage() {
       <PageHeader
         title={t('certificates.title')}
         right={
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
-          >
-            {`+ ${t('certificates.upload')}`}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIssueOpen(true)}
+              className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
+            >
+              {`+ ${t('certificates.issue')}`}
+            </button>
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="rounded bg-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {`+ ${t('certificates.upload')}`}
+            </button>
+          </div>
         }
       />
       <Modal
@@ -236,6 +301,39 @@ export default function CertificatesPage() {
             />
           </Field>
         </div>
+      </Modal>
+
+      <Modal
+        open={issueOpen}
+        title={t('certificates.issueTitle')}
+        onClose={() => setIssueOpen(false)}
+        footer={
+          <>
+            <button
+              onClick={() => setIssueOpen(false)}
+              className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={submitIssue}
+              disabled={busy}
+              className="rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              {busy ? t('certificates.issuing') : t('certificates.issue')}
+            </button>
+          </>
+        }
+      >
+        <Field label={t('certificates.hostname')}>
+          <input
+            value={issueHost}
+            onChange={(e) => setIssueHost(e.target.value)}
+            placeholder={t('certificates.hostnamePh')}
+            className={inputCls}
+          />
+        </Field>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t('certificates.issueHint')}</p>
       </Modal>
 
       <Modal
@@ -315,6 +413,15 @@ export default function CertificatesPage() {
         onCancel={() => setDeleteId(null)}
       />
 
+      <ConfirmDialog
+        open={revokeId !== null}
+        title={t('common.confirmTitle')}
+        message={t('certificates.confirmRevoke')}
+        confirmLabel={t('certificates.revoke')}
+        onConfirm={doRevoke}
+        onCancel={() => setRevokeId(null)}
+      />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -324,6 +431,7 @@ export default function CertificatesPage() {
               <th className="px-4 py-2">{t('fields.issuer')}</th>
               <th className="px-4 py-2">{t('fields.source')}</th>
               <th className="px-4 py-2">{t('fields.expiresAt')}</th>
+              <th className="px-4 py-2">{t('certificates.nextRenew')}</th>
               <th className="px-4 py-2">{t('fields.domainId')}</th>
               <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
@@ -331,7 +439,7 @@ export default function CertificatesPage() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   {t('certificates.none')}
                 </td>
               </tr>
@@ -353,11 +461,25 @@ export default function CertificatesPage() {
                 <td className="px-4 py-2">{r.issuer || '-'}</td>
                 <td className="px-4 py-2">{r.source || '-'}</td>
                 <td className="px-4 py-2">{r.expires_at ? new Date(r.expires_at).toLocaleString() : '-'}</td>
+                <td className="px-4 py-2">
+                  {r.next_renew_at ? new Date(r.next_renew_at).toLocaleString() : '-'}
+                  {r.renew_attempts ? (
+                    <span className="ml-1 text-xs text-amber-600" title={r.last_renew_error}>
+                      {`↻${r.renew_attempts}`}
+                    </span>
+                  ) : null}
+                </td>
                 <td className="px-4 py-2">{domainName(r.domain_id)}</td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
                     <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
                     <ActionBtn onClick={() => doReload(r.id)}>{t('certificates.reload')}</ActionBtn>
+                    {r.source === 'acme' && (
+                      <ActionBtn onClick={() => doRenew(r.id)}>{t('certificates.renew')}</ActionBtn>
+                    )}
+                    <ActionBtn danger onClick={() => setRevokeId(r.id)}>
+                      {t('certificates.revoke')}
+                    </ActionBtn>
                     <ActionBtn danger onClick={() => setDeleteId(r.id)}>
                       {t('common.delete')}
                     </ActionBtn>

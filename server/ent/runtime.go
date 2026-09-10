@@ -5,6 +5,7 @@ package ent
 import (
 	"encoding/json"
 
+	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
@@ -32,6 +33,36 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	acmeaccountFields := schema.ACMEAccount{}.Fields()
+	_ = acmeaccountFields
+	// acmeaccountDescDirectoryURL is the schema descriptor for directory_url field.
+	acmeaccountDescDirectoryURL := acmeaccountFields[1].Descriptor()
+	// acmeaccount.DirectoryURLValidator is a validator for the "directory_url" field. It is called by the builders before save.
+	acmeaccount.DirectoryURLValidator = acmeaccountDescDirectoryURL.Validators[0].(func(string) error)
+	// acmeaccountDescAccountURL is the schema descriptor for account_url field.
+	acmeaccountDescAccountURL := acmeaccountFields[2].Descriptor()
+	// acmeaccount.DefaultAccountURL holds the default value on creation for the account_url field.
+	acmeaccount.DefaultAccountURL = acmeaccountDescAccountURL.Default.(string)
+	// acmeaccountDescEmail is the schema descriptor for email field.
+	acmeaccountDescEmail := acmeaccountFields[3].Descriptor()
+	// acmeaccount.DefaultEmail holds the default value on creation for the email field.
+	acmeaccount.DefaultEmail = acmeaccountDescEmail.Default.(string)
+	// acmeaccountDescKeyEncrypted is the schema descriptor for key_encrypted field.
+	acmeaccountDescKeyEncrypted := acmeaccountFields[4].Descriptor()
+	// acmeaccount.KeyEncryptedValidator is a validator for the "key_encrypted" field. It is called by the builders before save.
+	acmeaccount.KeyEncryptedValidator = acmeaccountDescKeyEncrypted.Validators[0].(func(string) error)
+	// acmeaccountDescStatus is the schema descriptor for status field.
+	acmeaccountDescStatus := acmeaccountFields[5].Descriptor()
+	// acmeaccount.DefaultStatus holds the default value on creation for the status field.
+	acmeaccount.DefaultStatus = acmeaccountDescStatus.Default.(string)
+	// acmeaccountDescLastError is the schema descriptor for last_error field.
+	acmeaccountDescLastError := acmeaccountFields[6].Descriptor()
+	// acmeaccount.DefaultLastError holds the default value on creation for the last_error field.
+	acmeaccount.DefaultLastError = acmeaccountDescLastError.Default.(string)
+	// acmeaccountDescID is the schema descriptor for id field.
+	acmeaccountDescID := acmeaccountFields[0].Descriptor()
+	// acmeaccount.DefaultID holds the default value on creation for the id field.
+	acmeaccount.DefaultID = acmeaccountDescID.Default.(func() uuid.UUID)
 	adminFields := schema.Admin{}.Fields()
 	_ = adminFields
 	// adminDescEmail is the schema descriptor for email field.
@@ -162,6 +193,14 @@ func init() {
 	certificateDescLastError := certificateFields[12].Descriptor()
 	// certificate.DefaultLastError holds the default value on creation for the last_error field.
 	certificate.DefaultLastError = certificateDescLastError.Default.(string)
+	// certificateDescRenewAttempts is the schema descriptor for renew_attempts field.
+	certificateDescRenewAttempts := certificateFields[14].Descriptor()
+	// certificate.DefaultRenewAttempts holds the default value on creation for the renew_attempts field.
+	certificate.DefaultRenewAttempts = certificateDescRenewAttempts.Default.(int)
+	// certificateDescLastRenewError is the schema descriptor for last_renew_error field.
+	certificateDescLastRenewError := certificateFields[16].Descriptor()
+	// certificate.DefaultLastRenewError holds the default value on creation for the last_renew_error field.
+	certificate.DefaultLastRenewError = certificateDescLastRenewError.Default.(string)
 	// certificateDescID is the schema descriptor for id field.
 	certificateDescID := certificateFields[0].Descriptor()
 	// certificate.DefaultID holds the default value on creation for the id field.

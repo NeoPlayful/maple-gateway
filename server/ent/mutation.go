@@ -12,6 +12,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
@@ -44,6 +45,7 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
+	TypeACMEAccount         = "ACMEAccount"
 	TypeAdmin               = "Admin"
 	TypeAuditLog            = "AuditLog"
 	TypeBluegreenDeployment = "BluegreenDeployment"
@@ -64,6 +66,776 @@ const (
 	TypeTenant              = "Tenant"
 	TypeTrafficPolicy       = "TrafficPolicy"
 )
+
+// ACMEAccountMutation represents an operation that mutates the ACMEAccount nodes in the graph.
+type ACMEAccountMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *uuid.UUID
+	directory_url *string
+	account_url   *string
+	email         *string
+	key_encrypted *string
+	status        *string
+	last_error    *string
+	created_at    *time.Time
+	updated_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*ACMEAccount, error)
+	predicates    []predicate.ACMEAccount
+}
+
+var _ ent.Mutation = (*ACMEAccountMutation)(nil)
+
+// acmeaccountOption allows management of the mutation configuration using functional options.
+type acmeaccountOption func(*ACMEAccountMutation)
+
+// newACMEAccountMutation creates new mutation for the ACMEAccount entity.
+func newACMEAccountMutation(c config, op Op, opts ...acmeaccountOption) *ACMEAccountMutation {
+	m := &ACMEAccountMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeACMEAccount,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withACMEAccountID sets the ID field of the mutation.
+func withACMEAccountID(id uuid.UUID) acmeaccountOption {
+	return func(m *ACMEAccountMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ACMEAccount
+		)
+		m.oldValue = func(ctx context.Context) (*ACMEAccount, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ACMEAccount.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withACMEAccount sets the old ACMEAccount of the mutation.
+func withACMEAccount(node *ACMEAccount) acmeaccountOption {
+	return func(m *ACMEAccountMutation) {
+		m.oldValue = func(context.Context) (*ACMEAccount, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ACMEAccountMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ACMEAccountMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of ACMEAccount entities.
+func (m *ACMEAccountMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ACMEAccountMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ACMEAccountMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ACMEAccount.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetDirectoryURL sets the "directory_url" field.
+func (m *ACMEAccountMutation) SetDirectoryURL(s string) {
+	m.directory_url = &s
+}
+
+// DirectoryURL returns the value of the "directory_url" field in the mutation.
+func (m *ACMEAccountMutation) DirectoryURL() (r string, exists bool) {
+	v := m.directory_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDirectoryURL returns the old "directory_url" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldDirectoryURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDirectoryURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDirectoryURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDirectoryURL: %w", err)
+	}
+	return oldValue.DirectoryURL, nil
+}
+
+// ResetDirectoryURL resets all changes to the "directory_url" field.
+func (m *ACMEAccountMutation) ResetDirectoryURL() {
+	m.directory_url = nil
+}
+
+// SetAccountURL sets the "account_url" field.
+func (m *ACMEAccountMutation) SetAccountURL(s string) {
+	m.account_url = &s
+}
+
+// AccountURL returns the value of the "account_url" field in the mutation.
+func (m *ACMEAccountMutation) AccountURL() (r string, exists bool) {
+	v := m.account_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountURL returns the old "account_url" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldAccountURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountURL: %w", err)
+	}
+	return oldValue.AccountURL, nil
+}
+
+// ClearAccountURL clears the value of the "account_url" field.
+func (m *ACMEAccountMutation) ClearAccountURL() {
+	m.account_url = nil
+	m.clearedFields[acmeaccount.FieldAccountURL] = struct{}{}
+}
+
+// AccountURLCleared returns if the "account_url" field was cleared in this mutation.
+func (m *ACMEAccountMutation) AccountURLCleared() bool {
+	_, ok := m.clearedFields[acmeaccount.FieldAccountURL]
+	return ok
+}
+
+// ResetAccountURL resets all changes to the "account_url" field.
+func (m *ACMEAccountMutation) ResetAccountURL() {
+	m.account_url = nil
+	delete(m.clearedFields, acmeaccount.FieldAccountURL)
+}
+
+// SetEmail sets the "email" field.
+func (m *ACMEAccountMutation) SetEmail(s string) {
+	m.email = &s
+}
+
+// Email returns the value of the "email" field in the mutation.
+func (m *ACMEAccountMutation) Email() (r string, exists bool) {
+	v := m.email
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmail returns the old "email" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldEmail(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmail is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmail requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmail: %w", err)
+	}
+	return oldValue.Email, nil
+}
+
+// ClearEmail clears the value of the "email" field.
+func (m *ACMEAccountMutation) ClearEmail() {
+	m.email = nil
+	m.clearedFields[acmeaccount.FieldEmail] = struct{}{}
+}
+
+// EmailCleared returns if the "email" field was cleared in this mutation.
+func (m *ACMEAccountMutation) EmailCleared() bool {
+	_, ok := m.clearedFields[acmeaccount.FieldEmail]
+	return ok
+}
+
+// ResetEmail resets all changes to the "email" field.
+func (m *ACMEAccountMutation) ResetEmail() {
+	m.email = nil
+	delete(m.clearedFields, acmeaccount.FieldEmail)
+}
+
+// SetKeyEncrypted sets the "key_encrypted" field.
+func (m *ACMEAccountMutation) SetKeyEncrypted(s string) {
+	m.key_encrypted = &s
+}
+
+// KeyEncrypted returns the value of the "key_encrypted" field in the mutation.
+func (m *ACMEAccountMutation) KeyEncrypted() (r string, exists bool) {
+	v := m.key_encrypted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKeyEncrypted returns the old "key_encrypted" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldKeyEncrypted(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKeyEncrypted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKeyEncrypted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKeyEncrypted: %w", err)
+	}
+	return oldValue.KeyEncrypted, nil
+}
+
+// ResetKeyEncrypted resets all changes to the "key_encrypted" field.
+func (m *ACMEAccountMutation) ResetKeyEncrypted() {
+	m.key_encrypted = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *ACMEAccountMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *ACMEAccountMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *ACMEAccountMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetLastError sets the "last_error" field.
+func (m *ACMEAccountMutation) SetLastError(s string) {
+	m.last_error = &s
+}
+
+// LastError returns the value of the "last_error" field in the mutation.
+func (m *ACMEAccountMutation) LastError() (r string, exists bool) {
+	v := m.last_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastError returns the old "last_error" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldLastError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastError: %w", err)
+	}
+	return oldValue.LastError, nil
+}
+
+// ClearLastError clears the value of the "last_error" field.
+func (m *ACMEAccountMutation) ClearLastError() {
+	m.last_error = nil
+	m.clearedFields[acmeaccount.FieldLastError] = struct{}{}
+}
+
+// LastErrorCleared returns if the "last_error" field was cleared in this mutation.
+func (m *ACMEAccountMutation) LastErrorCleared() bool {
+	_, ok := m.clearedFields[acmeaccount.FieldLastError]
+	return ok
+}
+
+// ResetLastError resets all changes to the "last_error" field.
+func (m *ACMEAccountMutation) ResetLastError() {
+	m.last_error = nil
+	delete(m.clearedFields, acmeaccount.FieldLastError)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ACMEAccountMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ACMEAccountMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ACMEAccountMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ACMEAccountMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ACMEAccountMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ACMEAccount entity.
+// If the ACMEAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ACMEAccountMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ACMEAccountMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the ACMEAccountMutation builder.
+func (m *ACMEAccountMutation) Where(ps ...predicate.ACMEAccount) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ACMEAccountMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ACMEAccountMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ACMEAccount, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ACMEAccountMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ACMEAccountMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ACMEAccount).
+func (m *ACMEAccountMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ACMEAccountMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.directory_url != nil {
+		fields = append(fields, acmeaccount.FieldDirectoryURL)
+	}
+	if m.account_url != nil {
+		fields = append(fields, acmeaccount.FieldAccountURL)
+	}
+	if m.email != nil {
+		fields = append(fields, acmeaccount.FieldEmail)
+	}
+	if m.key_encrypted != nil {
+		fields = append(fields, acmeaccount.FieldKeyEncrypted)
+	}
+	if m.status != nil {
+		fields = append(fields, acmeaccount.FieldStatus)
+	}
+	if m.last_error != nil {
+		fields = append(fields, acmeaccount.FieldLastError)
+	}
+	if m.created_at != nil {
+		fields = append(fields, acmeaccount.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, acmeaccount.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ACMEAccountMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case acmeaccount.FieldDirectoryURL:
+		return m.DirectoryURL()
+	case acmeaccount.FieldAccountURL:
+		return m.AccountURL()
+	case acmeaccount.FieldEmail:
+		return m.Email()
+	case acmeaccount.FieldKeyEncrypted:
+		return m.KeyEncrypted()
+	case acmeaccount.FieldStatus:
+		return m.Status()
+	case acmeaccount.FieldLastError:
+		return m.LastError()
+	case acmeaccount.FieldCreatedAt:
+		return m.CreatedAt()
+	case acmeaccount.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ACMEAccountMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case acmeaccount.FieldDirectoryURL:
+		return m.OldDirectoryURL(ctx)
+	case acmeaccount.FieldAccountURL:
+		return m.OldAccountURL(ctx)
+	case acmeaccount.FieldEmail:
+		return m.OldEmail(ctx)
+	case acmeaccount.FieldKeyEncrypted:
+		return m.OldKeyEncrypted(ctx)
+	case acmeaccount.FieldStatus:
+		return m.OldStatus(ctx)
+	case acmeaccount.FieldLastError:
+		return m.OldLastError(ctx)
+	case acmeaccount.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case acmeaccount.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ACMEAccount field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ACMEAccountMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case acmeaccount.FieldDirectoryURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDirectoryURL(v)
+		return nil
+	case acmeaccount.FieldAccountURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountURL(v)
+		return nil
+	case acmeaccount.FieldEmail:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmail(v)
+		return nil
+	case acmeaccount.FieldKeyEncrypted:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKeyEncrypted(v)
+		return nil
+	case acmeaccount.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case acmeaccount.FieldLastError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastError(v)
+		return nil
+	case acmeaccount.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case acmeaccount.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ACMEAccount field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ACMEAccountMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ACMEAccountMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ACMEAccountMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown ACMEAccount numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ACMEAccountMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(acmeaccount.FieldAccountURL) {
+		fields = append(fields, acmeaccount.FieldAccountURL)
+	}
+	if m.FieldCleared(acmeaccount.FieldEmail) {
+		fields = append(fields, acmeaccount.FieldEmail)
+	}
+	if m.FieldCleared(acmeaccount.FieldLastError) {
+		fields = append(fields, acmeaccount.FieldLastError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ACMEAccountMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ACMEAccountMutation) ClearField(name string) error {
+	switch name {
+	case acmeaccount.FieldAccountURL:
+		m.ClearAccountURL()
+		return nil
+	case acmeaccount.FieldEmail:
+		m.ClearEmail()
+		return nil
+	case acmeaccount.FieldLastError:
+		m.ClearLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown ACMEAccount nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ACMEAccountMutation) ResetField(name string) error {
+	switch name {
+	case acmeaccount.FieldDirectoryURL:
+		m.ResetDirectoryURL()
+		return nil
+	case acmeaccount.FieldAccountURL:
+		m.ResetAccountURL()
+		return nil
+	case acmeaccount.FieldEmail:
+		m.ResetEmail()
+		return nil
+	case acmeaccount.FieldKeyEncrypted:
+		m.ResetKeyEncrypted()
+		return nil
+	case acmeaccount.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case acmeaccount.FieldLastError:
+		m.ResetLastError()
+		return nil
+	case acmeaccount.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case acmeaccount.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ACMEAccount field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ACMEAccountMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ACMEAccountMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ACMEAccountMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ACMEAccountMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ACMEAccountMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ACMEAccountMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ACMEAccountMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown ACMEAccount unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ACMEAccountMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown ACMEAccount edge %s", name)
+}
 
 // AdminMutation represents an operation that mutates the Admin nodes in the graph.
 type AdminMutation struct {
@@ -4654,6 +5426,11 @@ type CertificateMutation struct {
 	expires_at            *time.Time
 	last_renewed_at       *time.Time
 	last_error            *string
+	provider_meta         *map[string]string
+	renew_attempts        *int
+	addrenew_attempts     *int
+	next_renew_at         *time.Time
+	last_renew_error      *string
 	created_at            *time.Time
 	updated_at            *time.Time
 	clearedFields         map[string]struct{}
@@ -5291,6 +6068,209 @@ func (m *CertificateMutation) ResetLastError() {
 	delete(m.clearedFields, certificate.FieldLastError)
 }
 
+// SetProviderMeta sets the "provider_meta" field.
+func (m *CertificateMutation) SetProviderMeta(value map[string]string) {
+	m.provider_meta = &value
+}
+
+// ProviderMeta returns the value of the "provider_meta" field in the mutation.
+func (m *CertificateMutation) ProviderMeta() (r map[string]string, exists bool) {
+	v := m.provider_meta
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProviderMeta returns the old "provider_meta" field's value of the Certificate entity.
+// If the Certificate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CertificateMutation) OldProviderMeta(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProviderMeta is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProviderMeta requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProviderMeta: %w", err)
+	}
+	return oldValue.ProviderMeta, nil
+}
+
+// ClearProviderMeta clears the value of the "provider_meta" field.
+func (m *CertificateMutation) ClearProviderMeta() {
+	m.provider_meta = nil
+	m.clearedFields[certificate.FieldProviderMeta] = struct{}{}
+}
+
+// ProviderMetaCleared returns if the "provider_meta" field was cleared in this mutation.
+func (m *CertificateMutation) ProviderMetaCleared() bool {
+	_, ok := m.clearedFields[certificate.FieldProviderMeta]
+	return ok
+}
+
+// ResetProviderMeta resets all changes to the "provider_meta" field.
+func (m *CertificateMutation) ResetProviderMeta() {
+	m.provider_meta = nil
+	delete(m.clearedFields, certificate.FieldProviderMeta)
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (m *CertificateMutation) SetRenewAttempts(i int) {
+	m.renew_attempts = &i
+	m.addrenew_attempts = nil
+}
+
+// RenewAttempts returns the value of the "renew_attempts" field in the mutation.
+func (m *CertificateMutation) RenewAttempts() (r int, exists bool) {
+	v := m.renew_attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRenewAttempts returns the old "renew_attempts" field's value of the Certificate entity.
+// If the Certificate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CertificateMutation) OldRenewAttempts(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRenewAttempts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRenewAttempts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRenewAttempts: %w", err)
+	}
+	return oldValue.RenewAttempts, nil
+}
+
+// AddRenewAttempts adds i to the "renew_attempts" field.
+func (m *CertificateMutation) AddRenewAttempts(i int) {
+	if m.addrenew_attempts != nil {
+		*m.addrenew_attempts += i
+	} else {
+		m.addrenew_attempts = &i
+	}
+}
+
+// AddedRenewAttempts returns the value that was added to the "renew_attempts" field in this mutation.
+func (m *CertificateMutation) AddedRenewAttempts() (r int, exists bool) {
+	v := m.addrenew_attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRenewAttempts resets all changes to the "renew_attempts" field.
+func (m *CertificateMutation) ResetRenewAttempts() {
+	m.renew_attempts = nil
+	m.addrenew_attempts = nil
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (m *CertificateMutation) SetNextRenewAt(t time.Time) {
+	m.next_renew_at = &t
+}
+
+// NextRenewAt returns the value of the "next_renew_at" field in the mutation.
+func (m *CertificateMutation) NextRenewAt() (r time.Time, exists bool) {
+	v := m.next_renew_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextRenewAt returns the old "next_renew_at" field's value of the Certificate entity.
+// If the Certificate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CertificateMutation) OldNextRenewAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextRenewAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextRenewAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextRenewAt: %w", err)
+	}
+	return oldValue.NextRenewAt, nil
+}
+
+// ClearNextRenewAt clears the value of the "next_renew_at" field.
+func (m *CertificateMutation) ClearNextRenewAt() {
+	m.next_renew_at = nil
+	m.clearedFields[certificate.FieldNextRenewAt] = struct{}{}
+}
+
+// NextRenewAtCleared returns if the "next_renew_at" field was cleared in this mutation.
+func (m *CertificateMutation) NextRenewAtCleared() bool {
+	_, ok := m.clearedFields[certificate.FieldNextRenewAt]
+	return ok
+}
+
+// ResetNextRenewAt resets all changes to the "next_renew_at" field.
+func (m *CertificateMutation) ResetNextRenewAt() {
+	m.next_renew_at = nil
+	delete(m.clearedFields, certificate.FieldNextRenewAt)
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (m *CertificateMutation) SetLastRenewError(s string) {
+	m.last_renew_error = &s
+}
+
+// LastRenewError returns the value of the "last_renew_error" field in the mutation.
+func (m *CertificateMutation) LastRenewError() (r string, exists bool) {
+	v := m.last_renew_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastRenewError returns the old "last_renew_error" field's value of the Certificate entity.
+// If the Certificate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CertificateMutation) OldLastRenewError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastRenewError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastRenewError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastRenewError: %w", err)
+	}
+	return oldValue.LastRenewError, nil
+}
+
+// ClearLastRenewError clears the value of the "last_renew_error" field.
+func (m *CertificateMutation) ClearLastRenewError() {
+	m.last_renew_error = nil
+	m.clearedFields[certificate.FieldLastRenewError] = struct{}{}
+}
+
+// LastRenewErrorCleared returns if the "last_renew_error" field was cleared in this mutation.
+func (m *CertificateMutation) LastRenewErrorCleared() bool {
+	_, ok := m.clearedFields[certificate.FieldLastRenewError]
+	return ok
+}
+
+// ResetLastRenewError resets all changes to the "last_renew_error" field.
+func (m *CertificateMutation) ResetLastRenewError() {
+	m.last_renew_error = nil
+	delete(m.clearedFields, certificate.FieldLastRenewError)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *CertificateMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -5424,7 +6404,7 @@ func (m *CertificateMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CertificateMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 18)
 	if m.domain != nil {
 		fields = append(fields, certificate.FieldDomainID)
 	}
@@ -5460,6 +6440,18 @@ func (m *CertificateMutation) Fields() []string {
 	}
 	if m.last_error != nil {
 		fields = append(fields, certificate.FieldLastError)
+	}
+	if m.provider_meta != nil {
+		fields = append(fields, certificate.FieldProviderMeta)
+	}
+	if m.renew_attempts != nil {
+		fields = append(fields, certificate.FieldRenewAttempts)
+	}
+	if m.next_renew_at != nil {
+		fields = append(fields, certificate.FieldNextRenewAt)
+	}
+	if m.last_renew_error != nil {
+		fields = append(fields, certificate.FieldLastRenewError)
 	}
 	if m.created_at != nil {
 		fields = append(fields, certificate.FieldCreatedAt)
@@ -5499,6 +6491,14 @@ func (m *CertificateMutation) Field(name string) (ent.Value, bool) {
 		return m.LastRenewedAt()
 	case certificate.FieldLastError:
 		return m.LastError()
+	case certificate.FieldProviderMeta:
+		return m.ProviderMeta()
+	case certificate.FieldRenewAttempts:
+		return m.RenewAttempts()
+	case certificate.FieldNextRenewAt:
+		return m.NextRenewAt()
+	case certificate.FieldLastRenewError:
+		return m.LastRenewError()
 	case certificate.FieldCreatedAt:
 		return m.CreatedAt()
 	case certificate.FieldUpdatedAt:
@@ -5536,6 +6536,14 @@ func (m *CertificateMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldLastRenewedAt(ctx)
 	case certificate.FieldLastError:
 		return m.OldLastError(ctx)
+	case certificate.FieldProviderMeta:
+		return m.OldProviderMeta(ctx)
+	case certificate.FieldRenewAttempts:
+		return m.OldRenewAttempts(ctx)
+	case certificate.FieldNextRenewAt:
+		return m.OldNextRenewAt(ctx)
+	case certificate.FieldLastRenewError:
+		return m.OldLastRenewError(ctx)
 	case certificate.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case certificate.FieldUpdatedAt:
@@ -5633,6 +6641,34 @@ func (m *CertificateMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetLastError(v)
 		return nil
+	case certificate.FieldProviderMeta:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProviderMeta(v)
+		return nil
+	case certificate.FieldRenewAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRenewAttempts(v)
+		return nil
+	case certificate.FieldNextRenewAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextRenewAt(v)
+		return nil
+	case certificate.FieldLastRenewError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastRenewError(v)
+		return nil
 	case certificate.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -5654,13 +6690,21 @@ func (m *CertificateMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *CertificateMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addrenew_attempts != nil {
+		fields = append(fields, certificate.FieldRenewAttempts)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *CertificateMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case certificate.FieldRenewAttempts:
+		return m.AddedRenewAttempts()
+	}
 	return nil, false
 }
 
@@ -5669,6 +6713,13 @@ func (m *CertificateMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *CertificateMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case certificate.FieldRenewAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRenewAttempts(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Certificate numeric field %s", name)
 }
@@ -5697,6 +6748,15 @@ func (m *CertificateMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(certificate.FieldLastError) {
 		fields = append(fields, certificate.FieldLastError)
+	}
+	if m.FieldCleared(certificate.FieldProviderMeta) {
+		fields = append(fields, certificate.FieldProviderMeta)
+	}
+	if m.FieldCleared(certificate.FieldNextRenewAt) {
+		fields = append(fields, certificate.FieldNextRenewAt)
+	}
+	if m.FieldCleared(certificate.FieldLastRenewError) {
+		fields = append(fields, certificate.FieldLastRenewError)
 	}
 	return fields
 }
@@ -5732,6 +6792,15 @@ func (m *CertificateMutation) ClearField(name string) error {
 		return nil
 	case certificate.FieldLastError:
 		m.ClearLastError()
+		return nil
+	case certificate.FieldProviderMeta:
+		m.ClearProviderMeta()
+		return nil
+	case certificate.FieldNextRenewAt:
+		m.ClearNextRenewAt()
+		return nil
+	case certificate.FieldLastRenewError:
+		m.ClearLastRenewError()
 		return nil
 	}
 	return fmt.Errorf("unknown Certificate nullable field %s", name)
@@ -5776,6 +6845,18 @@ func (m *CertificateMutation) ResetField(name string) error {
 		return nil
 	case certificate.FieldLastError:
 		m.ResetLastError()
+		return nil
+	case certificate.FieldProviderMeta:
+		m.ResetProviderMeta()
+		return nil
+	case certificate.FieldRenewAttempts:
+		m.ResetRenewAttempts()
+		return nil
+	case certificate.FieldNextRenewAt:
+		m.ResetNextRenewAt()
+		return nil
+	case certificate.FieldLastRenewError:
+		m.ResetLastRenewError()
 		return nil
 	case certificate.FieldCreatedAt:
 		m.ResetCreatedAt()

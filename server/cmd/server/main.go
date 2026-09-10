@@ -17,6 +17,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
+	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/acme"
 	"github.com/NeoPlayful/maple-gateway/server/internal/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
@@ -204,6 +205,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// 密钥未配置或表未迁移时告警禁用，不影响既有 global 模式启动。
 	var certSvc *certificate.Service
 	var certH *certificate.Handler
+	var acmeChallenges *acme.ChallengeStore
 	if db == nil {
 		logger.Debug("certificate management API disabled: database unavailable " +
 			"(certificates endpoints not registered)")
@@ -228,6 +230,12 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			certH = certificate.NewHandler(certSvc)
 			logger.Debug("certificate management API mounted",
 				zap.Bool("cert_enc_key_set", cfg.TLS.CertEncKey != "" || os.Getenv("MAPLE_CERT_ENC_KEY") != ""))
+			// 启用 ACME 自动签发/续期来源。挑战 store 与数据平面共享（http-01 代答）。
+			if cfg.ACME.Enabled {
+				acmeChallenges = acme.NewChallengeStore()
+				certSvc.EnableACME(entClient, acmeChallenges,
+					cfg.ACME.DirectoryURL, cfg.ACME.Email, cfg.ACME.Challenge, cfg.ACME.KeyType)
+			}
 		}
 	}
 	// 证书缓存多实例对账：周期全量重载（对齐 Phase 4"先轮询"决策）。
@@ -266,6 +274,41 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 				}
 			}
 		}()
+		// ACME 自动续期引擎。多实例下仅 Leader 执行（复用 HA 协调），
+		// 避免多实例重复向 CA 下单；单实例（HA 关闭）恒执行。
+		if cfg.ACME.Enabled {
+			go func() {
+				ticker := time.NewTicker(cfg.ACME.RenewCheckInterval)
+				defer ticker.Stop()
+				canRun := func() bool {
+					if !cfg.HA.Enabled {
+						return true
+					}
+					return coord != nil && coord.IsLeader()
+				}
+				rc := certificate.RenewConfig{
+					Before:      cfg.ACME.RenewBefore,
+					MaxAttempts: cfg.ACME.MaxRenewAttempts,
+					RateBackoff: cfg.ACME.RateLimitBackoff,
+					BaseBackoff: time.Hour,
+				}
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						if n, err := certSvc.RenewOnce(ctx, rc, canRun); err != nil {
+							logger.Warn("certificate auto-renew scan failed", zap.String("err", err.Error()))
+						} else if n > 0 {
+							logger.Info("certificate auto-renew completed", zap.Int("renewed", n))
+						}
+					}
+				}
+			}()
+			logger.Info("acme auto-renew enabled",
+				zap.Duration("renew_before", cfg.ACME.RenewBefore),
+				zap.Duration("interval", cfg.ACME.RenewCheckInterval))
+		}
 	}
 
 	logger.Info("maple-gateway starting",
@@ -328,6 +371,11 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	accessLog := logs.NewAccessLog(5000)
 	errLog := logs.NewErrLog(2000)
+	// ACME http-01 挑战代答（仅启用 ACME 时注入；nil 表示不拦截）。
+	var acmeResponder gateway.ChallengeResponder
+	if acmeChallenges != nil {
+		acmeResponder = acmeChallenges
+	}
 	dp := gateway.NewDataPlane(gateway.DataPlaneConfig{
 		Address:             httpAddr,
 		HTTPSAddress:        httpsAddr,
@@ -347,6 +395,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		AccessLog:           accessLog,
 		ErrLog:              errLog,
 		Tracer:              trc,
+		ACMEChallenge:       acmeResponder,
 	})
 	dpErrCh := dp.Start()
 

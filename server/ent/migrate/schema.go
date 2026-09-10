@@ -9,6 +9,31 @@ import (
 )
 
 var (
+	// AcmeAccountsColumns holds the columns for the "acme_accounts" table.
+	AcmeAccountsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "directory_url", Type: field.TypeString},
+		{Name: "account_url", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "email", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "key_encrypted", Type: field.TypeString, Size: 2147483647},
+		{Name: "status", Type: field.TypeString, Default: "active"},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// AcmeAccountsTable holds the schema information for the "acme_accounts" table.
+	AcmeAccountsTable = &schema.Table{
+		Name:       "acme_accounts",
+		Columns:    AcmeAccountsColumns,
+		PrimaryKey: []*schema.Column{AcmeAccountsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "acmeaccount_directory_url",
+				Unique:  false,
+				Columns: []*schema.Column{AcmeAccountsColumns[1]},
+			},
+		},
+	}
 	// AdminsColumns holds the columns for the "admins" table.
 	AdminsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -180,6 +205,10 @@ var (
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "last_renewed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "last_error", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "provider_meta", Type: field.TypeJSON, Nullable: true},
+		{Name: "renew_attempts", Type: field.TypeInt, Default: 0},
+		{Name: "next_renew_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_renew_error", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "domain_id", Type: field.TypeUUID, Nullable: true},
@@ -192,7 +221,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "certificates_domains_certificates",
-				Columns:    []*schema.Column{CertificatesColumns[14]},
+				Columns:    []*schema.Column{CertificatesColumns[18]},
 				RefColumns: []*schema.Column{DomainsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -201,7 +230,7 @@ var (
 			{
 				Name:    "certificate_domain_id",
 				Unique:  false,
-				Columns: []*schema.Column{CertificatesColumns[14]},
+				Columns: []*schema.Column{CertificatesColumns[18]},
 			},
 			{
 				Name:    "certificate_hostname",
@@ -605,6 +634,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AcmeAccountsTable,
 		AdminsTable,
 		AuditLogsTable,
 		BluegreenDeploymentsTable,

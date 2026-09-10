@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
@@ -91,6 +92,7 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			acmeaccount.Table:         acmeaccount.ValidColumn,
 			admin.Table:               admin.ValidColumn,
 			auditlog.Table:            auditlog.ValidColumn,
 			bluegreendeployment.Table: bluegreendeployment.ValidColumn,

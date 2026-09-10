@@ -58,3 +58,18 @@ security:
 tls:
   mode: direct                       # direct（按 SNI 动态选每域名证书）/ global（单全局证书）。direct 需 DB + 证书服务
   cert_enc_key: "u+IBv5z9z+RqwIbEV9WPfedoJLm/gj0MwM6QmF1+MYs="
+
+# Managed Certificate / ACME 自动签发续期。
+# 本地开发默认关闭：签发需域名可被公网 CA 访问（http-01 走 80 端口），本地无法联调真实 CA。
+# 开启需同时配置 tls.cert_enc_key（账户密钥/证书私钥均加密落库，不可降级为明文）。
+acme:
+  enabled: true                      # 自动签发/续期总开关；关闭时仅支持手动上传证书
+  directory_url: https://acme-staging-v02.api.letsencrypt.org/directory
+                                     # 本地开发用 staging（无速率限制）；生产改 https://acme-v02.api.letsencrypt.org/directory
+  email: "admin@maple.com"                          # 账户注册邮箱（开启后首次装载必填）
+  challenge: http-01                 # http-01（网关代答 /.well-known/acme-challenge/）
+  key_type: ec256                    # ec256 / rsa2048
+  renew_before: 720h                 # 提前续期窗口（30 天）
+  renew_check_interval: 1h           # 续期扫描节奏
+  max_renew_attempts: 5              # 连续失败上限，超过转告警并停止自动重试
+  rate_limit_backoff: 6h             # 触发 CA 限流后的最小重试间隔

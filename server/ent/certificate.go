@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -43,6 +44,14 @@ type Certificate struct {
 	LastRenewedAt *time.Time `json:"last_renewed_at,omitempty"`
 	// LastError holds the value of the "last_error" field.
 	LastError string `json:"last_error,omitempty"`
+	// ProviderMeta holds the value of the "provider_meta" field.
+	ProviderMeta map[string]string `json:"provider_meta,omitempty"`
+	// RenewAttempts holds the value of the "renew_attempts" field.
+	RenewAttempts int `json:"renew_attempts,omitempty"`
+	// NextRenewAt holds the value of the "next_renew_at" field.
+	NextRenewAt *time.Time `json:"next_renew_at,omitempty"`
+	// LastRenewError holds the value of the "last_renew_error" field.
+	LastRenewError string `json:"last_renew_error,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -80,9 +89,13 @@ func (*Certificate) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case certificate.FieldDomainID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
-		case certificate.FieldHostname, certificate.FieldSource, certificate.FieldStatus, certificate.FieldCertificatePem, certificate.FieldPrivateKeyEncrypted, certificate.FieldIssuer, certificate.FieldSerialNumber, certificate.FieldLastError:
+		case certificate.FieldProviderMeta:
+			values[i] = new([]byte)
+		case certificate.FieldRenewAttempts:
+			values[i] = new(sql.NullInt64)
+		case certificate.FieldHostname, certificate.FieldSource, certificate.FieldStatus, certificate.FieldCertificatePem, certificate.FieldPrivateKeyEncrypted, certificate.FieldIssuer, certificate.FieldSerialNumber, certificate.FieldLastError, certificate.FieldLastRenewError:
 			values[i] = new(sql.NullString)
-		case certificate.FieldIssuedAt, certificate.FieldExpiresAt, certificate.FieldLastRenewedAt, certificate.FieldCreatedAt, certificate.FieldUpdatedAt:
+		case certificate.FieldIssuedAt, certificate.FieldExpiresAt, certificate.FieldLastRenewedAt, certificate.FieldNextRenewAt, certificate.FieldCreatedAt, certificate.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		case certificate.FieldID:
 			values[i] = new(uuid.UUID)
@@ -183,6 +196,33 @@ func (c *Certificate) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				c.LastError = value.String
 			}
+		case certificate.FieldProviderMeta:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field provider_meta", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &c.ProviderMeta); err != nil {
+					return fmt.Errorf("unmarshal field provider_meta: %w", err)
+				}
+			}
+		case certificate.FieldRenewAttempts:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field renew_attempts", values[i])
+			} else if value.Valid {
+				c.RenewAttempts = int(value.Int64)
+			}
+		case certificate.FieldNextRenewAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field next_renew_at", values[i])
+			} else if value.Valid {
+				c.NextRenewAt = new(time.Time)
+				*c.NextRenewAt = value.Time
+			}
+		case certificate.FieldLastRenewError:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field last_renew_error", values[i])
+			} else if value.Valid {
+				c.LastRenewError = value.String
+			}
 		case certificate.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -279,6 +319,20 @@ func (c *Certificate) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("last_error=")
 	builder.WriteString(c.LastError)
+	builder.WriteString(", ")
+	builder.WriteString("provider_meta=")
+	builder.WriteString(fmt.Sprintf("%v", c.ProviderMeta))
+	builder.WriteString(", ")
+	builder.WriteString("renew_attempts=")
+	builder.WriteString(fmt.Sprintf("%v", c.RenewAttempts))
+	builder.WriteString(", ")
+	if v := c.NextRenewAt; v != nil {
+		builder.WriteString("next_renew_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("last_renew_error=")
+	builder.WriteString(c.LastRenewError)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(c.CreatedAt.Format(time.ANSIC))
