@@ -13,6 +13,7 @@
     "disable": "Disable",
     "action": "Action",
     "collapse": "Collapse",
+    "expand": "Expand",
     "new": "New",
     "confirmDelete": "Delete?",
     "confirmTitle": "Confirm action",
@@ -35,7 +36,9 @@
     "noRows": "No data",
     "search": "Search",
     "emptyPlaceholder": "Leave all blank",
-    "version": "Version"
+    "version": "Version",
+    "copyId": "Copy ID",
+    "copied": "Copied"
   },
   "status": {
     "maintenance": "Maintenance",
@@ -89,6 +92,7 @@
     "switchToDark": "Switch to dark"
   },
   "fields": {
+    "id": "ID",
     "name": "Name",
     "slug": "Slug",
     "description": "Description",
@@ -101,6 +105,7 @@
     "serviceName": "Service name",
     "hostname": "Hostname",
     "createdAt": "Created at",
+    "updatedAt": "Updated at",
     "deploymentName": "Deployment name",
     "strategy": "Strategy",
     "deployStrategy": "Deploy strategy",
