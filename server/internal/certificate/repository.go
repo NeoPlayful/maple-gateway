@@ -240,6 +240,24 @@ func (r *Repository) UpdateContent(ctx context.Context, id uuid.UUID, in *Certif
 	return toModel(e), nil
 }
 
+// UpdateDomainID 只更新证书的域名绑定（不触碰证书材料）。domainID 为空则解绑。
+func (r *Repository) UpdateDomainID(ctx context.Context, id uuid.UUID, domainID *uuid.UUID) (*Certificate, error) {
+	upd := r.ent.Certificate.UpdateOneID(id).SetUpdatedAt(time.Now())
+	if domainID != nil {
+		upd = upd.SetDomainID(*domainID)
+	} else {
+		upd = upd.ClearDomainID()
+	}
+	e, err := upd.Save(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("证书不存在")
+		}
+		return nil, fmt.Errorf("update certificate domain binding: %w", err)
+	}
+	return toModel(e), nil
+}
+
 // DueForRenewal 返回在 deadline 前到期、且来源为 acme 的证书（自动续期候选）。
 // 仅 acme 来源具备 Renew 能力；manual/cloudflare 不参与自动续期。
 func (r *Repository) DueForRenewal(ctx context.Context, deadline time.Time) ([]*Certificate, error) {

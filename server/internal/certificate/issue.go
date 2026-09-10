@@ -29,22 +29,6 @@ func (s *Service) Issue(ctx context.Context, hostname string, domainID *uuid.UUI
 	return s.persistIssued(ctx, h, domainID, source, issued)
 }
 
-// Revoke 撤销证书：先 CA 侧撤销（来源支持时），再删除本地记录并清缓存。
-func (s *Service) Revoke(ctx context.Context, id uuid.UUID, reason int) error {
-	rec, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if p, perr := s.providers.For(rec.Source); perr == nil {
-		rerr := p.Revoke(ctx, RevokeRequest{CertificateID: id, Hostname: rec.Hostname, Reason: reason})
-		// manual 等来源不支持 CA 侧撤销，本地删除即可，不算失败。
-		if rerr != nil && !errors.Is(rerr, ErrNotSupported) {
-			return mapProviderErr(rerr)
-		}
-	}
-	return s.Delete(ctx, id)
-}
-
 // persistIssued 把 provider 产出落库并刷新缓存：校验 → 加密私钥 → upsert → 热加载 → 联动 Domain。
 // 与 Upload 同语义：ACME 下发的证书同样过 validateAndLoad（SAN 必须覆盖 hostname）。
 func (s *Service) persistIssued(ctx context.Context, hostname string, domainID *uuid.UUID, source Source, issued *Issued) (*Certificate, error) {
@@ -52,8 +36,13 @@ func (s *Service) persistIssued(ctx context.Context, hostname string, domainID *
 	if err != nil {
 		return nil, pkg.ErrValidation(err.Error())
 	}
+	// 解析绑定域名：显式 domain_id 优先并校验一致，否则按 hostname 反查。
+	resolvedID, err := s.resolveDomainID(ctx, hostname, domainID)
+	if err != nil {
+		return nil, err
+	}
 	rec := &Certificate{
-		DomainID:       domainID,
+		DomainID:       resolvedID,
 		Hostname:       hostname,
 		Source:         source,
 		Status:         StatusActive,
@@ -95,7 +84,7 @@ func (s *Service) persistIssued(ctx context.Context, hostname string, domainID *
 	if source == SourceManual {
 		mode = "manual"
 	}
-	s.syncDomainTLS(ctx, hostname, mode, saved.Status)
+	s.syncDomainTLS(ctx, resolvedID, mode, saved.Status)
 	return saved, nil
 }
 

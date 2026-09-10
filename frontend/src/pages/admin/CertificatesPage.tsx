@@ -55,6 +55,7 @@ export default function CertificatesPage() {
 
   // 上传弹窗。
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadDomain, setUploadDomain] = useState('');
   const [hostname, setHostname] = useState('');
   const [certPem, setCertPem] = useState('');
   const [keyPem, setKeyPem] = useState('');
@@ -67,9 +68,8 @@ export default function CertificatesPage() {
 
   // 签发弹窗（Managed / ACME 自动签发）。
   const [issueOpen, setIssueOpen] = useState(false);
+  const [issueDomain, setIssueDomain] = useState('');
   const [issueHost, setIssueHost] = useState('');
-  // 待撤销证书 id：非空时显示确认弹窗。
-  const [revokeId, setRevokeId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -95,8 +95,13 @@ export default function CertificatesPage() {
   const doDelete = async () => {
     if (!deleteId) return;
     try {
-      await remove('/api/admin/certificates', deleteId);
-      toast.success(t('common.deleteSuccess'));
+      const res = (await remove('/api/admin/certificates', deleteId)) as { revoke_error?: string };
+      if (res?.revoke_error) {
+        // 本地已删除，但 CA 撤销失败——证书在 CA 侧可能仍有效，明确告警。
+        toast.error(t('certificates.deleteRevokeFailed'));
+      } else {
+        toast.success(t('common.deleteSuccess'));
+      }
       setDeleteId(null);
       await load();
     } catch (e) {
@@ -113,8 +118,17 @@ export default function CertificatesPage() {
     }
   };
 
-  // 签发（Managed / ACME）：向后端触发自动签发，成功后刷新列表。
+  // 选择域名：以所选域名的 hostname 作为证书主机名（签发/上传共用）。
+  const pickDomain = (id: string, apply: (hostname: string) => void) => {
+    apply(domains.find((d) => d.id === id)?.hostname ?? '');
+  };
+
+  // 签发（Managed / ACME）：必须绑定域名，向后端触发自动签发，成功后刷新列表。
   const submitIssue = async () => {
+    if (!issueDomain) {
+      toast.error(t('certificates.errPickDomain'));
+      return;
+    }
     if (!issueHost.trim()) {
       toast.error(t('certificates.errFill'));
       return;
@@ -123,10 +137,12 @@ export default function CertificatesPage() {
     try {
       await api.post('/api/admin/certificates/issue', {
         hostname: issueHost.trim(),
+        domain_id: issueDomain,
         source: 'acme',
       });
       toast.success(t('certificates.issueSuccess'));
       setIssueOpen(false);
+      setIssueDomain('');
       setIssueHost('');
       await load();
     } catch (e) {
@@ -147,19 +163,6 @@ export default function CertificatesPage() {
     }
   };
 
-  // 撤销：向 CA 提交撤销并删除本地记录。
-  const doRevoke = async () => {
-    if (!revokeId) return;
-    try {
-      await api.post(`/api/admin/certificates/${revokeId}/revoke`);
-      toast.success(t('certificates.revokeSuccess'));
-      setRevokeId(null);
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('certificates.revokeFailed'));
-    }
-  };
-
   const closeUpload = () => {
     setUploadOpen(false);
   };
@@ -175,9 +178,11 @@ export default function CertificatesPage() {
         hostname: hostname.trim(),
         certificate_pem: certPem.trim(),
         private_key_pem: keyPem.trim(),
+        domain_id: uploadDomain || undefined,
       });
       toast.success(t('certificates.uploadSuccess'));
       setUploadOpen(false);
+      setUploadDomain('');
       setHostname('');
       setCertPem('');
       setKeyPem('');
@@ -203,14 +208,18 @@ export default function CertificatesPage() {
 
   const submitEdit = async () => {
     if (!editing) return;
-    if (!editCertPem.trim() || !editKeyPem.trim()) {
-      toast.error(t('certificates.errFillEdit'));
+    const cert = editCertPem.trim();
+    const key = editKeyPem.trim();
+    // 材料两态：都填=替换材料；都空=仅改绑定；只填其一非法。
+    if ((cert === '') !== (key === '')) {
+      toast.error(t('certificates.errMaterialPair'));
       return;
     }
-    const body: Record<string, unknown> = {
-      certificate_pem: editCertPem.trim(),
-      private_key_pem: editKeyPem.trim(),
-    };
+    const body: Record<string, unknown> = {};
+    if (cert !== '') {
+      body.certificate_pem = cert;
+      body.private_key_pem = key;
+    }
     // 域名三态：保持 → 不发字段；解绑 → domain_id_clear；指定 → domain_id。
     if (editDomain === DOMAIN_CLEAR) body.domain_id_clear = true;
     else if (editDomain !== DOMAIN_KEEP) body.domain_id = editDomain;
@@ -235,13 +244,21 @@ export default function CertificatesPage() {
         right={
           <div className="flex gap-2">
             <button
-              onClick={() => setIssueOpen(true)}
+              onClick={() => {
+                setIssueDomain('');
+                setIssueHost('');
+                setIssueOpen(true);
+              }}
               className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
             >
               {`+ ${t('certificates.issue')}`}
             </button>
             <button
-              onClick={() => setUploadOpen(true)}
+              onClick={() => {
+                setUploadDomain('');
+                setHostname('');
+                setUploadOpen(true);
+              }}
               className="rounded bg-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             >
               {`+ ${t('certificates.upload')}`}
@@ -271,14 +288,34 @@ export default function CertificatesPage() {
           </>
         }
       >
-        <Field label={t('certificates.hostname')}>
-          <input
-            value={hostname}
-            onChange={(e) => setHostname(e.target.value)}
-            placeholder={t('certificates.hostnamePh')}
-            className={inputCls}
-          />
-        </Field>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label={t('certificates.domainLabel')}>
+            <select
+              value={uploadDomain}
+              onChange={(e) => {
+                const id = e.target.value;
+                setUploadDomain(id);
+                pickDomain(id, setHostname);
+              }}
+              className={inputCls}
+            >
+              <option value="">{t('certificates.domainNoBind')}</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.hostname}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('certificates.hostname')}>
+            <input
+              value={hostname}
+              onChange={(e) => setHostname(e.target.value)}
+              placeholder={t('certificates.hostnamePh')}
+              className={inputCls}
+            />
+          </Field>
+        </div>
         <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Field label={t('certificates.certPem')}>
             <textarea
@@ -325,14 +362,29 @@ export default function CertificatesPage() {
           </>
         }
       >
-        <Field label={t('certificates.hostname')}>
-          <input
-            value={issueHost}
-            onChange={(e) => setIssueHost(e.target.value)}
-            placeholder={t('certificates.hostnamePh')}
-            className={inputCls}
-          />
-        </Field>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label={t('certificates.domainLabel')}>
+            <select
+              value={issueDomain}
+              onChange={(e) => {
+                const id = e.target.value;
+                setIssueDomain(id);
+                pickDomain(id, setIssueHost);
+              }}
+              className={inputCls}
+            >
+              <option value="">{t('common.select')}</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.hostname}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('certificates.hostname')}>
+            <input value={issueHost} readOnly disabled className={`${inputCls} opacity-60`} />
+          </Field>
+        </div>
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t('certificates.issueHint')}</p>
       </Modal>
 
@@ -413,15 +465,6 @@ export default function CertificatesPage() {
         onCancel={() => setDeleteId(null)}
       />
 
-      <ConfirmDialog
-        open={revokeId !== null}
-        title={t('common.confirmTitle')}
-        message={t('certificates.confirmRevoke')}
-        confirmLabel={t('certificates.revoke')}
-        onConfirm={doRevoke}
-        onCancel={() => setRevokeId(null)}
-      />
-
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -477,9 +520,6 @@ export default function CertificatesPage() {
                     {r.source === 'acme' && (
                       <ActionBtn onClick={() => doRenew(r.id)}>{t('certificates.renew')}</ActionBtn>
                     )}
-                    <ActionBtn danger onClick={() => setRevokeId(r.id)}>
-                      {t('certificates.revoke')}
-                    </ActionBtn>
                     <ActionBtn danger onClick={() => setDeleteId(r.id)}>
                       {t('common.delete')}
                     </ActionBtn>

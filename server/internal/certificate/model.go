@@ -73,15 +73,18 @@ type Update struct {
 	LastError *string `json:"last_error"`
 }
 
-// UpdateRequest 是"更换证书材料"的输入：按 id 定位记录，hostname 保持不变。
-// 主要用于证书续期/替换——重新提交一份证书与私钥。
+// UpdateRequest 是"编辑证书"的输入：按 id 定位记录，hostname 保持不变。
 //
-// DomainID 为三态语义：domain_id 非空=换绑到该域名；domain_id_clear=true=显式解绑；
-// 二者皆否=保持原绑定（默认，避免只换证书时误解绑）。
-// certificate_pem / private_key_pem 均必填。hostname 不在此结构，编辑时不可改。
+// 材料与绑定是两组独立变更：
+//   - 材料：certificate_pem / private_key_pem 可选，但必须成对——同时提供=替换证书材料；
+//     都缺省=只改绑定、不动材料（私钥不回填，故纯换绑无需也无法重贴材料）。
+//   - 绑定（三态）：domain_id 非空=换绑到该域名；domain_id_clear=true=显式解绑；
+//     二者皆否=保持原绑定（默认，避免只换证书时误解绑）。
+//
+// hostname 不在此结构，编辑时不可改。
 type UpdateRequest struct {
-	CertificatePEM string     `json:"certificate_pem" validate:"required"`
-	PrivateKeyPEM  string     `json:"private_key_pem" validate:"required"`
+	CertificatePEM *string    `json:"certificate_pem,omitempty"`
+	PrivateKeyPEM  *string    `json:"private_key_pem,omitempty"`
 	DomainID       *uuid.UUID `json:"domain_id,omitempty"`
 	ClearDomainID  bool       `json:"domain_id_clear,omitempty"`
 }
