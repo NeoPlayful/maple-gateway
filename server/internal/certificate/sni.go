@@ -24,14 +24,15 @@ var (
 type Getter struct {
 	cache    *Cache
 	fallback bool
-	onMiss   func(serverName string, usedFallback bool) // 日志/指标钩子，可空
-	hits     atomic.Uint64                              // 缓存命中次数
-	misses   atomic.Uint64                              // 缓存未命中（含无 SNI）次数
+	// 日志/指标钩子，可空。clientAddr 为对端地址（可能为空），便于单行关联来源。
+	onMiss   func(serverName, clientAddr string, usedFallback bool)
+	hits     atomic.Uint64 // 缓存命中次数
+	misses   atomic.Uint64 // 缓存未命中（含无 SNI）次数
 }
 
 // NewGetter 构造 SNI getter。
 // onMiss 在每个未命中（含无 SNI）时调用一次，用于计数与日志，禁止在钩子内访问 DB。
-func NewGetter(cache *Cache, fallback bool, onMiss func(serverName string, usedFallback bool)) *Getter {
+func NewGetter(cache *Cache, fallback bool, onMiss func(serverName, clientAddr string, usedFallback bool)) *Getter {
 	return &Getter{cache: cache, fallback: fallback, onMiss: onMiss}
 }
 
@@ -53,7 +54,11 @@ func (g *Getter) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, e
 	// 未命中 / 无 SNI：按回退策略处理。
 	g.misses.Add(1)
 	if g.onMiss != nil {
-		g.onMiss(sn, g.fallback)
+		addr := ""
+		if hello.Conn != nil {
+			addr = hello.Conn.RemoteAddr().String()
+		}
+		g.onMiss(sn, addr, g.fallback)
 	}
 	if g.fallback {
 		// 让 tls 库回退到 tls.Config.Certificates[0]。

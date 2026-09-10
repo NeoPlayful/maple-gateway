@@ -4,6 +4,7 @@ package gateway
 import (
 	"crypto/tls"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -87,6 +88,9 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 			IdleTimeout:       cfg.IdleTimeout,
 			MaxHeaderBytes:    cfg.MaxHeaderBytes,
 			TLSConfig:         tlsCfg,
+			// net/http 默认用标准库 log 打握手错误（格式不统一、不受日志级别控制）；
+			// 收编进 zap：SNI 哨兵错误由 onMiss 记录后此处丢弃，其余按 Debug。
+			ErrorLog: log.New(newZapErrorLog(cfg.Logger), "", 0),
 		}
 	}
 

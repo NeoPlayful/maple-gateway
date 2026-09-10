@@ -303,9 +303,12 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	var sniGetter gateway.TLSCertGetter
 	if tlsMode == gateway.TLSModeDirect && certSvc != nil {
-		onMiss := func(serverName string, usedFallback bool) {
-			logger.Warn("tls certificate cache miss",
+		// SNI 未命中在 direct 模式是预期事件（每连接触发一次），降为 Debug；
+		// 默认 info 级别下静默，需排查时再开 debug。频繁拒绝请查 Stats() 计数。
+		onMiss := func(serverName, clientAddr string, usedFallback bool) {
+			logger.Debug("tls certificate cache miss",
 				zap.String("sni", serverName),
+				zap.String("client_addr", clientAddr),
 				zap.Bool("used_fallback", usedFallback))
 		}
 		g := certificate.NewGetter(certSvc.Cache(), cfg.TLS.FallbackCertEnabled, onMiss)
