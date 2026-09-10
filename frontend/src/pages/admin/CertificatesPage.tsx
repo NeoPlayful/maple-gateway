@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { list, remove } from '../../lib/modules';
 import { api } from '../../lib/client';
-import { StatusBadge, ActionBtn, Field, Modal } from '../../components/ui';
+import { StatusBadge, ActionBtn, Field, Modal, ConfirmDialog } from '../../components/ui';
 import { PageHeader } from '../../themes';
 
 // Certificate 与后端 /api/admin/certificates 返回字段对应。
@@ -40,9 +41,9 @@ export default function CertificatesPage() {
   const { t } = useTranslation('admin');
   const [rows, setRows] = useState<Certificate[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
-  const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  // 待删除证书 id：非空时显示确认弹窗。
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // 上传弹窗。
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -59,9 +60,8 @@ export default function CertificatesPage() {
   const load = useCallback(async () => {
     try {
       setRows(await list<Certificate>('/api/admin/certificates'));
-      setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
+      toast.error(e instanceof Error ? e.message : t('common.loadFailed'));
     }
   }, [t]);
 
@@ -78,39 +78,34 @@ export default function CertificatesPage() {
     loadDomains();
   }, [load, loadDomains]);
 
-  const doDelete = async (id: string) => {
-    if (!window.confirm(t('certificates.confirmDelete'))) return;
-    setErr('');
-    setMsg('');
+  const doDelete = async () => {
+    if (!deleteId) return;
     try {
-      await remove('/api/admin/certificates', id);
-      setMsg(t('common.deleteSuccess'));
+      await remove('/api/admin/certificates', deleteId);
+      toast.success(t('common.deleteSuccess'));
+      setDeleteId(null);
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.deleteFailed'));
+      toast.error(e instanceof Error ? e.message : t('common.deleteFailed'));
     }
   };
 
   const doReload = async (id: string) => {
-    setErr('');
-    setMsg('');
     try {
       await api.post(`/api/admin/certificates/${id}/reload`);
-      setMsg(t('certificates.reloadSuccess'));
+      toast.success(t('certificates.reloadSuccess'));
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('certificates.reloadFailed'));
+      toast.error(e instanceof Error ? e.message : t('certificates.reloadFailed'));
     }
   };
 
   const closeUpload = () => {
     setUploadOpen(false);
-    setErr('');
   };
 
   const submitUpload = async () => {
-    setErr('');
     if (!hostname.trim() || !certPem.trim() || !keyPem.trim()) {
-      setErr(t('certificates.errFill'));
+      toast.error(t('certificates.errFill'));
       return;
     }
     setBusy(true);
@@ -120,14 +115,14 @@ export default function CertificatesPage() {
         certificate_pem: certPem.trim(),
         private_key_pem: keyPem.trim(),
       });
-      setMsg(t('certificates.uploadSuccess'));
+      toast.success(t('certificates.uploadSuccess'));
       setUploadOpen(false);
       setHostname('');
       setCertPem('');
       setKeyPem('');
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('certificates.uploadFailed'));
+      toast.error(e instanceof Error ? e.message : t('certificates.uploadFailed'));
     } finally {
       setBusy(false);
     }
@@ -135,8 +130,6 @@ export default function CertificatesPage() {
 
   // 打开编辑弹窗：hostname 只读回填，材料留空待重填，域名默认保持原绑定。
   const openEdit = (r: Certificate) => {
-    setErr('');
-    setMsg('');
     setEditing({ id: r.id, hostname: r.hostname });
     setEditCertPem('');
     setEditKeyPem('');
@@ -145,14 +138,12 @@ export default function CertificatesPage() {
 
   const closeEdit = () => {
     setEditing(null);
-    setErr('');
   };
 
   const submitEdit = async () => {
     if (!editing) return;
-    setErr('');
     if (!editCertPem.trim() || !editKeyPem.trim()) {
-      setErr(t('certificates.errFillEdit'));
+      toast.error(t('certificates.errFillEdit'));
       return;
     }
     const body: Record<string, unknown> = {
@@ -166,11 +157,11 @@ export default function CertificatesPage() {
     setBusy(true);
     try {
       await api.patch(`/api/admin/certificates/${editing.id}`, body);
-      setMsg(t('certificates.editSuccess'));
+      toast.success(t('certificates.editSuccess'));
       setEditing(null);
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('certificates.editFailed'));
+      toast.error(e instanceof Error ? e.message : t('certificates.editFailed'));
     } finally {
       setBusy(false);
     }
@@ -182,25 +173,13 @@ export default function CertificatesPage() {
         title={t('certificates.title')}
         right={
           <button
-            onClick={() => {
-              setErr('');
-              setUploadOpen(true);
-            }}
+            onClick={() => setUploadOpen(true)}
             className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
           >
             {`+ ${t('certificates.upload')}`}
           </button>
         }
       />
-      {msg && (
-        <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>
-      )}
-      {err && !uploadOpen && !editing && (
-        <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
-          {err}
-        </p>
-      )}
-
       <Modal
         open={uploadOpen}
         title={t('certificates.upload')}
@@ -223,11 +202,6 @@ export default function CertificatesPage() {
           </>
         }
       >
-        {err && (
-          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
-            {err}
-          </p>
-        )}
         <Field label={t('certificates.hostname')}>
           <input
             value={hostname}
@@ -282,11 +256,6 @@ export default function CertificatesPage() {
           </>
         }
       >
-        {err && (
-          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
-            {err}
-          </p>
-        )}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Field label={t('certificates.hostname')}>
             <input value={editing?.hostname ?? ''} readOnly disabled className={`${inputCls} opacity-60`} />
@@ -334,6 +303,14 @@ export default function CertificatesPage() {
         </div>
       </Modal>
 
+      <ConfirmDialog
+        open={deleteId !== null}
+        title={t('common.confirmTitle')}
+        message={t('certificates.confirmDelete')}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteId(null)}
+      />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -377,7 +354,7 @@ export default function CertificatesPage() {
                   <div className="flex flex-wrap gap-1">
                     <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
                     <ActionBtn onClick={() => doReload(r.id)}>{t('certificates.reload')}</ActionBtn>
-                    <ActionBtn danger onClick={() => doDelete(r.id)}>
+                    <ActionBtn danger onClick={() => setDeleteId(r.id)}>
                       {t('common.delete')}
                     </ActionBtn>
                   </div>

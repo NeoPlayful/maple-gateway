@@ -2,8 +2,9 @@
 // 适用于结构规整的后端 CRUD 资源（tenants/services/domains/deployments/nodes）。
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { list, create, update, remove, statusAction } from '../lib/modules';
-import { StatusBadge, ActionBtn, Modal } from '../components/ui';
+import { StatusBadge, ActionBtn, Modal, ConfirmDialog } from '../components/ui';
 
 export interface FieldDef {
   key: string;
@@ -32,8 +33,6 @@ export interface PageDef {
 export default function CrudPage({ def }: { def: PageDef }) {
   const { t } = useTranslation('admin');
   const [rows, setRows] = useState<any[]>([]);
-  const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
   const [parents, setParents] = useState<Record<string, any[]>>({});
   // 弹窗态：null=关闭；否则为当前模式（新建/编辑）及表单值、编辑行 id。
   const [modal, setModal] = useState<{
@@ -41,15 +40,14 @@ export default function CrudPage({ def }: { def: PageDef }) {
     id: string | null;
     values: Record<string, string>;
   } | null>(null);
-  // 弹窗内的错误提示：提交失败时保留弹窗，便于修正后重提。
-  const [modalErr, setModalErr] = useState('');
+  // 待删除行 id：非空时显示确认弹窗。
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setRows(await list(def.path));
-      setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.loadFailed', '加载失败'));
+      toast.error(e instanceof Error ? e.message : t('common.loadFailed', '加载失败'));
     }
   }, [def.path, t]);
 
@@ -83,7 +81,6 @@ export default function CrudPage({ def }: { def: PageDef }) {
 
   // 打开新建弹窗：清空表单。
   const openCreate = () => {
-    setModalErr('');
     setModal({ mode: 'create', id: null, values: {} });
   };
 
@@ -94,13 +91,11 @@ export default function CrudPage({ def }: { def: PageDef }) {
       const v = row[f.key];
       init[f.key] = v === null || v === undefined ? '' : String(v);
     }
-    setModalErr('');
     setModal({ mode: 'edit', id: row.id, values: init });
   };
 
   const closeModal = () => {
     setModal(null);
-    setModalErr('');
   };
 
   // 更新弹窗内某个字段值。
@@ -108,27 +103,24 @@ export default function CrudPage({ def }: { def: PageDef }) {
     setModal((m) => (m ? { ...m, values: { ...m.values, [key]: value } } : m));
 
   const runAction = async (id: string, act: string) => {
-    setErr('');
-    setMsg('');
     try {
       await statusAction(def.path, id, act);
-      setMsg(t('common.operateSuccess', '操作成功'));
+      toast.success(t('common.operateSuccess', '操作成功'));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.operateFailed', '操作失败'));
+      toast.error(e instanceof Error ? e.message : t('common.operateFailed', '操作失败'));
     }
   };
 
-  const doDelete = async (id: string) => {
-    if (!window.confirm(t('common.confirmDelete', '确认删除？'))) return;
-    setErr('');
-    setMsg('');
+  const doDelete = async () => {
+    if (!deleteId) return;
     try {
-      await remove(def.path, id);
-      setMsg(t('common.deleteSuccess', '已删除'));
+      await remove(def.path, deleteId);
+      toast.success(t('common.deleteSuccess', '已删除'));
+      setDeleteId(null);
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.deleteFailed', '删除失败'));
+      toast.error(e instanceof Error ? e.message : t('common.deleteFailed', '删除失败'));
     }
   };
 
@@ -159,21 +151,19 @@ export default function CrudPage({ def }: { def: PageDef }) {
   // 提交弹窗表单：按模式走 create / update，成功后关闭并刷新。
   const submitModal = async () => {
     if (!modal) return;
-    setModalErr('');
-    setMsg('');
     const fields = modal.mode === 'create' ? def.createFields : def.editFields ?? [];
     const collected = collectBody(fields, modal.values, modal.mode);
     if ('error' in collected) {
-      setModalErr(collected.error);
+      toast.error(collected.error);
       return;
     }
     try {
       if (modal.mode === 'create') {
         await create(def.path, collected.body);
-        setMsg(t('common.createSuccess', '创建成功'));
+        toast.success(t('common.createSuccess', '创建成功'));
       } else if (modal.id) {
         await update(def.path, modal.id, collected.body);
-        setMsg(t('common.updateSuccess', '已保存'));
+        toast.success(t('common.updateSuccess', '已保存'));
       }
       closeModal();
       await load();
@@ -182,7 +172,7 @@ export default function CrudPage({ def }: { def: PageDef }) {
       const fallback = modal.mode === 'create'
         ? t('common.createFailed', '创建失败')
         : t('common.updateFailed', '保存失败');
-      setModalErr(e instanceof Error ? e.message : fallback);
+      toast.error(e instanceof Error ? e.message : fallback);
     }
   };
 
@@ -267,17 +257,6 @@ export default function CrudPage({ def }: { def: PageDef }) {
           {`+ ${t('common.new', '新建')}${t(def.title)}`}
         </button>
       </div>
-      {msg && (
-        <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">
-          {msg}
-        </p>
-      )}
-      {err && (
-        <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
-          {err}
-        </p>
-      )}
-
       <Modal
         open={modal !== null}
         title={
@@ -307,17 +286,20 @@ export default function CrudPage({ def }: { def: PageDef }) {
           </>
         }
       >
-        {modalErr && (
-          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
-            {modalErr}
-          </p>
-        )}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {(modal?.mode === 'create' ? def.createFields : def.editFields ?? []).map((f) =>
             renderField(f),
           )}
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title={t('common.confirmTitle', '确认操作')}
+        message={t('common.confirmDelete', '确认删除？')}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteId(null)}
+      />
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
@@ -392,7 +374,7 @@ export default function CrudPage({ def }: { def: PageDef }) {
                               )
                             : null,
                       )}
-                    <ActionBtn danger onClick={() => doDelete(r.id)}>
+                    <ActionBtn danger onClick={() => setDeleteId(r.id)}>
                       {t('common.delete', '删除')}
                     </ActionBtn>
                   </div>
