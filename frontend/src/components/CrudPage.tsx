@@ -1,8 +1,9 @@
 // 配置驱动的通用资源管理页：列表 + 创建 + 启用/禁用 + 删除。
 // 适用于结构规整的后端 CRUD 资源（tenants/services/domains/deployments/nodes）。
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { list, create, update, remove, statusAction } from '../lib/modules';
 import { StatusBadge } from './admin/StatusBadge';
 import { ActionBtn } from './admin/ActionBtn';
@@ -26,9 +27,10 @@ export interface PageDef {
   title: string; // i18n key
   path: string; // /api/admin/<resource>
   listName?: string; // 列表主键 key
-  columns: { key: string; label: string; badge?: boolean; render?: (r: any) => string }[];
+  columns: { key: string; label: string; badge?: boolean; render?: (r: any) => ReactNode }[];
   createFields: FieldDef[];
   editFields?: FieldDef[]; // 声明后行内显示"编辑"，PATCH 部分更新
+  renderDetail?: (row: any) => ReactNode; // 声明后行首显示展开箭头，展开渲染该行详情
   statusActions?: ('enable' | 'disable')[]; // 提供 enable/disable 动作
   extraActions?: { label: string; act?: string; onClick?: (id: string) => void }[];
 }
@@ -45,6 +47,8 @@ export default function CrudPage({ def }: { def: PageDef }) {
   } | null>(null);
   // 待删除行 id：非空时显示确认弹窗。
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  // 当前展开详情的行 id（手风琴式，同一时刻最多展开一行）。
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -328,23 +332,57 @@ export default function CrudPage({ def }: { def: PageDef }) {
               </tr>
             )}
             {rows.map((r) => (
-              <tr
-                key={r.id}
-                className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
-              >
-                {def.columns.map((c) => (
-                  <td key={c.key} className="px-4 py-2">
-                    {c.badge ? (
-                      <StatusBadge value={String(r[c.key])} />
-                    ) : c.render ? (
-                      c.render(r)
-                    ) : (
-                      String(r[c.key] ?? '')
-                    )}
-                  </td>
-                ))}
-                <td className="px-4 py-2">
-                  <div className="flex flex-wrap gap-1">
+              <Fragment key={r.id}>
+                <tr
+                  onClick={
+                    def.renderDetail
+                      ? () => {
+                          // 选中文字时不触发展开（在行内拖选复制时不希望误切换）。
+                          if (window.getSelection()?.toString()) return;
+                          setExpandedId((cur) => (cur === r.id ? null : r.id));
+                        }
+                      : undefined
+                  }
+                  className={`border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40${
+                    def.renderDetail ? ' cursor-pointer' : ''
+                  }`}
+                >
+                  {def.columns.map((c, ci) => (
+                    <td key={c.key} className="px-4 py-2">
+                      <span className="inline-flex items-center gap-1">
+                        {ci === 0 && def.renderDetail && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedId((cur) => (cur === r.id ? null : r.id));
+                            }}
+                            aria-label={
+                              expandedId === r.id
+                                ? t('common.collapse', '收起')
+                                : t('common.expand', '展开')
+                            }
+                            className="shrink-0 text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                          >
+                            {expandedId === r.id ? (
+                              <ChevronDownIcon className="h-4 w-4" />
+                            ) : (
+                              <ChevronRightIcon className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                        {c.badge ? (
+                          <StatusBadge value={String(r[c.key])} />
+                        ) : c.render ? (
+                          c.render(r)
+                        ) : (
+                          String(r[c.key] ?? '')
+                        )}
+                      </span>
+                    </td>
+                  ))}
+                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap gap-1">
                     {def.editFields && def.editFields.length > 0 && (
                       <ActionBtn onClick={() => openEdit(r)}>{t('common.edit', '编辑')}</ActionBtn>
                     )}
@@ -382,7 +420,15 @@ export default function CrudPage({ def }: { def: PageDef }) {
                     </ActionBtn>
                   </div>
                 </td>
-              </tr>
+                </tr>
+                {def.renderDetail && expandedId === r.id && (
+                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
+                    <td colSpan={def.columns.length + 1} className="px-4 py-3">
+                      {def.renderDetail(r)}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
