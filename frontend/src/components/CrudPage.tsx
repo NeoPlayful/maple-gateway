@@ -134,8 +134,8 @@ export default function CrudPage({ def }: { def: PageDef }) {
         return null;
       }
       if (v === '' || v === undefined) {
-        // 编辑模式："清空关联"字段显式提交 null；其余留空=不改该字段（部分更新）。
-        if (mode === 'edit' && f.clearOnEmpty) body[f.key] = null;
+        // 编辑模式："清空关联"字段显式发 <key>_clear=true；其余留空=不改该字段（部分更新）。
+        if (mode === 'edit' && f.clearOnEmpty) body[`${f.key}_clear`] = true;
         continue;
       }
       body[f.key] = f.type === 'number' ? Number(v) : v;

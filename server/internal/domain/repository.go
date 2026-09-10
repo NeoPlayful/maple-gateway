@@ -138,6 +138,15 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Domain, in
 	return out, total, nil
 }
 
+// serviceIDMutation 解析 service_id 三态，返回 (要设置的值, 是否清空)。
+// set 非空优先；否则 clear 指示清空；二者皆否表示保持不变。
+func serviceIDMutation(in Update) (set *uuid.UUID, clear bool) {
+	if in.ServiceID != nil {
+		return in.ServiceID, false
+	}
+	return nil, in.ClearServiceID
+}
+
 // Update 应用非空更新。
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Domain, error) {
 	if _, err := r.ent.Domain.Get(ctx, id); err != nil {
@@ -151,10 +160,12 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Doma
 	if in.Hostname != nil {
 		upd = upd.SetHostname(*in.Hostname)
 	}
-	if in.ServiceID != nil {
-		upd = upd.SetServiceID(*in.ServiceID)
-	} else {
-		// 显式清空默认 service 引用。
+	// service_id 三态：设置 / 显式清空 / 保持不变（默认）。
+	// 缺省即"不变"，使只改其它字段的部分更新不会误清既有绑定。
+	switch set, clear := serviceIDMutation(in); {
+	case set != nil:
+		upd = upd.SetServiceID(*set)
+	case clear:
 		upd = upd.ClearServiceID()
 	}
 	if in.Status != nil {

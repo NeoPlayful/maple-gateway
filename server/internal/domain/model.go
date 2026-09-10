@@ -42,10 +42,16 @@ type New struct {
 }
 
 // Update 可修改字段。
+//
+// ServiceID 是三态语义：service_id 非空=设置绑定；service_id_clear=true=显式
+// 清空绑定；二者皆否=保持原绑定不变。默认为"不变"而非"清空"，避免只改其它字段
+// 的部分更新（如证书联动 TLS 状态、enable/disable）误清 service_id 掉出路由。
+// service_id 为 JSON null 与缺省无法区分（均为 nil），故清空必须走独立布尔标记。
 type Update struct {
-	Hostname  *string    `json:"hostname"`
-	ServiceID *uuid.UUID `json:"service_id"`
-	Status    *Status    `json:"status"`
+	Hostname       *string    `json:"hostname"`
+	ServiceID      *uuid.UUID `json:"service_id"`
+	ClearServiceID bool       `json:"service_id_clear,omitempty"`
+	Status         *Status    `json:"status"`
 	// Phase 5：TLS 相关字段由证书服务联动更新。
 	TLSMode           *string `json:"tls_mode"`
 	CertificateStatus *string `json:"certificate_status"`
