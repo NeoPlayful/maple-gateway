@@ -66,9 +66,17 @@ func (f *fakeRepo) UpdateContent(_ context.Context, id uuid.UUID, in *Certificat
 	if !ok {
 		return nil, errors.New("not found")
 	}
+	// 复刻真实 UpdateContent 语义：整体覆盖内容与派生字段。
 	r.CertificatePEM = in.CertificatePEM
 	r.PrivateKeyEncrypted = in.PrivateKeyEncrypted
 	r.Status = in.Status
+	r.Hostname = in.Hostname
+	r.DomainID = in.DomainID
+	r.Source = in.Source
+	r.Issuer = in.Issuer
+	r.SerialNumber = in.SerialNumber
+	r.IssuedAt = in.IssuedAt
+	r.ExpiresAt = in.ExpiresAt
 	return r, nil
 }
 
@@ -279,6 +287,127 @@ func TestScanExpiringMarksButNeverEvicts(t *testing.T) {
 		if svc.cache.Get(host) == nil {
 			t.Errorf("host %s must remain in cache after ScanExpiring (service keeps running)", host)
 		}
+	}
+}
+
+// TestServiceUpdateReplacesMaterialKeepingHostname: 按 id 更换材料后 hostname 不变、
+// 派生字段刷新、缓存热替换；domain 绑定缺省保持原值。
+func TestServiceUpdateReplacesMaterialKeepingHostname(t *testing.T) {
+	enc := roundTripEnc{}
+	now := time.Now()
+	old := mustCert(t, "keep.test", StatusActive, now.Add(-24*time.Hour), now.Add(24*time.Hour), enc)
+	oldDomain := uuid.New()
+	old.DomainID = &oldDomain
+	repo := newFakeRepo(old)
+	svc := newServiceWithDeps(repo, NewCache(), enc, zap.NewNop())
+
+	newCertPEM, newKeyPEM, newLeaf := genCert(t, []string{"keep.test"}, now, now.Add(365*24*time.Hour))
+	got, err := svc.Update(context.Background(), old.ID, UpdateRequest{
+		CertificatePEM: newCertPEM,
+		PrivateKeyPEM:  newKeyPEM,
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.ID != old.ID {
+		t.Errorf("record id must be preserved, got %s want %s", got.ID, old.ID)
+	}
+	if got.Hostname != "keep.test" {
+		t.Errorf("hostname must stay unchanged, got %q", got.Hostname)
+	}
+	if got.CertificatePEM != newCertPEM {
+		t.Error("certificate content should be replaced")
+	}
+	if got.ExpiresAt == nil || !got.ExpiresAt.Equal(newLeaf.NotAfter) {
+		t.Errorf("expiry should be refreshed to %v, got %v", newLeaf.NotAfter, got.ExpiresAt)
+	}
+	if got.DomainID == nil || *got.DomainID != oldDomain {
+		t.Errorf("domain binding should be preserved by default, got %v", got.DomainID)
+	}
+	if svc.cache.Get("keep.test") == nil {
+		t.Error("updated cert must be hot-reloaded into cache")
+	}
+}
+
+// TestServiceUpdateDomainBindingThreeState: domain 绑定三态——换绑 / 解绑 / 保持。
+func TestServiceUpdateDomainBindingThreeState(t *testing.T) {
+	enc := roundTripEnc{}
+	now := time.Now()
+	certPEM, keyPEM, _ := genCert(t, []string{"bind.test"}, now, now.Add(24*time.Hour))
+
+	cases := []struct {
+		name   string
+		mutate func(in *UpdateRequest, newDomain uuid.UUID)
+		check  func(t *testing.T, got *Certificate, orig, newDomain uuid.UUID)
+	}{
+		{
+			name:   "rebind",
+			mutate: func(in *UpdateRequest, d uuid.UUID) { in.DomainID = &d },
+			check: func(t *testing.T, got *Certificate, _, d uuid.UUID) {
+				if got.DomainID == nil || *got.DomainID != d {
+					t.Errorf("expected rebind to %s, got %v", d, got.DomainID)
+				}
+			},
+		},
+		{
+			name:   "unbind",
+			mutate: func(in *UpdateRequest, _ uuid.UUID) { in.ClearDomainID = true },
+			check: func(t *testing.T, got *Certificate, _, _ uuid.UUID) {
+				if got.DomainID != nil {
+					t.Errorf("expected unbind (nil), got %v", got.DomainID)
+				}
+			},
+		},
+		{
+			name:   "keep",
+			mutate: func(*UpdateRequest, uuid.UUID) {},
+			check: func(t *testing.T, got *Certificate, orig, _ uuid.UUID) {
+				if got.DomainID == nil || *got.DomainID != orig {
+					t.Errorf("expected keep original %s, got %v", orig, got.DomainID)
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := uuid.New()
+			old := mustCert(t, "bind.test", StatusActive, now.Add(-time.Hour), now.Add(24*time.Hour), enc)
+			old.DomainID = &orig
+			repo := newFakeRepo(old)
+			svc := newServiceWithDeps(repo, NewCache(), enc, zap.NewNop())
+
+			newDomain := uuid.New()
+			var in UpdateRequest
+			in.CertificatePEM = certPEM
+			in.PrivateKeyPEM = keyPEM
+			tc.mutate(&in, newDomain)
+
+			got, err := svc.Update(context.Background(), old.ID, in)
+			if err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			tc.check(t, got, orig, newDomain)
+		})
+	}
+}
+
+// TestServiceUpdateRejectsMismatchedPEM: 证书/私钥不匹配时不落库、不改缓存。
+func TestServiceUpdateRejectsMismatchedPEM(t *testing.T) {
+	enc := roundTripEnc{}
+	now := time.Now()
+	old := mustCert(t, "bad.test", StatusActive, now.Add(-time.Hour), now.Add(24*time.Hour), enc)
+	repo := newFakeRepo(old)
+	svc := newServiceWithDeps(repo, NewCache(), enc, zap.NewNop())
+
+	// certPEM 来自一张证书，私钥来自另一张（不同密钥对）→ 不匹配。
+	certPEM, _, _ := genCert(t, []string{"bad.test"}, now, now.Add(24*time.Hour))
+	_, mismatchedKey, _ := genCert(t, []string{"bad.test"}, now, now.Add(24*time.Hour))
+
+	if _, err := svc.Update(context.Background(), old.ID, UpdateRequest{
+		CertificatePEM: certPEM,
+		PrivateKeyPEM:  mismatchedKey,
+	}); err == nil {
+		t.Fatal("mismatched cert/key must be rejected")
 	}
 }
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { list, remove } from '../../lib/modules';
 import { api } from '../../lib/client';
-import { StatusBadge, ActionBtn, Field } from '../../components/ui';
+import { StatusBadge, ActionBtn, Field, Modal } from '../../components/ui';
 import { PageHeader } from '../../themes';
 
 // Certificate 与后端 /api/admin/certificates 返回字段对应。
@@ -20,25 +20,41 @@ interface Certificate {
   created_at: string;
 }
 
-// upload 是 New 结构（certificate_pem/private_key_pem 独立于返回模型）。
-interface CertificateDraft {
+// Domain 用于编辑弹窗的换绑下拉。
+interface Domain {
+  id: string;
   hostname: string;
-  certificate_pem: string;
-  private_key_pem: string;
 }
 
+// 值语义：KEEP=保持原绑定（默认）、CLEAR=解绑、其余为具体域名 id。
+const DOMAIN_KEEP = '__keep__';
+const DOMAIN_CLEAR = '__clear__';
+
 const domainName = (d?: string | null) => (d ? `${d.slice(0, 8)}…` : '-');
+
+const inputCls =
+  'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+const pemCls = `${inputCls} font-mono text-xs`;
 
 export default function CertificatesPage() {
   const { t } = useTranslation('admin');
   const [rows, setRows] = useState<Certificate[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
-  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // 上传弹窗。
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [hostname, setHostname] = useState('');
   const [certPem, setCertPem] = useState('');
   const [keyPem, setKeyPem] = useState('');
-  const [busy, setBusy] = useState(false);
+
+  // 编辑弹窗（按 id 更换材料）：null=关闭。
+  const [editing, setEditing] = useState<{ id: string; hostname: string } | null>(null);
+  const [editCertPem, setEditCertPem] = useState('');
+  const [editKeyPem, setEditKeyPem] = useState('');
+  const [editDomain, setEditDomain] = useState(DOMAIN_KEEP);
 
   const load = useCallback(async () => {
     try {
@@ -49,9 +65,18 @@ export default function CertificatesPage() {
     }
   }, [t]);
 
+  const loadDomains = useCallback(async () => {
+    try {
+      setDomains(await list<Domain>('/api/admin/domains'));
+    } catch {
+      setDomains([]);
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadDomains();
+  }, [load, loadDomains]);
 
   const doDelete = async (id: string) => {
     if (!window.confirm(t('certificates.confirmDelete'))) return;
@@ -77,22 +102,26 @@ export default function CertificatesPage() {
     }
   };
 
-  const submit = async () => {
+  const closeUpload = () => {
+    setUploadOpen(false);
+    setErr('');
+  };
+
+  const submitUpload = async () => {
     setErr('');
     if (!hostname.trim() || !certPem.trim() || !keyPem.trim()) {
       setErr(t('certificates.errFill'));
       return;
     }
-    const body: CertificateDraft = {
-      hostname: hostname.trim(),
-      certificate_pem: certPem.trim(),
-      private_key_pem: keyPem.trim(),
-    };
     setBusy(true);
     try {
-      await api.post('/api/admin/certificates', body);
+      await api.post('/api/admin/certificates', {
+        hostname: hostname.trim(),
+        certificate_pem: certPem.trim(),
+        private_key_pem: keyPem.trim(),
+      });
       setMsg(t('certificates.uploadSuccess'));
-      setOpen(false);
+      setUploadOpen(false);
       setHostname('');
       setCertPem('');
       setKeyPem('');
@@ -104,8 +133,48 @@ export default function CertificatesPage() {
     }
   };
 
-  const inputCls =
-    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+  // 打开编辑弹窗：hostname 只读回填，材料留空待重填，域名默认保持原绑定。
+  const openEdit = (r: Certificate) => {
+    setErr('');
+    setMsg('');
+    setEditing({ id: r.id, hostname: r.hostname });
+    setEditCertPem('');
+    setEditKeyPem('');
+    setEditDomain(DOMAIN_KEEP);
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+    setErr('');
+  };
+
+  const submitEdit = async () => {
+    if (!editing) return;
+    setErr('');
+    if (!editCertPem.trim() || !editKeyPem.trim()) {
+      setErr(t('certificates.errFillEdit'));
+      return;
+    }
+    const body: Record<string, unknown> = {
+      certificate_pem: editCertPem.trim(),
+      private_key_pem: editKeyPem.trim(),
+    };
+    // 域名三态：保持 → 不发字段；解绑 → domain_id_clear；指定 → domain_id。
+    if (editDomain === DOMAIN_CLEAR) body.domain_id_clear = true;
+    else if (editDomain !== DOMAIN_KEEP) body.domain_id = editDomain;
+
+    setBusy(true);
+    try {
+      await api.patch(`/api/admin/certificates/${editing.id}`, body);
+      setMsg(t('certificates.editSuccess'));
+      setEditing(null);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('certificates.editFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div>
@@ -113,63 +182,157 @@ export default function CertificatesPage() {
         title={t('certificates.title')}
         right={
           <button
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => {
+              setErr('');
+              setUploadOpen(true);
+            }}
             className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
           >
-            {open ? t('common.collapse') : `+ ${t('certificates.upload')}`}
+            {`+ ${t('certificates.upload')}`}
           </button>
         }
       />
       {msg && (
         <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>
       )}
-      {err && (
+      {err && !uploadOpen && !editing && (
         <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
           {err}
         </p>
       )}
 
-      {open && (
-        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <Field label={t('certificates.hostname')}>
-            <input
-              value={hostname}
-              onChange={(e) => setHostname(e.target.value)}
-              placeholder={t('certificates.hostnamePh')}
-              className={inputCls}
+      <Modal
+        open={uploadOpen}
+        title={t('certificates.upload')}
+        onClose={closeUpload}
+        footer={
+          <>
+            <button
+              onClick={closeUpload}
+              className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={submitUpload}
+              disabled={busy}
+              className="rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              {busy ? t('certificates.uploading') : t('certificates.upload')}
+            </button>
+          </>
+        }
+      >
+        {err && (
+          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+            {err}
+          </p>
+        )}
+        <Field label={t('certificates.hostname')}>
+          <input
+            value={hostname}
+            onChange={(e) => setHostname(e.target.value)}
+            placeholder={t('certificates.hostnamePh')}
+            className={inputCls}
+          />
+        </Field>
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <Field label={t('certificates.certPem')}>
+            <textarea
+              value={certPem}
+              onChange={(e) => setCertPem(e.target.value)}
+              placeholder={t('certificates.certPemPh')}
+              rows={8}
+              spellCheck={false}
+              className={pemCls}
             />
           </Field>
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <Field label={t('certificates.certPem')}>
-              <textarea
-                value={certPem}
-                onChange={(e) => setCertPem(e.target.value)}
-                placeholder={t('certificates.certPemPh')}
-                rows={8}
-                spellCheck={false}
-                className={`${inputCls} font-mono text-xs`}
-              />
-            </Field>
-            <Field label={t('certificates.keyPem')}>
-              <textarea
-                value={keyPem}
-                onChange={(e) => setKeyPem(e.target.value)}
-                placeholder={t('certificates.keyPemPh')}
-                rows={8}
-                spellCheck={false}
-                className={`${inputCls} font-mono text-xs`}
-              />
-            </Field>
-          </div>
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
-          >
-            {busy ? t('certificates.uploading') : t('certificates.upload')}
-          </button>
+          <Field label={t('certificates.keyPem')}>
+            <textarea
+              value={keyPem}
+              onChange={(e) => setKeyPem(e.target.value)}
+              placeholder={t('certificates.keyPemPh')}
+              rows={8}
+              spellCheck={false}
+              className={pemCls}
+            />
+          </Field>
         </div>
-      )}
+      </Modal>
+
+      <Modal
+        open={editing !== null}
+        title={t('certificates.editTitle')}
+        onClose={closeEdit}
+        footer={
+          <>
+            <button
+              onClick={closeEdit}
+              className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={submitEdit}
+              disabled={busy}
+              className="rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              {busy ? t('common.saving', '保存中…') : t('common.save')}
+            </button>
+          </>
+        }
+      >
+        {err && (
+          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+            {err}
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label={t('certificates.hostname')}>
+            <input value={editing?.hostname ?? ''} readOnly disabled className={`${inputCls} opacity-60`} />
+          </Field>
+          <Field label={t('certificates.domainLabel')}>
+            <select
+              value={editDomain}
+              onChange={(e) => setEditDomain(e.target.value)}
+              className={inputCls}
+            >
+              <option value={DOMAIN_KEEP}>{t('certificates.domainKeep')}</option>
+              <option value={DOMAIN_CLEAR}>{t('certificates.domainClear')}</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.hostname}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {t('certificates.editHint')}
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <Field label={t('certificates.certPem')}>
+            <textarea
+              value={editCertPem}
+              onChange={(e) => setEditCertPem(e.target.value)}
+              placeholder={t('certificates.certPemPh')}
+              rows={8}
+              spellCheck={false}
+              className={pemCls}
+            />
+          </Field>
+          <Field label={t('certificates.keyPem')}>
+            <textarea
+              value={editKeyPem}
+              onChange={(e) => setEditKeyPem(e.target.value)}
+              placeholder={t('certificates.keyPemPh')}
+              rows={8}
+              spellCheck={false}
+              className={pemCls}
+            />
+          </Field>
+        </div>
+      </Modal>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
@@ -212,6 +375,7 @@ export default function CertificatesPage() {
                 <td className="px-4 py-2">{domainName(r.domain_id)}</td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
+                    <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
                     <ActionBtn onClick={() => doReload(r.id)}>{t('certificates.reload')}</ActionBtn>
                     <ActionBtn danger onClick={() => doDelete(r.id)}>
                       {t('common.delete')}

@@ -119,8 +119,12 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Tena
 	if in.Name != nil {
 		upd = upd.SetName(*in.Name)
 	}
-	if in.Description != nil {
+	// description 三态：设置 / 显式清空 / 保持不变（默认）。
+	switch {
+	case in.Description != nil:
 		upd = upd.SetDescription(*in.Description)
+	case in.ClearDescription:
+		upd = upd.SetDescription("")
 	}
 	if in.Status != nil {
 		upd = upd.SetStatus(string(*in.Status))

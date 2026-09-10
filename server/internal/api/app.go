@@ -273,6 +273,7 @@ func New(d Deps) *fiber.App {
 		cert.Get("/", ch.List)
 		cert.Get("/count", ch.Count)
 		cert.Get("/:id", ch.Get)
+		cert.Patch("/:id", ch.Update)
 		cert.Delete("/:id", ch.Delete)
 		cert.Get("/:id/status", ch.Status)
 		cert.Post("/:id/reload", ch.Reload)
