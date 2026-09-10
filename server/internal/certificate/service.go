@@ -142,6 +142,64 @@ func (s *Service) Upload(ctx context.Context, in New) (*Certificate, error) {
 	}
 }
 
+// Update 更换指定证书的材料（续期/替换）。按 id 定位，hostname 保持不变；
+// 重新校验 PEM、加密私钥、解析派生字段（issuer/serial/有效期）落库，并热加载缓存。
+// domain 绑定为三态：in.DomainID 非空→换绑；in.ClearDomainID→解绑；皆否→保持原绑定。
+func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateRequest) (*Certificate, error) {
+	// 先取原记录：hostname 与既定 domain 绑定由它决定，且不存在时提前 NotFound。
+	old, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	hostname := old.Hostname
+	// 校验 PEM 可解析、证书/私钥匹配、未过期、SAN 覆盖 hostname。
+	_, leaf, err := validateAndLoad(in.CertificatePEM, in.PrivateKeyPEM, hostname)
+	if err != nil {
+		return nil, pkg.ErrValidation(err.Error())
+	}
+	// domain 三态：未指定则沿用原绑定。
+	domainID := old.DomainID
+	switch {
+	case in.DomainID != nil:
+		domainID = in.DomainID
+	case in.ClearDomainID:
+		domainID = nil
+	}
+	rec := &Certificate{
+		DomainID:       domainID,
+		Hostname:       hostname,
+		Source:         SourceManual,
+		Status:         StatusActive,
+		CertificatePEM: in.CertificatePEM,
+		Issuer:         leaf.Issuer.String(),
+		SerialNumber:   leaf.SerialNumber.String(),
+		IssuedAt:       &leaf.NotBefore,
+		ExpiresAt:      &leaf.NotAfter,
+	}
+	encKey, err := s.enc.Encrypt([]byte(in.PrivateKeyPEM))
+	if err != nil {
+		s.log.Error("certificate private key encrypt failed", zap.Error(err))
+		return nil, pkg.ErrSystem("私钥加密失败")
+	}
+	rec.PrivateKeyEncrypted = encKey
+
+	saved, err := s.repo.UpdateContent(ctx, id, rec)
+	if err != nil {
+		if pkg.ErrCode(err) == pkg.CodeNotFound {
+			return nil, err
+		}
+		return nil, pkg.ErrSystem("证书更新失败")
+	}
+	// 刷新内存缓存（热加载）：解密私钥后重建 tls.Certificate。
+	if err := s.reloadIntoCache(saved); err != nil {
+		s.log.Warn("certificate cache reload failed",
+			zap.String("hostname", hostname), zap.Error(err))
+	}
+	// 联动 Domain：tls_mode=manual、certificate_status 反映证书可用。
+	s.syncDomainTLS(ctx, hostname, true, saved.Status)
+	return saved, nil
+}
+
 // syncDomainTLS 更新 hostname 对应 Domain 的 TLS 状态（可空 repo 时静默跳过）。
 func (s *Service) syncDomainTLS(ctx context.Context, hostname string, manual bool, certStatus Status) {
 	if s.domainRepo == nil {

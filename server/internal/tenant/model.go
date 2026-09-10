@@ -35,8 +35,12 @@ type New struct {
 }
 
 // Update 携带可修改字段。
+//
+// Description 为三态语义：非空=设置；description_clear=true=显式清空；二者皆否=
+// 保持不变。description 为 JSON null 与缺省无法区分（均为 nil），故清空走独立布尔标记。
 type Update struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
-	Status      *Status `json:"status"`
+	Name             *string `json:"name"`
+	Description      *string `json:"description"`
+	ClearDescription bool    `json:"description_clear,omitempty"`
+	Status           *Status `json:"status"`
 }

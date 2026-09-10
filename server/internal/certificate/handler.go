@@ -86,6 +86,27 @@ func (h *Handler) Upload(c fiber.Ctx) error {
 	return pkg.OK(c, rec)
 }
 
+// Update PATCH /api/admin/certificates/:id
+// 更换指定证书的材料（续期/替换）：hostname 不变，证书与私钥必填。
+func (h *Handler) Update(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("无效的证书 ID"))
+	}
+	var in UpdateRequest
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	if err := pkg.ValidateStruct(in); err != nil {
+		return pkg.Err(c, err)
+	}
+	rec, err := h.svc.Update(c.Context(), id, in)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, rec)
+}
+
 // Delete DELETE /api/admin/certificates/:id
 func (h *Handler) Delete(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))

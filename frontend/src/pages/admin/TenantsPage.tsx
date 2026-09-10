@@ -14,6 +14,15 @@ const def: PageDef = {
     { key: 'slug', label: 'fields.slug', required: true, placeholder: 'tenants.slugPh' },
     { key: 'description', label: 'fields.description', type: 'textarea' },
   ],
+  editFields: [
+    { key: 'name', label: 'fields.name', required: true },
+    {
+      key: 'description',
+      label: 'fields.description',
+      type: 'textarea',
+      clearOnEmpty: true, // 允许清空描述（提交 description_clear=true）
+    },
+  ],
   statusActions: ['enable', 'disable'],
 };
 
