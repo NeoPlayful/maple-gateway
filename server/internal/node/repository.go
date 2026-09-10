@@ -207,10 +207,15 @@ func (r *Repository) Heartbeat(ctx context.Context, id uuid.UUID) (*Node, error)
 
 // MarkOffline 把 last_seen_at 早于 cutoff（心跳超时）且当前非 disabled 的节点置为 offline。
 // 返回被标记的节点数（供 watchdog 日志）。disabled 节点保持人工状态，不被覆盖。
+//
+// WHERE 额外排除已 offline 的节点：否则已离线的节点每轮仍满足 LastSeenAtLT(cutoff)，
+// 被反复 SetStatus/SetUpdatedAt，行数会恒等于"已知离线数"，让 watchdog 每周期重复汇报
+// 同一批节点（列表看着像每次都有新节点掉线）。加此守卫后 count 只反映真实翻转。
 func (r *Repository) MarkOffline(ctx context.Context, cutoff time.Time) (int64, error) {
 	n, err := r.ent.Node.Update().
 		Where(
 			entnode.StatusNEQ(string(StatusDisabled)),
+			entnode.StatusNEQ(string(StatusOffline)),
 			entnode.Or(
 				entnode.LastSeenAtIsNil(),
 				entnode.LastSeenAtLT(cutoff),

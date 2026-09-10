@@ -84,10 +84,13 @@ func TestGetterOnMissHook(t *testing.T) {
 	c := NewCache()
 	c.Set("shop-a.test", mustLoaded(t, "shop-a.test"))
 	called := false
-	g := NewGetter(c, false, func(sn string, usedFallback bool) {
+	g := NewGetter(c, false, func(sn, clientAddr string, usedFallback bool) {
 		called = true
 		if sn != "nope.test" {
 			t.Fatalf("expected onMiss sn=nope.test, got %q", sn)
+		}
+		if clientAddr != "" {
+			t.Fatalf("expected empty clientAddr (no conn), got %q", clientAddr)
 		}
 		if usedFallback {
 			t.Fatal("expected usedFallback=false")
