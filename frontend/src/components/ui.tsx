@@ -95,12 +95,14 @@ export function Modal({
   onClose,
   children,
   footer,
+  maxWidth = 'max-w-2xl',
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  maxWidth?: string;
 }) {
   const { t } = useTranslation('admin');
 
@@ -128,7 +130,7 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
+        className={`w-full ${maxWidth} rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-700">
@@ -149,5 +151,54 @@ export function Modal({
         )}
       </div>
     </div>
+  );
+}
+
+// ConfirmDialog 通用确认弹窗：标题 + 提示语 + 取消/危险确认按钮。
+// 复用 Modal 的遮罩、Esc 与滚动锁定；confirmLabel 默认"删除"，用于删除类危险操作。
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  busy,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+}) {
+  const { t } = useTranslation('admin');
+  return (
+    <Modal
+      open={open}
+      title={title}
+      onClose={onCancel}
+      maxWidth="max-w-sm"
+      footer={
+        <>
+          <button
+            onClick={onCancel}
+            className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          >
+            {t('common.cancel', '取消')}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded bg-rose-600 px-4 py-1.5 text-sm text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            {confirmLabel ?? t('common.delete', '删除')}
+          </button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-600 dark:text-slate-300">{message}</p>
+    </Modal>
   );
 }

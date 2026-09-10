@@ -1,7 +1,7 @@
 {
   "name": "maple-gateway-frontend",
   "private": true,
-  "version": "0.1.30",
+  "version": "0.1.31",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "i18next-browser-languagedetector": "^8.2.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.6.0",
     "react-i18next": "^17.0.13",
     "react-router-dom": "^7.1.0",
     "zustand": "^5.0.0"

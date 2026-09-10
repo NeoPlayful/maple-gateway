@@ -15,6 +15,8 @@
     "collapse": "收起",
     "new": "新建",
     "confirmDelete": "确认删除？",
+    "confirmTitle": "确认操作",
+    "confirmMessage": "确定要继续吗？",
     "deleteSuccess": "已删除",
     "deleteFailed": "删除失败",
     "operateSuccess": "操作成功",
