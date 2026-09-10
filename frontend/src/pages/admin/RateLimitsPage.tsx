@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import { create, remove, statusAction } from '../../lib/modules';
 import type { Domain, RateLimit, Service, Tenant } from '../../types';
-import { StatusBadge, ActionBtn } from '../../components/ui';
+import { StatusBadge } from '../../components/admin/StatusBadge';
+import { ActionBtn } from '../../components/admin/ActionBtn';
 import { PageHeader } from '../../themes';
 
 const scopes = [

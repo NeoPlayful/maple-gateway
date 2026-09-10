@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { list, create, statusAction, remove } from '../../lib/modules';
 import type { TrafficPolicy, Service } from '../../types';
-import { StatusBadge, ActionBtn, Field } from '../../components/ui';
+import { StatusBadge } from '../../components/admin/StatusBadge';
+import { ActionBtn } from '../../components/admin/ActionBtn';
+import { Field } from '../../components/admin/Field';
 import { PageHeader } from '../../themes';
 
 export default function TrafficPage() {

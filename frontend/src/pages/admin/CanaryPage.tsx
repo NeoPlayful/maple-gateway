@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import type { CanaryRelease, Deployment, Service, Version } from '../../types';
-import { PhaseBadge, ActionBtn } from '../../components/ui';
+import { PhaseBadge } from '../../components/admin/PhaseBadge';
+import { ActionBtn } from '../../components/admin/ActionBtn';
 import { PageHeader } from '../../themes';
 
 interface VersionMeta {

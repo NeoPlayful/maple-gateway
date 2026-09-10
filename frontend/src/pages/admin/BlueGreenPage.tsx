@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import { create, remove } from '../../lib/modules';
 import type { BlueGreenDeployment, Deployment, Service, Version } from '../../types';
-import { ActionBtn } from '../../components/ui';
+import { ActionBtn } from '../../components/admin/ActionBtn';
 import { PageHeader } from '../../themes';
 
 export default function BlueGreenPage() {
