@@ -10,9 +10,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// Issue 触发某主机的证书签发（Managed / ACME 来源）。
-// 流程：校验 hostname → 选 provider → 签发 → 复用落库/缓存链路 → 联动 Domain。
+// Issue 同步签发某主机（Managed / ACME 来源）。供未启用异步运行时的精简部署/测试使用；
+// 管理面默认走 IssueAsync（带进度可视化）。
 func (s *Service) Issue(ctx context.Context, hostname string, domainID *uuid.UUID, source Source, challenge ChallengeType) (*Certificate, error) {
+	rec, err := s.issueCore(ctx, hostname, domainID, source, challenge, nil)
+	if err != nil {
+		return nil, mapProviderErr(err)
+	}
+	return rec, nil
+}
+
+// issueCore 是签发核心：校验 hostname → 选 provider → 签发 → 落库/缓存 → 联动 Domain。
+// 返回**未映射的原始错误**，便于异步 job 按类型分类（限流/挑战失败/账户无效）。
+// progress 可空：透传给 provider 的阶段进度回调。
+func (s *Service) issueCore(ctx context.Context, hostname string, domainID *uuid.UUID, source Source, challenge ChallengeType, progress ProgressFunc) (*Certificate, error) {
 	h, err := router.NormalizeHost(hostname)
 	if err != nil {
 		return nil, pkg.ErrValidation("域名格式无效")
@@ -22,9 +33,9 @@ func (s *Service) Issue(ctx context.Context, hostname string, domainID *uuid.UUI
 		// 来源未注册：多为该来源未在配置中启用（如 acme.enabled=false）。
 		return nil, pkg.ErrValidation("证书来源未启用: " + string(source))
 	}
-	issued, err := p.Issue(ctx, IssueRequest{Hostname: h, DomainID: domainID, Challenge: challenge})
+	issued, err := p.Issue(ctx, IssueRequest{Hostname: h, DomainID: domainID, Challenge: challenge, Progress: progress})
 	if err != nil {
-		return nil, mapProviderErr(err)
+		return nil, err
 	}
 	return s.persistIssued(ctx, h, domainID, source, issued)
 }
@@ -89,7 +100,12 @@ func (s *Service) persistIssued(ctx context.Context, hostname string, domainID *
 }
 
 // mapProviderErr 把 provider 错误映射为业务错误码（不泄露内部细节）。
+// 已是业务错误（校验/未启用等 AppError）原样返回，避免被误包成系统错误。
 func mapProviderErr(err error) error {
+	var ae *pkg.AppError
+	if errors.As(err, &ae) {
+		return ae
+	}
 	switch {
 	case errors.Is(err, ErrProviderUnavailable):
 		return pkg.ErrValidation("证书来源不可用")

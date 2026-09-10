@@ -30,6 +30,9 @@ type CanaryRelease func(*sql.Selector)
 // Certificate is the predicate function for certificate builders.
 type Certificate func(*sql.Selector)
 
+// CertificateOperation is the predicate function for certificateoperation builders.
+type CertificateOperation func(*sql.Selector)
+
 // Deployment is the predicate function for deployment builders.
 type Deployment func(*sql.Selector)
 

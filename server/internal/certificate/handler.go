@@ -148,7 +148,8 @@ type IssueReq struct {
 }
 
 // Issue POST /api/admin/certificates/issue  或  POST /api/admin/domains/:id/certificate/issue
-// 触发 Managed/ACME 自动签发；来源不支持主动签发时返回校验错误。
+// 受理 Managed/ACME 签发：非阻塞，立即返回操作记录（含 id 与当前阶段），
+// 前端按返回的操作 id 轮询进度。来源不支持主动签发时返回校验错误。
 func (h *Handler) Issue(c fiber.Ctx) error {
 	var in IssueReq
 	if err := c.Bind().Body(&in); err != nil {
@@ -172,11 +173,53 @@ func (h *Handler) Issue(c fiber.Ctx) error {
 	if chal == "" {
 		chal = ChallengeHTTP01
 	}
-	rec, err := h.svc.Issue(c.Context(), in.Hostname, in.DomainID, src, chal)
+	op, err := h.svc.IssueAsync(c.Context(), in.Hostname, in.DomainID, src, chal)
 	if err != nil {
 		return pkg.Err(c, err)
 	}
-	return pkg.OK(c, rec)
+	return pkg.OK(c, op)
+}
+
+// Operation GET /api/admin/certificates/operations/:id
+// 按操作 id 查进度（前端轮询）。
+func (h *Handler) Operation(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("无效的操作 ID"))
+	}
+	op, err := h.svc.GetOperation(c.Context(), id)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, op)
+}
+
+// OperationByHostname GET /api/admin/certificates/operations?hostname=
+// 按 hostname 查最近一次操作进度（优先级：进行中 → 最近记录）。
+func (h *Handler) OperationByHostname(c fiber.Ctx) error {
+	hostname := c.Query("hostname")
+	if hostname == "" {
+		return pkg.Err(c, pkg.ErrValidation("缺少 hostname"))
+	}
+	op, err := h.svc.LatestOperationByHostname(c.Context(), hostname)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, op)
+}
+
+// DomainProgress GET /api/admin/domains/:id/certificate/progress
+// 按域名查其证书签发进度（域名维度）。
+func (h *Handler) DomainProgress(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("无效的域名 ID"))
+	}
+	op, err := h.svc.OperationByDomain(c.Context(), id)
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, op)
 }
 
 // Renew POST /api/admin/certificates/:id/renew

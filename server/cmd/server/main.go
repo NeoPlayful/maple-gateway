@@ -214,7 +214,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		certCache := certificate.NewCache()
 		certSvc, err = certificate.NewService(certificate.NewRepository(entClient), certCache, logger,
 			certificate.WithDomainSync(domain.NewRepository(entClient)),
-			certificate.WithEncKey(cfg.TLS.CertEncKey))
+			certificate.WithEncKey(cfg.TLS.CertEncKey),
+			// 异步签发进度：操作记录落库 + 后台任务根上下文（随进程关闭取消）。
+			certificate.WithOperations(certificate.NewOperationRepository(entClient), ctx, 10*time.Minute),
+			certificate.WithMetrics(metricReg))
 		if err != nil {
 			logger.Debug("certificate service disabled (Direct TLS)",
 				zap.String("err", err.Error()),
@@ -252,6 +255,24 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 					if err := certSvc.ReloadAll(ctx); err != nil {
 						logger.Warn("certificate cache reconcile failed",
 							zap.String("err", err.Error()))
+					}
+				}
+			}
+		}()
+		// 清理超时未完成的签发操作（实例重启/进程中断兜底）。
+		go func() {
+			ticker := time.NewTicker(6 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if n, err := certSvc.ExpireStaleOperations(ctx, 15*time.Minute); err != nil {
+						logger.Warn("certificate operation cleanup failed",
+							zap.String("err", err.Error()))
+					} else if n > 0 {
+						logger.Info("stale certificate operations expired", zap.Int("count", n))
 					}
 				}
 			}
@@ -448,6 +469,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	defer cancel()
 	if err := mgmtApp.Shutdown(); err != nil {
 		logger.Warn("management shutdown", zap.String("err", err.Error()))
+	}
+	// 等待后台签发任务结束，避免任务写入已关闭的 DB。
+	if certSvc != nil {
+		certSvc.WaitBackground()
 	}
 	if err := dp.Shutdown(shutdownCtx); err != nil {
 		return err

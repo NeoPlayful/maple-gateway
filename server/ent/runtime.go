@@ -13,6 +13,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
@@ -205,6 +206,32 @@ func init() {
 	certificateDescID := certificateFields[0].Descriptor()
 	// certificate.DefaultID holds the default value on creation for the id field.
 	certificate.DefaultID = certificateDescID.Default.(func() uuid.UUID)
+	certificateoperationFields := schema.CertificateOperation{}.Fields()
+	_ = certificateoperationFields
+	// certificateoperationDescHostname is the schema descriptor for hostname field.
+	certificateoperationDescHostname := certificateoperationFields[1].Descriptor()
+	// certificateoperation.HostnameValidator is a validator for the "hostname" field. It is called by the builders before save.
+	certificateoperation.HostnameValidator = certificateoperationDescHostname.Validators[0].(func(string) error)
+	// certificateoperationDescAction is the schema descriptor for action field.
+	certificateoperationDescAction := certificateoperationFields[3].Descriptor()
+	// certificateoperation.DefaultAction holds the default value on creation for the action field.
+	certificateoperation.DefaultAction = certificateoperationDescAction.Default.(string)
+	// certificateoperationDescStatus is the schema descriptor for status field.
+	certificateoperationDescStatus := certificateoperationFields[4].Descriptor()
+	// certificateoperation.DefaultStatus holds the default value on creation for the status field.
+	certificateoperation.DefaultStatus = certificateoperationDescStatus.Default.(string)
+	// certificateoperationDescMessage is the schema descriptor for message field.
+	certificateoperationDescMessage := certificateoperationFields[5].Descriptor()
+	// certificateoperation.DefaultMessage holds the default value on creation for the message field.
+	certificateoperation.DefaultMessage = certificateoperationDescMessage.Default.(string)
+	// certificateoperationDescError is the schema descriptor for error field.
+	certificateoperationDescError := certificateoperationFields[6].Descriptor()
+	// certificateoperation.DefaultError holds the default value on creation for the error field.
+	certificateoperation.DefaultError = certificateoperationDescError.Default.(string)
+	// certificateoperationDescID is the schema descriptor for id field.
+	certificateoperationDescID := certificateoperationFields[0].Descriptor()
+	// certificateoperation.DefaultID holds the default value on creation for the id field.
+	certificateoperation.DefaultID = certificateoperationDescID.Default.(func() uuid.UUID)
 	deploymentFields := schema.Deployment{}.Fields()
 	_ = deploymentFields
 	// deploymentDescName is the schema descriptor for name field.

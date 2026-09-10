@@ -105,6 +105,18 @@ func (f CertificateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CertificateMutation", m)
 }
 
+// The CertificateOperationFunc type is an adapter to allow the use of ordinary
+// function as CertificateOperation mutator.
+type CertificateOperationFunc func(context.Context, *ent.CertificateOperationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CertificateOperationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CertificateOperationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CertificateOperationMutation", m)
+}
+
 // The DeploymentFunc type is an adapter to allow the use of ordinary
 // function as Deployment mutator.
 type DeploymentFunc func(context.Context, *ent.DeploymentMutation) (ent.Value, error)

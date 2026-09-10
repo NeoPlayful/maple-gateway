@@ -181,6 +181,7 @@
     "deleteRevokeFailed": "Local record deleted, but revoke at the CA failed — the certificate may still be valid at the CA",
     "issue": "Issue certificate",
     "issueTitle": "Issue certificate (Managed / ACME)",
+    "issueProgressTitle": "Certificate issuance progress",
     "issueHint": "A certificate will be issued from the CA. The hostname must resolve to this gateway with port 80 reachable from the internet (http-01).",
     "issuing": "Issuing…",
     "issueSuccess": "Issued",
@@ -191,6 +192,17 @@
     "lastRenewed": "Last renewed",
     "nextRenew": "Next renew",
     "none": "No certificates"
+  },
+  "operation": {
+    "step": {
+      "queued": "Accepted",
+      "account_ready": "CA account ready",
+      "order_created": "Order created",
+      "challenge_presented": "Waiting for the CA to verify the domain",
+      "challenge_validated": "Domain verified",
+      "finalizing": "Issuing and downloading the certificate",
+      "active": "Done"
+    }
   },
   "deployments": {
     "title": "Deployments",

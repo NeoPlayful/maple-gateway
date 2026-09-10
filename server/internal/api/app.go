@@ -272,6 +272,9 @@ func New(d Deps) *fiber.App {
 		cert := admin.Group("/certificates")
 		cert.Get("/", ch.List)
 		cert.Get("/count", ch.Count)
+		// 进度查询须在 "/:id" 之前注册，避免 "/operations" 被当作 id 匹配。
+		cert.Get("/operations", ch.OperationByHostname)
+		cert.Get("/operations/:id", ch.Operation)
 		cert.Get("/:id", ch.Get)
 		cert.Patch("/:id", ch.Update)
 		cert.Delete("/:id", ch.Delete)
@@ -284,6 +287,8 @@ func New(d Deps) *fiber.App {
 		admin.Post("/domains/:id/certificate", ch.Upload)
 		// 域名维度签发（Managed/ACME）。
 		admin.Post("/domains/:id/certificate/issue", ch.Issue)
+		// 域名维度签发进度查询。
+		admin.Get("/domains/:id/certificate/progress", ch.DomainProgress)
 	}
 
 	// 路由缓存查看/重建。

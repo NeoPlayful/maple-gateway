@@ -3,12 +3,25 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { list, remove } from '../../lib/modules';
 import { api } from '../../lib/client';
+import { usePoll } from '../../lib/usePoll';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { ProgressStepper } from '../../components/admin/ProgressStepper';
 import { PageHeader } from '../../themes';
+
+// 签发/续期操作进度（后端 certificate_operations）。
+interface CertificateOperation {
+  id: string;
+  hostname: string;
+  domain_id?: string | null;
+  action: string;
+  status: string;
+  message?: string;
+  error?: string;
+}
 
 // Certificate 与后端 /api/admin/certificates 返回字段对应。
 interface Certificate {
@@ -71,6 +84,18 @@ export default function CertificatesPage() {
   const [issueDomain, setIssueDomain] = useState('');
   const [issueHost, setIssueHost] = useState('');
 
+  // 签发进度：pollOpId 非空时轮询该操作；initialOp 为首个返回视图（轮询前展示）。
+  const [pollOpId, setPollOpId] = useState<string | null>(null);
+  const [initialOp, setInitialOp] = useState<CertificateOperation | null>(null);
+
+  // 轮询签发进度，到终态（active/failed）停止。
+  const polledOp = usePoll<CertificateOperation>(
+    pollOpId,
+    () => api.get<CertificateOperation>(`/api/admin/certificates/operations/${pollOpId}`),
+    (v) => v.status === 'active' || v.status === 'failed',
+  );
+  const progressOp = polledOp ?? initialOp;
+
   const load = useCallback(async () => {
     try {
       setRows(await list<Certificate>('/api/admin/certificates'));
@@ -123,7 +148,7 @@ export default function CertificatesPage() {
     apply(domains.find((d) => d.id === id)?.hostname ?? '');
   };
 
-  // 签发（Managed / ACME）：必须绑定域名，向后端触发自动签发，成功后刷新列表。
+  // 签发（Managed / ACME）：非阻塞受理，返回操作记录后打开进度弹窗轮询。
   const submitIssue = async () => {
     if (!issueDomain) {
       toast.error(t('certificates.errPickDomain'));
@@ -135,21 +160,45 @@ export default function CertificatesPage() {
     }
     setBusy(true);
     try {
-      await api.post('/api/admin/certificates/issue', {
+      const op = await api.post<CertificateOperation>('/api/admin/certificates/issue', {
         hostname: issueHost.trim(),
         domain_id: issueDomain,
         source: 'acme',
       });
-      toast.success(t('certificates.issueSuccess'));
       setIssueOpen(false);
       setIssueDomain('');
       setIssueHost('');
-      await load();
+      if (op.status === 'active') {
+        // 未启用异步运行时：同步完成。
+        toast.success(t('certificates.issueSuccess'));
+        await load();
+      } else {
+        setInitialOp(op);
+        setPollOpId(op.id);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('certificates.issueFailed'));
     } finally {
       setBusy(false);
     }
+  };
+
+  // 进度到终态：提示并刷新列表；弹窗保留终态展示，由用户手动关闭。
+  const polledStatus = polledOp?.status;
+  useEffect(() => {
+    if (polledStatus === 'active') {
+      toast.success(t('certificates.issueSuccess'));
+      load();
+    } else if (polledStatus === 'failed') {
+      toast.error(polledOp?.error || t('certificates.issueFailed'));
+      load();
+    }
+  }, [polledStatus, polledOp?.error, t, load]);
+
+  // 关闭进度弹窗：停止轮询并清空。
+  const closeProgress = () => {
+    setPollOpId(null);
+    setInitialOp(null);
   };
 
   // 立即续期（仅 ACME 来源有效）。
@@ -464,6 +513,33 @@ export default function CertificatesPage() {
         onConfirm={doDelete}
         onCancel={() => setDeleteId(null)}
       />
+
+      <Modal
+        open={progressOp !== null}
+        title={t('certificates.issueProgressTitle')}
+        onClose={closeProgress}
+        footer={
+          <button
+            onClick={closeProgress}
+            className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          >
+            {t('common.close')}
+          </button>
+        }
+      >
+        {progressOp && (
+          <>
+            <div className="mb-3 font-mono text-sm text-slate-700 dark:text-slate-300">
+              {progressOp.hostname}
+            </div>
+            <ProgressStepper
+              status={progressOp.status}
+              message={progressOp.message}
+              error={progressOp.error}
+            />
+          </>
+        )}
+      </Modal>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">

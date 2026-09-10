@@ -22,17 +22,25 @@ const (
 	ChallengeTLSALPN01 ChallengeType = "tls-alpn-01"
 )
 
+// ProgressFunc 在签发/续期流程的阶段转换处被回调：step 为阶段标识（与 OperationStatus 对齐），
+// msg 为人类可读说明。可空；实现不得阻塞（上层仅做一次轻量写库）。
+type ProgressFunc func(step, msg string)
+
 // IssueRequest 是申请新证书的输入。
 type IssueRequest struct {
 	Hostname  string
 	DomainID  *uuid.UUID
 	Challenge ChallengeType
+	// Progress 可空：ACME 流程的阶段进度回调，manual 来源忽略。
+	Progress ProgressFunc
 }
 
 // RenewRequest 是续期输入。
 type RenewRequest struct {
 	CertificateID uuid.UUID
 	Hostname      string
+	// Progress 可空：ACME 流程的阶段进度回调，manual 来源忽略。
+	Progress ProgressFunc
 }
 
 // RevokeRequest 是撤销输入。Reason 为 RFC 5280 撤销原因码（0=unspecified）。

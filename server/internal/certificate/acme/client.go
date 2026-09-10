@@ -16,6 +16,26 @@ import (
 // challengeTTL 是 http-01 挑战应答在 store 中的存活时间；CA 通常在秒级完成验证。
 const challengeTTL = 15 * time.Minute
 
+// 进度阶段标识：与 certificate.OperationStatus 取值一致，供上层直接落库/展示。
+const (
+	StepAccountReady       = "account_ready"
+	StepOrderCreated       = "order_created"
+	StepChallengePresented = "challenge_presented"
+	StepChallengeValidated = "challenge_validated"
+	StepFinalizing         = "finalizing"
+)
+
+// ProgressFunc 在 ACME 流程的阶段转换处被回调：step 为阶段标识，msg 为人类可读说明。
+// 可空；实现不得阻塞（上层仅做一次轻量写库）。
+type ProgressFunc func(step, msg string)
+
+// report 安全触发进度回调（nil 忽略）。
+func report(fn ProgressFunc, step, msg string) {
+	if fn != nil {
+		fn(step, msg)
+	}
+}
+
 // Config 构造 ACME 客户端所需依赖。
 type Config struct {
 	DirectoryURL string
@@ -97,7 +117,8 @@ func (c *Client) EnsureAccount(ctx context.Context) (*acme.Client, *AccountKey, 
 }
 
 // Obtain 为 hostname 申请证书（http-01 挑战由数据平面代答）。
-func (c *Client) Obtain(ctx context.Context, hostname string) (*Issued, error) {
+// onProgress 可空：在账户就绪/下单/挑战登记/验证通过/签发各阶段回调一次。
+func (c *Client) Obtain(ctx context.Context, hostname string, onProgress ProgressFunc) (*Issued, error) {
 	if c.cfg.Challenge != "" && c.cfg.Challenge != "http-01" {
 		return nil, fmt.Errorf("acme challenge %q not implemented (only http-01)", c.cfg.Challenge)
 	}
@@ -105,18 +126,20 @@ func (c *Client) Obtain(ctx context.Context, hostname string) (*Issued, error) {
 	if err != nil {
 		return nil, err
 	}
+	report(onProgress, StepAccountReady, "CA 账户就绪")
 	order, err := cl.AuthorizeOrder(ctx, acme.DomainIDs(hostname))
 	if err != nil {
 		return nil, classify(err)
 	}
-	if err := c.fulfillAuthorizations(ctx, cl, order, hostname); err != nil {
+	report(onProgress, StepOrderCreated, "订单已创建")
+	if err := c.fulfillAuthorizations(ctx, cl, order, hostname, onProgress); err != nil {
 		return nil, err
 	}
-	return c.finalize(ctx, cl, order, hostname)
+	return c.finalize(ctx, cl, order, hostname, onProgress)
 }
 
 // fulfillAuthorizations 完成全部授权（http-01 挑战：登记应答 → 通知 CA → 等待结果 → 清理）。
-func (c *Client) fulfillAuthorizations(ctx context.Context, cl *acme.Client, order *acme.Order, hostname string) error {
+func (c *Client) fulfillAuthorizations(ctx context.Context, cl *acme.Client, order *acme.Order, hostname string, onProgress ProgressFunc) error {
 	for _, authzURL := range order.AuthzURLs {
 		z, err := cl.GetAuthorization(ctx, authzURL)
 		if err != nil {
@@ -134,6 +157,7 @@ func (c *Client) fulfillAuthorizations(ctx context.Context, cl *acme.Client, ord
 			return err
 		}
 		c.cfg.Challenges.Present(chal.Token, keyAuth, challengeTTL)
+		report(onProgress, StepChallengePresented, "挑战已登记，等待 CA 验证域名")
 		if _, err := cl.Accept(ctx, chal); err != nil {
 			c.cfg.Challenges.Clear(chal.Token)
 			return classify(err)
@@ -143,12 +167,14 @@ func (c *Client) fulfillAuthorizations(ctx context.Context, cl *acme.Client, ord
 			return classify(err)
 		}
 		c.cfg.Challenges.Clear(chal.Token)
+		report(onProgress, StepChallengeValidated, "域名验证通过")
 	}
 	return nil
 }
 
 // finalize 生成证书密钥 + CSR，提交 finalize 并下载证书链。
-func (c *Client) finalize(ctx context.Context, cl *acme.Client, order *acme.Order, hostname string) (*Issued, error) {
+func (c *Client) finalize(ctx context.Context, cl *acme.Client, order *acme.Order, hostname string, onProgress ProgressFunc) (*Issued, error) {
+	report(onProgress, StepFinalizing, "正在签发并下载证书")
 	certKey, err := generateKey(c.cfg.KeyType)
 	if err != nil {
 		return nil, err

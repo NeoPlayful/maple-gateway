@@ -24,6 +24,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
+	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/domain"
@@ -59,6 +60,8 @@ type Client struct {
 	CanaryRelease *CanaryReleaseClient
 	// Certificate is the client for interacting with the Certificate builders.
 	Certificate *CertificateClient
+	// CertificateOperation is the client for interacting with the CertificateOperation builders.
+	CertificateOperation *CertificateOperationClient
 	// Deployment is the client for interacting with the Deployment builders.
 	Deployment *DeploymentClient
 	// DeploymentVersion is the client for interacting with the DeploymentVersion builders.
@@ -102,6 +105,7 @@ func (c *Client) init() {
 	c.CanaryEvent = NewCanaryEventClient(c.config)
 	c.CanaryRelease = NewCanaryReleaseClient(c.config)
 	c.Certificate = NewCertificateClient(c.config)
+	c.CertificateOperation = NewCertificateOperationClient(c.config)
 	c.Deployment = NewDeploymentClient(c.config)
 	c.DeploymentVersion = NewDeploymentVersionClient(c.config)
 	c.Domain = NewDomainClient(c.config)
@@ -204,28 +208,29 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:                 ctx,
-		config:              cfg,
-		ACMEAccount:         NewACMEAccountClient(cfg),
-		Admin:               NewAdminClient(cfg),
-		AuditLog:            NewAuditLogClient(cfg),
-		BluegreenDeployment: NewBluegreenDeploymentClient(cfg),
-		BluegreenEvent:      NewBluegreenEventClient(cfg),
-		CanaryEvent:         NewCanaryEventClient(cfg),
-		CanaryRelease:       NewCanaryReleaseClient(cfg),
-		Certificate:         NewCertificateClient(cfg),
-		Deployment:          NewDeploymentClient(cfg),
-		DeploymentVersion:   NewDeploymentVersionClient(cfg),
-		Domain:              NewDomainClient(cfg),
-		GatewayInstance:     NewGatewayInstanceClient(cfg),
-		Instance:            NewInstanceClient(cfg),
-		Node:                NewNodeClient(cfg),
-		RateLimit:           NewRateLimitClient(cfg),
-		Service:             NewServiceClient(cfg),
-		Setting:             NewSettingClient(cfg),
-		SettingHistory:      NewSettingHistoryClient(cfg),
-		Tenant:              NewTenantClient(cfg),
-		TrafficPolicy:       NewTrafficPolicyClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		ACMEAccount:          NewACMEAccountClient(cfg),
+		Admin:                NewAdminClient(cfg),
+		AuditLog:             NewAuditLogClient(cfg),
+		BluegreenDeployment:  NewBluegreenDeploymentClient(cfg),
+		BluegreenEvent:       NewBluegreenEventClient(cfg),
+		CanaryEvent:          NewCanaryEventClient(cfg),
+		CanaryRelease:        NewCanaryReleaseClient(cfg),
+		Certificate:          NewCertificateClient(cfg),
+		CertificateOperation: NewCertificateOperationClient(cfg),
+		Deployment:           NewDeploymentClient(cfg),
+		DeploymentVersion:    NewDeploymentVersionClient(cfg),
+		Domain:               NewDomainClient(cfg),
+		GatewayInstance:      NewGatewayInstanceClient(cfg),
+		Instance:             NewInstanceClient(cfg),
+		Node:                 NewNodeClient(cfg),
+		RateLimit:            NewRateLimitClient(cfg),
+		Service:              NewServiceClient(cfg),
+		Setting:              NewSettingClient(cfg),
+		SettingHistory:       NewSettingHistoryClient(cfg),
+		Tenant:               NewTenantClient(cfg),
+		TrafficPolicy:        NewTrafficPolicyClient(cfg),
 	}, nil
 }
 
@@ -243,28 +248,29 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:                 ctx,
-		config:              cfg,
-		ACMEAccount:         NewACMEAccountClient(cfg),
-		Admin:               NewAdminClient(cfg),
-		AuditLog:            NewAuditLogClient(cfg),
-		BluegreenDeployment: NewBluegreenDeploymentClient(cfg),
-		BluegreenEvent:      NewBluegreenEventClient(cfg),
-		CanaryEvent:         NewCanaryEventClient(cfg),
-		CanaryRelease:       NewCanaryReleaseClient(cfg),
-		Certificate:         NewCertificateClient(cfg),
-		Deployment:          NewDeploymentClient(cfg),
-		DeploymentVersion:   NewDeploymentVersionClient(cfg),
-		Domain:              NewDomainClient(cfg),
-		GatewayInstance:     NewGatewayInstanceClient(cfg),
-		Instance:            NewInstanceClient(cfg),
-		Node:                NewNodeClient(cfg),
-		RateLimit:           NewRateLimitClient(cfg),
-		Service:             NewServiceClient(cfg),
-		Setting:             NewSettingClient(cfg),
-		SettingHistory:      NewSettingHistoryClient(cfg),
-		Tenant:              NewTenantClient(cfg),
-		TrafficPolicy:       NewTrafficPolicyClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		ACMEAccount:          NewACMEAccountClient(cfg),
+		Admin:                NewAdminClient(cfg),
+		AuditLog:             NewAuditLogClient(cfg),
+		BluegreenDeployment:  NewBluegreenDeploymentClient(cfg),
+		BluegreenEvent:       NewBluegreenEventClient(cfg),
+		CanaryEvent:          NewCanaryEventClient(cfg),
+		CanaryRelease:        NewCanaryReleaseClient(cfg),
+		Certificate:          NewCertificateClient(cfg),
+		CertificateOperation: NewCertificateOperationClient(cfg),
+		Deployment:           NewDeploymentClient(cfg),
+		DeploymentVersion:    NewDeploymentVersionClient(cfg),
+		Domain:               NewDomainClient(cfg),
+		GatewayInstance:      NewGatewayInstanceClient(cfg),
+		Instance:             NewInstanceClient(cfg),
+		Node:                 NewNodeClient(cfg),
+		RateLimit:            NewRateLimitClient(cfg),
+		Service:              NewServiceClient(cfg),
+		Setting:              NewSettingClient(cfg),
+		SettingHistory:       NewSettingHistoryClient(cfg),
+		Tenant:               NewTenantClient(cfg),
+		TrafficPolicy:        NewTrafficPolicyClient(cfg),
 	}, nil
 }
 
@@ -295,9 +301,10 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.ACMEAccount, c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
-		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.Deployment,
-		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
-		c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant, c.TrafficPolicy,
+		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.CertificateOperation,
+		c.Deployment, c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance,
+		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
+		c.TrafficPolicy,
 	} {
 		n.Use(hooks...)
 	}
@@ -308,9 +315,10 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.ACMEAccount, c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
-		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.Deployment,
-		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
-		c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant, c.TrafficPolicy,
+		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.CertificateOperation,
+		c.Deployment, c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance,
+		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
+		c.TrafficPolicy,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -335,6 +343,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CanaryRelease.mutate(ctx, m)
 	case *CertificateMutation:
 		return c.Certificate.mutate(ctx, m)
+	case *CertificateOperationMutation:
+		return c.CertificateOperation.mutate(ctx, m)
 	case *DeploymentMutation:
 		return c.Deployment.mutate(ctx, m)
 	case *DeploymentVersionMutation:
@@ -1441,6 +1451,139 @@ func (c *CertificateClient) mutate(ctx context.Context, m *CertificateMutation) 
 		return (&CertificateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Certificate mutation op: %q", m.Op())
+	}
+}
+
+// CertificateOperationClient is a client for the CertificateOperation schema.
+type CertificateOperationClient struct {
+	config
+}
+
+// NewCertificateOperationClient returns a client for the CertificateOperation from the given config.
+func NewCertificateOperationClient(c config) *CertificateOperationClient {
+	return &CertificateOperationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `certificateoperation.Hooks(f(g(h())))`.
+func (c *CertificateOperationClient) Use(hooks ...Hook) {
+	c.hooks.CertificateOperation = append(c.hooks.CertificateOperation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `certificateoperation.Intercept(f(g(h())))`.
+func (c *CertificateOperationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CertificateOperation = append(c.inters.CertificateOperation, interceptors...)
+}
+
+// Create returns a builder for creating a CertificateOperation entity.
+func (c *CertificateOperationClient) Create() *CertificateOperationCreate {
+	mutation := newCertificateOperationMutation(c.config, OpCreate)
+	return &CertificateOperationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CertificateOperation entities.
+func (c *CertificateOperationClient) CreateBulk(builders ...*CertificateOperationCreate) *CertificateOperationCreateBulk {
+	return &CertificateOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CertificateOperationClient) MapCreateBulk(slice any, setFunc func(*CertificateOperationCreate, int)) *CertificateOperationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CertificateOperationCreateBulk{err: fmt.Errorf("calling to CertificateOperationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CertificateOperationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CertificateOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CertificateOperation.
+func (c *CertificateOperationClient) Update() *CertificateOperationUpdate {
+	mutation := newCertificateOperationMutation(c.config, OpUpdate)
+	return &CertificateOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CertificateOperationClient) UpdateOne(co *CertificateOperation) *CertificateOperationUpdateOne {
+	mutation := newCertificateOperationMutation(c.config, OpUpdateOne, withCertificateOperation(co))
+	return &CertificateOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CertificateOperationClient) UpdateOneID(id uuid.UUID) *CertificateOperationUpdateOne {
+	mutation := newCertificateOperationMutation(c.config, OpUpdateOne, withCertificateOperationID(id))
+	return &CertificateOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CertificateOperation.
+func (c *CertificateOperationClient) Delete() *CertificateOperationDelete {
+	mutation := newCertificateOperationMutation(c.config, OpDelete)
+	return &CertificateOperationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CertificateOperationClient) DeleteOne(co *CertificateOperation) *CertificateOperationDeleteOne {
+	return c.DeleteOneID(co.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CertificateOperationClient) DeleteOneID(id uuid.UUID) *CertificateOperationDeleteOne {
+	builder := c.Delete().Where(certificateoperation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CertificateOperationDeleteOne{builder}
+}
+
+// Query returns a query builder for CertificateOperation.
+func (c *CertificateOperationClient) Query() *CertificateOperationQuery {
+	return &CertificateOperationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCertificateOperation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CertificateOperation entity by its id.
+func (c *CertificateOperationClient) Get(ctx context.Context, id uuid.UUID) (*CertificateOperation, error) {
+	return c.Query().Where(certificateoperation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CertificateOperationClient) GetX(ctx context.Context, id uuid.UUID) *CertificateOperation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CertificateOperationClient) Hooks() []Hook {
+	return c.hooks.CertificateOperation
+}
+
+// Interceptors returns the client interceptors.
+func (c *CertificateOperationClient) Interceptors() []Interceptor {
+	return c.inters.CertificateOperation
+}
+
+func (c *CertificateOperationClient) mutate(ctx context.Context, m *CertificateOperationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CertificateOperationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CertificateOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CertificateOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CertificateOperationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CertificateOperation mutation op: %q", m.Op())
 	}
 }
 
@@ -3252,14 +3395,14 @@ func (c *TrafficPolicyClient) mutate(ctx context.Context, m *TrafficPolicyMutati
 type (
 	hooks struct {
 		ACMEAccount, Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Certificate, Deployment, DeploymentVersion, Domain,
-		GatewayInstance, Instance, Node, RateLimit, Service, Setting, SettingHistory,
-		Tenant, TrafficPolicy []ent.Hook
+		CanaryRelease, Certificate, CertificateOperation, Deployment,
+		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Service,
+		Setting, SettingHistory, Tenant, TrafficPolicy []ent.Hook
 	}
 	inters struct {
 		ACMEAccount, Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Certificate, Deployment, DeploymentVersion, Domain,
-		GatewayInstance, Instance, Node, RateLimit, Service, Setting, SettingHistory,
-		Tenant, TrafficPolicy []ent.Interceptor
+		CanaryRelease, Certificate, CertificateOperation, Deployment,
+		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Service,
+		Setting, SettingHistory, Tenant, TrafficPolicy []ent.Interceptor
 	}
 )
