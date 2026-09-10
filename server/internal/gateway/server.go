@@ -63,6 +63,8 @@ type DataPlaneConfig struct {
 	AccessLog           *logs.AccessLog   // 可空；nil 时不记录访问日志
 	ErrLog              *logs.ErrLog      // 可空；nil 时不记录错误日志
 	Tracer              tracex.Tracer     // 可空；nil 时不埋 OTel trace
+	// ACMEChallenge 可空；注入后在代理前短路应答 ACME http-01 挑战。
+	ACMEChallenge ChallengeResponder
 }
 
 // NewDataPlane 组装数据平面服务（不启动）。Address 与 HTTPSAddress 至少其一非空。
@@ -78,6 +80,10 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 		EnforceSNIHostMatch: cfg.EnforceSNIHostMatch,
 	})
 	handler := http.Handler(px)
+	// ACME http-01 挑战代答：在代理之前短路，未命中回落常规路由。
+	if cfg.ACMEChallenge != nil {
+		handler = challengeHandler{next: handler, cr: cfg.ACMEChallenge}
+	}
 
 	d := &DataPlane{logger: cfg.Logger}
 	newServer := func(addr string, tlsCfg *tls.Config) *http.Server {

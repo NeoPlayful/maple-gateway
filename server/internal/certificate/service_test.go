@@ -151,6 +151,61 @@ func (f *fakeRepo) List(_ context.Context, _ int, _ int) ([]*Certificate, int, e
 	return nil, 0, nil
 }
 
+// DueForRenewal 复刻真实语义：仅 acme 来源、active/pending/expiring 且在 deadline 前到期。
+func (f *fakeRepo) DueForRenewal(_ context.Context, deadline time.Time) ([]*Certificate, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*Certificate
+	for _, r := range f.all {
+		if r.Source != SourceACME || r.ExpiresAt == nil || !r.ExpiresAt.Before(deadline) {
+			continue
+		}
+		switch r.Status {
+		case StatusActive, StatusPending, StatusExpiring:
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeRepo) RenewSuccess(_ context.Context, id uuid.UUID, in *Certificate) (*Certificate, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	r, ok := f.byID[id]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	now := time.Now()
+	r.CertificatePEM = in.CertificatePEM
+	r.PrivateKeyEncrypted = in.PrivateKeyEncrypted
+	r.Source = in.Source
+	r.Status = StatusActive
+	r.Issuer = in.Issuer
+	r.SerialNumber = in.SerialNumber
+	r.IssuedAt = in.IssuedAt
+	r.ExpiresAt = in.ExpiresAt
+	r.ProviderMeta = in.ProviderMeta
+	r.NextRenewAt = in.NextRenewAt
+	r.LastRenewedAt = &now
+	r.RenewAttempts = 0
+	r.LastRenewError = ""
+	return r, nil
+}
+
+func (f *fakeRepo) RenewFailure(_ context.Context, id uuid.UUID, attempts int, nextRenewAt *time.Time, errMsg string) (*Certificate, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	r, ok := f.byID[id]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	r.RenewAttempts = attempts
+	r.NextRenewAt = nextRenewAt
+	r.LastRenewError = errMsg
+	r.LastError = errMsg
+	return r, nil
+}
+
 // mustCert 构造覆盖 host 的自签证书模型：私钥已用 enc 加密（模拟落库后形态）。
 func mustCert(t *testing.T, host string, status Status, notBefore, notAfter time.Time, enc encIface) *Certificate {
 	t.Helper()
@@ -176,7 +231,7 @@ func mustCert(t *testing.T, host string, status Status, notBefore, notAfter time
 type roundTripEnc struct{}
 
 func (roundTripEnc) Encrypt(plaintext []byte) (string, error) { return string(plaintext), nil }
-func (roundTripEnc) Decrypt(encoded string) ([]byte, error)    { return []byte(encoded), nil }
+func (roundTripEnc) Decrypt(encoded string) ([]byte, error)   { return []byte(encoded), nil }
 
 func mustEnc(t *testing.T) encIface { return roundTripEnc{} }
 
@@ -200,8 +255,8 @@ func TestReloadAllKeepsEveryServiceableStatus(t *testing.T) {
 		t.Fatalf("ReloadAll: %v", err)
 	}
 	want := map[string]Status{
-		"active.test":  StatusActive,
-		"pending.test": StatusPending,
+		"active.test":   StatusActive,
+		"pending.test":  StatusPending,
 		"expiring.test": StatusExpiring,
 		"expired.test":  StatusExpired,
 	}

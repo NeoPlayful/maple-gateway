@@ -47,8 +47,16 @@ type Certificate struct {
 	ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 	LastRenewedAt       *time.Time `json:"last_renewed_at,omitempty"`
 	LastError           string     `json:"last_error,omitempty"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+	// 续期引擎：来源侧上下文（脱敏，可落库/可展示）。
+	ProviderMeta map[string]string `json:"provider_meta,omitempty"`
+	// RenewAttempts 连续续期失败次数（退避用；成功后清零）。
+	RenewAttempts int `json:"renew_attempts"`
+	// NextRenewAt 下次续期时间；空则按 expires_at 推算。
+	NextRenewAt *time.Time `json:"next_renew_at,omitempty"`
+	// LastRenewError 最近一次续期失败原因。
+	LastRenewError string    `json:"last_renew_error,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // New 上传证书输入。private_key_pem 仅存在于输入，落库前加密，永不出现在任何输出。

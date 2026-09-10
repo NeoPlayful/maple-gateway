@@ -31,6 +31,7 @@ type Config struct {
 	CanaryAuto CanaryAutoConfig `yaml:"canary_auto"`
 	Trace      TraceConfig      `yaml:"trace"`
 	TLS        TLSConfig        `yaml:"tls"`
+	ACME       ACMEConfig       `yaml:"acme"`
 }
 
 // ListenConfig 全局监听网卡配置：所有监听口共用同一 host，各自只配端口。
@@ -149,6 +150,26 @@ type TLSConfig struct {
 	CertEncKey string `yaml:"cert_enc_key"`
 }
 
+// ACMEConfig 是 Managed Certificate / ACME 自动签发续期配置。
+// 默认关闭（enabled=false）：未显式开启时系统回到 Phase 5 手动上传 + 临期告警行为。
+type ACMEConfig struct {
+	Enabled      bool   `yaml:"enabled"`       // 自动签发/续期总开关
+	DirectoryURL string `yaml:"directory_url"` // ACME 目录（Let's Encrypt 生产/staging 或兼容 CA）
+	Email        string `yaml:"email"`         // 账户注册邮箱
+	// Challenge 域名验证方式：http-01（默认，网关代答）| tls-alpn-01（备选）。
+	Challenge string `yaml:"challenge"`
+	// KeyType 证书密钥类型：ec256（默认）| rsa2048。
+	KeyType string `yaml:"key_type"`
+	// RenewBefore 提前续期窗口（默认 720h=30d，对齐 Phase 5 临期扫描窗口）。
+	RenewBefore time.Duration `yaml:"renew_before"`
+	// RenewCheckInterval 续期扫描节奏（默认 1h）。
+	RenewCheckInterval time.Duration `yaml:"renew_check_interval"`
+	// MaxRenewAttempts 连续续期失败上限，超过转手动告警并停止自动重试。
+	MaxRenewAttempts int `yaml:"max_renew_attempts"`
+	// RateLimitBackoff 触发 CA 限流后的最小重试间隔。
+	RateLimitBackoff time.Duration `yaml:"rate_limit_backoff"`
+}
+
 // Default 返回内建默认配置（作为 env / 缺省兜底）。
 func Default() *Config {
 	return &Config{
@@ -198,6 +219,16 @@ func Default() *Config {
 			EnforceSNIHostMatch: true,
 			// 默认 false（隔离优先）：未知 SNI/无 SNI 拒绝握手，不向任意域名发全局证书。
 			FallbackCertEnabled: false,
+		},
+		ACME: ACMEConfig{
+			Enabled:            false, // 默认关闭：未显式开启时回到 Phase 5 手动上传 + 临期告警行为
+			DirectoryURL:       "https://acme-v02.api.letsencrypt.org/directory",
+			Challenge:          "http-01",
+			KeyType:            "ec256",
+			RenewBefore:        720 * time.Hour, // 30 天
+			RenewCheckInterval: time.Hour,
+			MaxRenewAttempts:   5,
+			RateLimitBackoff:   6 * time.Hour,
 		},
 	}
 }
@@ -311,6 +342,36 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_TLS_CERT_ENC_KEY"); v != "" {
 		c.TLS.CertEncKey = v
 	}
+	if v := os.Getenv("MAPLE_ACME_ENABLED"); v != "" {
+		c.ACME.Enabled = parseBool(v, c.ACME.Enabled)
+	}
+	if v := os.Getenv("MAPLE_ACME_DIRECTORY_URL"); v != "" {
+		c.ACME.DirectoryURL = v
+	}
+	if v := os.Getenv("MAPLE_ACME_EMAIL"); v != "" {
+		c.ACME.Email = v
+	}
+	if v := os.Getenv("MAPLE_ACME_CHALLENGE"); v != "" {
+		c.ACME.Challenge = v
+	}
+	if v := os.Getenv("MAPLE_ACME_KEY_TYPE"); v != "" {
+		c.ACME.KeyType = v
+	}
+	if v := os.Getenv("MAPLE_ACME_RENEW_BEFORE"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.ACME.RenewBefore = d
+		}
+	}
+	if v := os.Getenv("MAPLE_ACME_RENEW_CHECK_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.ACME.RenewCheckInterval = d
+		}
+	}
+	if v := os.Getenv("MAPLE_ACME_MAX_RENEW_ATTEMPTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.ACME.MaxRenewAttempts = n
+		}
+	}
 }
 
 func parseBool(v string, def bool) bool {
@@ -363,6 +424,25 @@ func (c *Config) Validate() error {
 	case "", "tls1.2", "tls1.3":
 	default:
 		return fmt.Errorf("tls.min_version must be tls1.2 or tls1.3, got %q", c.TLS.MinVersion)
+	}
+	if c.ACME.Enabled {
+		if c.ACME.DirectoryURL == "" {
+			return fmt.Errorf("acme.directory_url is required when acme enabled")
+		}
+		switch c.ACME.Challenge {
+		case "", "http-01", "tls-alpn-01":
+		default:
+			return fmt.Errorf("acme.challenge must be http-01 or tls-alpn-01, got %q", c.ACME.Challenge)
+		}
+		switch c.ACME.KeyType {
+		case "", "ec256", "rsa2048":
+		default:
+			return fmt.Errorf("acme.key_type must be ec256 or rsa2048, got %q", c.ACME.KeyType)
+		}
+		// 私钥加密不可降级：ACME 自动签发同样要求加密密钥（账户密钥/证书私钥均加密落库）。
+		if c.TLS.CertEncKey == "" && os.Getenv("MAPLE_CERT_ENC_KEY") == "" {
+			return fmt.Errorf("acme.enabled requires tls.cert_enc_key (private key encryption cannot be disabled)")
+		}
 	}
 	return nil
 }

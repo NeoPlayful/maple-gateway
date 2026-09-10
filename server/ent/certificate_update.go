@@ -240,6 +240,79 @@ func (cu *CertificateUpdate) ClearLastError() *CertificateUpdate {
 	return cu
 }
 
+// SetProviderMeta sets the "provider_meta" field.
+func (cu *CertificateUpdate) SetProviderMeta(m map[string]string) *CertificateUpdate {
+	cu.mutation.SetProviderMeta(m)
+	return cu
+}
+
+// ClearProviderMeta clears the value of the "provider_meta" field.
+func (cu *CertificateUpdate) ClearProviderMeta() *CertificateUpdate {
+	cu.mutation.ClearProviderMeta()
+	return cu
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (cu *CertificateUpdate) SetRenewAttempts(i int) *CertificateUpdate {
+	cu.mutation.ResetRenewAttempts()
+	cu.mutation.SetRenewAttempts(i)
+	return cu
+}
+
+// SetNillableRenewAttempts sets the "renew_attempts" field if the given value is not nil.
+func (cu *CertificateUpdate) SetNillableRenewAttempts(i *int) *CertificateUpdate {
+	if i != nil {
+		cu.SetRenewAttempts(*i)
+	}
+	return cu
+}
+
+// AddRenewAttempts adds i to the "renew_attempts" field.
+func (cu *CertificateUpdate) AddRenewAttempts(i int) *CertificateUpdate {
+	cu.mutation.AddRenewAttempts(i)
+	return cu
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (cu *CertificateUpdate) SetNextRenewAt(t time.Time) *CertificateUpdate {
+	cu.mutation.SetNextRenewAt(t)
+	return cu
+}
+
+// SetNillableNextRenewAt sets the "next_renew_at" field if the given value is not nil.
+func (cu *CertificateUpdate) SetNillableNextRenewAt(t *time.Time) *CertificateUpdate {
+	if t != nil {
+		cu.SetNextRenewAt(*t)
+	}
+	return cu
+}
+
+// ClearNextRenewAt clears the value of the "next_renew_at" field.
+func (cu *CertificateUpdate) ClearNextRenewAt() *CertificateUpdate {
+	cu.mutation.ClearNextRenewAt()
+	return cu
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (cu *CertificateUpdate) SetLastRenewError(s string) *CertificateUpdate {
+	cu.mutation.SetLastRenewError(s)
+	return cu
+}
+
+// SetNillableLastRenewError sets the "last_renew_error" field if the given value is not nil.
+func (cu *CertificateUpdate) SetNillableLastRenewError(s *string) *CertificateUpdate {
+	if s != nil {
+		cu.SetLastRenewError(*s)
+	}
+	return cu
+}
+
+// ClearLastRenewError clears the value of the "last_renew_error" field.
+func (cu *CertificateUpdate) ClearLastRenewError() *CertificateUpdate {
+	cu.mutation.ClearLastRenewError()
+	return cu
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (cu *CertificateUpdate) SetUpdatedAt(t time.Time) *CertificateUpdate {
 	cu.mutation.SetUpdatedAt(t)
@@ -379,6 +452,30 @@ func (cu *CertificateUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if cu.mutation.LastErrorCleared() {
 		_spec.ClearField(certificate.FieldLastError, field.TypeString)
+	}
+	if value, ok := cu.mutation.ProviderMeta(); ok {
+		_spec.SetField(certificate.FieldProviderMeta, field.TypeJSON, value)
+	}
+	if cu.mutation.ProviderMetaCleared() {
+		_spec.ClearField(certificate.FieldProviderMeta, field.TypeJSON)
+	}
+	if value, ok := cu.mutation.RenewAttempts(); ok {
+		_spec.SetField(certificate.FieldRenewAttempts, field.TypeInt, value)
+	}
+	if value, ok := cu.mutation.AddedRenewAttempts(); ok {
+		_spec.AddField(certificate.FieldRenewAttempts, field.TypeInt, value)
+	}
+	if value, ok := cu.mutation.NextRenewAt(); ok {
+		_spec.SetField(certificate.FieldNextRenewAt, field.TypeTime, value)
+	}
+	if cu.mutation.NextRenewAtCleared() {
+		_spec.ClearField(certificate.FieldNextRenewAt, field.TypeTime)
+	}
+	if value, ok := cu.mutation.LastRenewError(); ok {
+		_spec.SetField(certificate.FieldLastRenewError, field.TypeString, value)
+	}
+	if cu.mutation.LastRenewErrorCleared() {
+		_spec.ClearField(certificate.FieldLastRenewError, field.TypeString)
 	}
 	if value, ok := cu.mutation.UpdatedAt(); ok {
 		_spec.SetField(certificate.FieldUpdatedAt, field.TypeTime, value)
@@ -642,6 +739,79 @@ func (cuo *CertificateUpdateOne) ClearLastError() *CertificateUpdateOne {
 	return cuo
 }
 
+// SetProviderMeta sets the "provider_meta" field.
+func (cuo *CertificateUpdateOne) SetProviderMeta(m map[string]string) *CertificateUpdateOne {
+	cuo.mutation.SetProviderMeta(m)
+	return cuo
+}
+
+// ClearProviderMeta clears the value of the "provider_meta" field.
+func (cuo *CertificateUpdateOne) ClearProviderMeta() *CertificateUpdateOne {
+	cuo.mutation.ClearProviderMeta()
+	return cuo
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (cuo *CertificateUpdateOne) SetRenewAttempts(i int) *CertificateUpdateOne {
+	cuo.mutation.ResetRenewAttempts()
+	cuo.mutation.SetRenewAttempts(i)
+	return cuo
+}
+
+// SetNillableRenewAttempts sets the "renew_attempts" field if the given value is not nil.
+func (cuo *CertificateUpdateOne) SetNillableRenewAttempts(i *int) *CertificateUpdateOne {
+	if i != nil {
+		cuo.SetRenewAttempts(*i)
+	}
+	return cuo
+}
+
+// AddRenewAttempts adds i to the "renew_attempts" field.
+func (cuo *CertificateUpdateOne) AddRenewAttempts(i int) *CertificateUpdateOne {
+	cuo.mutation.AddRenewAttempts(i)
+	return cuo
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (cuo *CertificateUpdateOne) SetNextRenewAt(t time.Time) *CertificateUpdateOne {
+	cuo.mutation.SetNextRenewAt(t)
+	return cuo
+}
+
+// SetNillableNextRenewAt sets the "next_renew_at" field if the given value is not nil.
+func (cuo *CertificateUpdateOne) SetNillableNextRenewAt(t *time.Time) *CertificateUpdateOne {
+	if t != nil {
+		cuo.SetNextRenewAt(*t)
+	}
+	return cuo
+}
+
+// ClearNextRenewAt clears the value of the "next_renew_at" field.
+func (cuo *CertificateUpdateOne) ClearNextRenewAt() *CertificateUpdateOne {
+	cuo.mutation.ClearNextRenewAt()
+	return cuo
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (cuo *CertificateUpdateOne) SetLastRenewError(s string) *CertificateUpdateOne {
+	cuo.mutation.SetLastRenewError(s)
+	return cuo
+}
+
+// SetNillableLastRenewError sets the "last_renew_error" field if the given value is not nil.
+func (cuo *CertificateUpdateOne) SetNillableLastRenewError(s *string) *CertificateUpdateOne {
+	if s != nil {
+		cuo.SetLastRenewError(*s)
+	}
+	return cuo
+}
+
+// ClearLastRenewError clears the value of the "last_renew_error" field.
+func (cuo *CertificateUpdateOne) ClearLastRenewError() *CertificateUpdateOne {
+	cuo.mutation.ClearLastRenewError()
+	return cuo
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (cuo *CertificateUpdateOne) SetUpdatedAt(t time.Time) *CertificateUpdateOne {
 	cuo.mutation.SetUpdatedAt(t)
@@ -811,6 +981,30 @@ func (cuo *CertificateUpdateOne) sqlSave(ctx context.Context) (_node *Certificat
 	}
 	if cuo.mutation.LastErrorCleared() {
 		_spec.ClearField(certificate.FieldLastError, field.TypeString)
+	}
+	if value, ok := cuo.mutation.ProviderMeta(); ok {
+		_spec.SetField(certificate.FieldProviderMeta, field.TypeJSON, value)
+	}
+	if cuo.mutation.ProviderMetaCleared() {
+		_spec.ClearField(certificate.FieldProviderMeta, field.TypeJSON)
+	}
+	if value, ok := cuo.mutation.RenewAttempts(); ok {
+		_spec.SetField(certificate.FieldRenewAttempts, field.TypeInt, value)
+	}
+	if value, ok := cuo.mutation.AddedRenewAttempts(); ok {
+		_spec.AddField(certificate.FieldRenewAttempts, field.TypeInt, value)
+	}
+	if value, ok := cuo.mutation.NextRenewAt(); ok {
+		_spec.SetField(certificate.FieldNextRenewAt, field.TypeTime, value)
+	}
+	if cuo.mutation.NextRenewAtCleared() {
+		_spec.ClearField(certificate.FieldNextRenewAt, field.TypeTime)
+	}
+	if value, ok := cuo.mutation.LastRenewError(); ok {
+		_spec.SetField(certificate.FieldLastRenewError, field.TypeString, value)
+	}
+	if cuo.mutation.LastRenewErrorCleared() {
+		_spec.ClearField(certificate.FieldLastRenewError, field.TypeString)
 	}
 	if value, ok := cuo.mutation.UpdatedAt(); ok {
 		_spec.SetField(certificate.FieldUpdatedAt, field.TypeTime, value)

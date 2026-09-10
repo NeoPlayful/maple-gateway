@@ -79,3 +79,16 @@ tls:
   # 生成：openssl rand -base64 32。配这里或环境变量 MAPLE_TLS_CERT_ENC_KEY；不配则证书管理 API 不注册。
   # 存量证书换 key 会解不开旧私钥，需保持同一把。下方为开发用固定密钥（本地直用），生产必须更换。
   cert_enc_key: "u+IBv5z9z+RqwIbEV9WPfedoJLm/gj0MwM6QmF1+MYs="
+
+# ---- Managed Certificate / ACME 自动签发续期 ----
+acme:
+  enabled: false                     # 自动签发/续期总开关；false 时回到手动上传 + 临期告警行为
+  directory_url: https://acme-v02.api.letsencrypt.org/directory
+                                     # staging 联调：https://acme-staging-v02.api.letsencrypt.org/directory
+  email: "admin@maple.com"                          # 账户注册邮箱（首次注册账户必填）
+  challenge: http-01                 # http-01（网关代答 /.well-known/acme-challenge/）/ tls-alpn-01（备选）
+  key_type: ec256                    # ec256 / rsa2048
+  renew_before: 720h                 # 提前续期窗口（30 天，对齐临期扫描）
+  renew_check_interval: 1h           # 续期扫描节奏
+  max_renew_attempts: 5              # 连续失败上限，超过转手动告警并停止自动重试
+  rate_limit_backoff: 6h             # 触发 CA 限流后的最小重试间隔

@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// ACMEAccount is the client for interacting with the ACMEAccount builders.
+	ACMEAccount *ACMEAccountClient
 	// Admin is the client for interacting with the Admin builders.
 	Admin *AdminClient
 	// AuditLog is the client for interacting with the AuditLog builders.
@@ -181,6 +183,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.ACMEAccount = NewACMEAccountClient(tx.config)
 	tx.Admin = NewAdminClient(tx.config)
 	tx.AuditLog = NewAuditLogClient(tx.config)
 	tx.BluegreenDeployment = NewBluegreenDeploymentClient(tx.config)
@@ -209,7 +212,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Admin.QueryXXX(), the query will be executed
+// applies a query, for example: ACMEAccount.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

@@ -9,6 +9,18 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 )
 
+// The ACMEAccountFunc type is an adapter to allow the use of ordinary
+// function as ACMEAccount mutator.
+type ACMEAccountFunc func(context.Context, *ent.ACMEAccountMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ACMEAccountFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ACMEAccountMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ACMEAccountMutation", m)
+}
+
 // The AdminFunc type is an adapter to allow the use of ordinary
 // function as Admin mutator.
 type AdminFunc func(context.Context, *ent.AdminMutation) (ent.Value, error)

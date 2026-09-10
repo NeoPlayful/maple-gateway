@@ -169,6 +169,54 @@ func (cc *CertificateCreate) SetNillableLastError(s *string) *CertificateCreate 
 	return cc
 }
 
+// SetProviderMeta sets the "provider_meta" field.
+func (cc *CertificateCreate) SetProviderMeta(m map[string]string) *CertificateCreate {
+	cc.mutation.SetProviderMeta(m)
+	return cc
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (cc *CertificateCreate) SetRenewAttempts(i int) *CertificateCreate {
+	cc.mutation.SetRenewAttempts(i)
+	return cc
+}
+
+// SetNillableRenewAttempts sets the "renew_attempts" field if the given value is not nil.
+func (cc *CertificateCreate) SetNillableRenewAttempts(i *int) *CertificateCreate {
+	if i != nil {
+		cc.SetRenewAttempts(*i)
+	}
+	return cc
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (cc *CertificateCreate) SetNextRenewAt(t time.Time) *CertificateCreate {
+	cc.mutation.SetNextRenewAt(t)
+	return cc
+}
+
+// SetNillableNextRenewAt sets the "next_renew_at" field if the given value is not nil.
+func (cc *CertificateCreate) SetNillableNextRenewAt(t *time.Time) *CertificateCreate {
+	if t != nil {
+		cc.SetNextRenewAt(*t)
+	}
+	return cc
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (cc *CertificateCreate) SetLastRenewError(s string) *CertificateCreate {
+	cc.mutation.SetLastRenewError(s)
+	return cc
+}
+
+// SetNillableLastRenewError sets the "last_renew_error" field if the given value is not nil.
+func (cc *CertificateCreate) SetNillableLastRenewError(s *string) *CertificateCreate {
+	if s != nil {
+		cc.SetLastRenewError(*s)
+	}
+	return cc
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (cc *CertificateCreate) SetCreatedAt(t time.Time) *CertificateCreate {
 	cc.mutation.SetCreatedAt(t)
@@ -255,6 +303,14 @@ func (cc *CertificateCreate) defaults() {
 		v := certificate.DefaultLastError
 		cc.mutation.SetLastError(v)
 	}
+	if _, ok := cc.mutation.RenewAttempts(); !ok {
+		v := certificate.DefaultRenewAttempts
+		cc.mutation.SetRenewAttempts(v)
+	}
+	if _, ok := cc.mutation.LastRenewError(); !ok {
+		v := certificate.DefaultLastRenewError
+		cc.mutation.SetLastRenewError(v)
+	}
 	if _, ok := cc.mutation.ID(); !ok {
 		v := certificate.DefaultID()
 		cc.mutation.SetID(v)
@@ -292,6 +348,9 @@ func (cc *CertificateCreate) check() error {
 		if err := certificate.PrivateKeyEncryptedValidator(v); err != nil {
 			return &ValidationError{Name: "private_key_encrypted", err: fmt.Errorf(`ent: validator failed for field "Certificate.private_key_encrypted": %w`, err)}
 		}
+	}
+	if _, ok := cc.mutation.RenewAttempts(); !ok {
+		return &ValidationError{Name: "renew_attempts", err: errors.New(`ent: missing required field "Certificate.renew_attempts"`)}
 	}
 	if _, ok := cc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Certificate.created_at"`)}
@@ -378,6 +437,22 @@ func (cc *CertificateCreate) createSpec() (*Certificate, *sqlgraph.CreateSpec) {
 	if value, ok := cc.mutation.LastError(); ok {
 		_spec.SetField(certificate.FieldLastError, field.TypeString, value)
 		_node.LastError = value
+	}
+	if value, ok := cc.mutation.ProviderMeta(); ok {
+		_spec.SetField(certificate.FieldProviderMeta, field.TypeJSON, value)
+		_node.ProviderMeta = value
+	}
+	if value, ok := cc.mutation.RenewAttempts(); ok {
+		_spec.SetField(certificate.FieldRenewAttempts, field.TypeInt, value)
+		_node.RenewAttempts = value
+	}
+	if value, ok := cc.mutation.NextRenewAt(); ok {
+		_spec.SetField(certificate.FieldNextRenewAt, field.TypeTime, value)
+		_node.NextRenewAt = &value
+	}
+	if value, ok := cc.mutation.LastRenewError(); ok {
+		_spec.SetField(certificate.FieldLastRenewError, field.TypeString, value)
+		_node.LastRenewError = value
 	}
 	if value, ok := cc.mutation.CreatedAt(); ok {
 		_spec.SetField(certificate.FieldCreatedAt, field.TypeTime, value)
@@ -639,6 +714,78 @@ func (u *CertificateUpsert) UpdateLastError() *CertificateUpsert {
 // ClearLastError clears the value of the "last_error" field.
 func (u *CertificateUpsert) ClearLastError() *CertificateUpsert {
 	u.SetNull(certificate.FieldLastError)
+	return u
+}
+
+// SetProviderMeta sets the "provider_meta" field.
+func (u *CertificateUpsert) SetProviderMeta(v map[string]string) *CertificateUpsert {
+	u.Set(certificate.FieldProviderMeta, v)
+	return u
+}
+
+// UpdateProviderMeta sets the "provider_meta" field to the value that was provided on create.
+func (u *CertificateUpsert) UpdateProviderMeta() *CertificateUpsert {
+	u.SetExcluded(certificate.FieldProviderMeta)
+	return u
+}
+
+// ClearProviderMeta clears the value of the "provider_meta" field.
+func (u *CertificateUpsert) ClearProviderMeta() *CertificateUpsert {
+	u.SetNull(certificate.FieldProviderMeta)
+	return u
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (u *CertificateUpsert) SetRenewAttempts(v int) *CertificateUpsert {
+	u.Set(certificate.FieldRenewAttempts, v)
+	return u
+}
+
+// UpdateRenewAttempts sets the "renew_attempts" field to the value that was provided on create.
+func (u *CertificateUpsert) UpdateRenewAttempts() *CertificateUpsert {
+	u.SetExcluded(certificate.FieldRenewAttempts)
+	return u
+}
+
+// AddRenewAttempts adds v to the "renew_attempts" field.
+func (u *CertificateUpsert) AddRenewAttempts(v int) *CertificateUpsert {
+	u.Add(certificate.FieldRenewAttempts, v)
+	return u
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (u *CertificateUpsert) SetNextRenewAt(v time.Time) *CertificateUpsert {
+	u.Set(certificate.FieldNextRenewAt, v)
+	return u
+}
+
+// UpdateNextRenewAt sets the "next_renew_at" field to the value that was provided on create.
+func (u *CertificateUpsert) UpdateNextRenewAt() *CertificateUpsert {
+	u.SetExcluded(certificate.FieldNextRenewAt)
+	return u
+}
+
+// ClearNextRenewAt clears the value of the "next_renew_at" field.
+func (u *CertificateUpsert) ClearNextRenewAt() *CertificateUpsert {
+	u.SetNull(certificate.FieldNextRenewAt)
+	return u
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (u *CertificateUpsert) SetLastRenewError(v string) *CertificateUpsert {
+	u.Set(certificate.FieldLastRenewError, v)
+	return u
+}
+
+// UpdateLastRenewError sets the "last_renew_error" field to the value that was provided on create.
+func (u *CertificateUpsert) UpdateLastRenewError() *CertificateUpsert {
+	u.SetExcluded(certificate.FieldLastRenewError)
+	return u
+}
+
+// ClearLastRenewError clears the value of the "last_renew_error" field.
+func (u *CertificateUpsert) ClearLastRenewError() *CertificateUpsert {
+	u.SetNull(certificate.FieldLastRenewError)
 	return u
 }
 
@@ -919,6 +1066,90 @@ func (u *CertificateUpsertOne) UpdateLastError() *CertificateUpsertOne {
 func (u *CertificateUpsertOne) ClearLastError() *CertificateUpsertOne {
 	return u.Update(func(s *CertificateUpsert) {
 		s.ClearLastError()
+	})
+}
+
+// SetProviderMeta sets the "provider_meta" field.
+func (u *CertificateUpsertOne) SetProviderMeta(v map[string]string) *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetProviderMeta(v)
+	})
+}
+
+// UpdateProviderMeta sets the "provider_meta" field to the value that was provided on create.
+func (u *CertificateUpsertOne) UpdateProviderMeta() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateProviderMeta()
+	})
+}
+
+// ClearProviderMeta clears the value of the "provider_meta" field.
+func (u *CertificateUpsertOne) ClearProviderMeta() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.ClearProviderMeta()
+	})
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (u *CertificateUpsertOne) SetRenewAttempts(v int) *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetRenewAttempts(v)
+	})
+}
+
+// AddRenewAttempts adds v to the "renew_attempts" field.
+func (u *CertificateUpsertOne) AddRenewAttempts(v int) *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.AddRenewAttempts(v)
+	})
+}
+
+// UpdateRenewAttempts sets the "renew_attempts" field to the value that was provided on create.
+func (u *CertificateUpsertOne) UpdateRenewAttempts() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateRenewAttempts()
+	})
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (u *CertificateUpsertOne) SetNextRenewAt(v time.Time) *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetNextRenewAt(v)
+	})
+}
+
+// UpdateNextRenewAt sets the "next_renew_at" field to the value that was provided on create.
+func (u *CertificateUpsertOne) UpdateNextRenewAt() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateNextRenewAt()
+	})
+}
+
+// ClearNextRenewAt clears the value of the "next_renew_at" field.
+func (u *CertificateUpsertOne) ClearNextRenewAt() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.ClearNextRenewAt()
+	})
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (u *CertificateUpsertOne) SetLastRenewError(v string) *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetLastRenewError(v)
+	})
+}
+
+// UpdateLastRenewError sets the "last_renew_error" field to the value that was provided on create.
+func (u *CertificateUpsertOne) UpdateLastRenewError() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateLastRenewError()
+	})
+}
+
+// ClearLastRenewError clears the value of the "last_renew_error" field.
+func (u *CertificateUpsertOne) ClearLastRenewError() *CertificateUpsertOne {
+	return u.Update(func(s *CertificateUpsert) {
+		s.ClearLastRenewError()
 	})
 }
 
@@ -1368,6 +1599,90 @@ func (u *CertificateUpsertBulk) UpdateLastError() *CertificateUpsertBulk {
 func (u *CertificateUpsertBulk) ClearLastError() *CertificateUpsertBulk {
 	return u.Update(func(s *CertificateUpsert) {
 		s.ClearLastError()
+	})
+}
+
+// SetProviderMeta sets the "provider_meta" field.
+func (u *CertificateUpsertBulk) SetProviderMeta(v map[string]string) *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetProviderMeta(v)
+	})
+}
+
+// UpdateProviderMeta sets the "provider_meta" field to the value that was provided on create.
+func (u *CertificateUpsertBulk) UpdateProviderMeta() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateProviderMeta()
+	})
+}
+
+// ClearProviderMeta clears the value of the "provider_meta" field.
+func (u *CertificateUpsertBulk) ClearProviderMeta() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.ClearProviderMeta()
+	})
+}
+
+// SetRenewAttempts sets the "renew_attempts" field.
+func (u *CertificateUpsertBulk) SetRenewAttempts(v int) *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetRenewAttempts(v)
+	})
+}
+
+// AddRenewAttempts adds v to the "renew_attempts" field.
+func (u *CertificateUpsertBulk) AddRenewAttempts(v int) *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.AddRenewAttempts(v)
+	})
+}
+
+// UpdateRenewAttempts sets the "renew_attempts" field to the value that was provided on create.
+func (u *CertificateUpsertBulk) UpdateRenewAttempts() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateRenewAttempts()
+	})
+}
+
+// SetNextRenewAt sets the "next_renew_at" field.
+func (u *CertificateUpsertBulk) SetNextRenewAt(v time.Time) *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetNextRenewAt(v)
+	})
+}
+
+// UpdateNextRenewAt sets the "next_renew_at" field to the value that was provided on create.
+func (u *CertificateUpsertBulk) UpdateNextRenewAt() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateNextRenewAt()
+	})
+}
+
+// ClearNextRenewAt clears the value of the "next_renew_at" field.
+func (u *CertificateUpsertBulk) ClearNextRenewAt() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.ClearNextRenewAt()
+	})
+}
+
+// SetLastRenewError sets the "last_renew_error" field.
+func (u *CertificateUpsertBulk) SetLastRenewError(v string) *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.SetLastRenewError(v)
+	})
+}
+
+// UpdateLastRenewError sets the "last_renew_error" field to the value that was provided on create.
+func (u *CertificateUpsertBulk) UpdateLastRenewError() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.UpdateLastRenewError()
+	})
+}
+
+// ClearLastRenewError clears the value of the "last_renew_error" field.
+func (u *CertificateUpsertBulk) ClearLastRenewError() *CertificateUpsertBulk {
+	return u.Update(func(s *CertificateUpsert) {
+		s.ClearLastRenewError()
 	})
 }
 

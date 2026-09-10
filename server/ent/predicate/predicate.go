@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// ACMEAccount is the predicate function for acmeaccount builders.
+type ACMEAccount func(*sql.Selector)
+
 // Admin is the predicate function for admin builders.
 type Admin func(*sql.Selector)
 
