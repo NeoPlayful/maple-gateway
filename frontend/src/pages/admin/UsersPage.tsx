@@ -1,5 +1,5 @@
 // 平台用户（管理员账号）管理页：列表 + 展开详情 + 新建 + 改角色 + 启停。
-// 后端契约见 internal/api/admins.go（写操作经 RBAC 限 super_admin）。
+// 后端契约见 internal/api/users.go（写操作经 RBAC 限 super_admin）。
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
@@ -15,7 +15,7 @@ import { DetailGrid } from '../../components/admin/DetailGrid';
 import { IdCell } from '../../components/admin/IdCell';
 import { PageHeader } from '../../themes';
 
-// AdminUser 与 /api/admin/admins 返回字段对应。
+// AdminUser 与 /api/admin/users 返回字段对应。
 interface AdminUser {
   id: string;
   email: string;
@@ -57,7 +57,7 @@ export default function UsersPage() {
 
   const load = useCallback(async () => {
     try {
-      setRows(await list<AdminUser>('/api/admin/admins'));
+      setRows(await list<AdminUser>('/api/admin/users'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('common.loadFailed'));
     }
@@ -86,7 +86,7 @@ export default function UsersPage() {
     }
     setBusy(true);
     try {
-      await api.post('/api/admin/admins', { email, password, name, role });
+      await api.post('/api/admin/users', { email, password, name, role });
       toast.success(t('common.createSuccess'));
       closeCreate();
       await load();
@@ -99,7 +99,7 @@ export default function UsersPage() {
 
   const changeRole = async (id: string, next: string) => {
     try {
-      await api.patch(`/api/admin/admins/${id}/role`, { role: next });
+      await api.patch(`/api/admin/users/${id}/role`, { role: next });
       toast.success(t('common.operateSuccess'));
       await load();
     } catch (e) {
@@ -111,7 +111,7 @@ export default function UsersPage() {
   const toggleStatus = async (u: AdminUser) => {
     const next = u.status === 'active' ? 'disabled' : 'active';
     try {
-      await api.patch(`/api/admin/admins/${u.id}/status`, { status: next });
+      await api.patch(`/api/admin/users/${u.id}/status`, { status: next });
       toast.success(t('common.operateSuccess'));
       await load();
     } catch (e) {

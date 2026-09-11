@@ -34,30 +34,6 @@ var (
 			},
 		},
 	}
-	// AdminsColumns holds the columns for the "admins" table.
-	AdminsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeUUID},
-		{Name: "email", Type: field.TypeString},
-		{Name: "password_hash", Type: field.TypeString},
-		{Name: "name", Type: field.TypeString, Nullable: true},
-		{Name: "role", Type: field.TypeString, Default: "super_admin"},
-		{Name: "status", Type: field.TypeString, Default: "active"},
-		{Name: "created_at", Type: field.TypeTime},
-		{Name: "updated_at", Type: field.TypeTime},
-	}
-	// AdminsTable holds the schema information for the "admins" table.
-	AdminsTable = &schema.Table{
-		Name:       "admins",
-		Columns:    AdminsColumns,
-		PrimaryKey: []*schema.Column{AdminsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "admin_email",
-				Unique:  true,
-				Columns: []*schema.Column{AdminsColumns[1]},
-			},
-		},
-	}
 	// AuditLogsColumns holds the columns for the "audit_logs" table.
 	AuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -671,10 +647,33 @@ var (
 			},
 		},
 	}
+	// UsersColumns holds the columns for the "users" table.
+	UsersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "email", Type: field.TypeString},
+		{Name: "password_hash", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString, Nullable: true},
+		{Name: "role", Type: field.TypeString, Default: "super_admin"},
+		{Name: "status", Type: field.TypeString, Default: "active"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// UsersTable holds the schema information for the "users" table.
+	UsersTable = &schema.Table{
+		Name:       "users",
+		Columns:    UsersColumns,
+		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "user_email",
+				Unique:  true,
+				Columns: []*schema.Column{UsersColumns[1]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AcmeAccountsTable,
-		AdminsTable,
 		AuditLogsTable,
 		BluegreenDeploymentsTable,
 		BluegreenEventsTable,
@@ -694,6 +693,7 @@ var (
 		SettingsHistoryTable,
 		TenantsTable,
 		TrafficPoliciesTable,
+		UsersTable,
 	}
 )
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/ent"
-	entadmin "github.com/NeoPlayful/maple-gateway/server/ent/admin"
+	entuser "github.com/NeoPlayful/maple-gateway/server/ent/user"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -81,8 +81,8 @@ type AdminInfo struct {
 
 // Login 校验邮箱密码，签发 JWT。失败统一返回"邮箱或密码错误"避免账号枚举。
 func (s *Service) Login(ctx context.Context, in LoginInput) (*LoginResult, error) {
-	a, err := s.ent.Admin.Query().
-		Where(entadmin.EmailEQ(in.Email)).
+	a, err := s.ent.User.Query().
+		Where(entuser.EmailEQ(in.Email)).
 		Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, pkg.ErrUnauthorized("邮箱或密码错误")
@@ -169,7 +169,7 @@ func (s *Service) ChangePassword(ctx context.Context, adminID string, in ChangeP
 	if err != nil {
 		return pkg.ErrUnauthorized("管理员不存在")
 	}
-	a, err := s.ent.Admin.Get(ctx, uid)
+	a, err := s.ent.User.Get(ctx, uid)
 	if ent.IsNotFound(err) {
 		return pkg.ErrUnauthorized("管理员不存在")
 	}
@@ -183,7 +183,7 @@ func (s *Service) ChangePassword(ctx context.Context, adminID string, in ChangeP
 	if err != nil {
 		return pkg.ErrSystem("密码加密失败")
 	}
-	if _, err := s.ent.Admin.UpdateOneID(uid).
+	if _, err := s.ent.User.UpdateOneID(uid).
 		SetPasswordHash(string(hash)).
 		Save(ctx); err != nil {
 		return pkg.ErrSystem("更新密码失败")
@@ -197,7 +197,7 @@ func (s *Service) AdminByID(ctx context.Context, id string) (*AdminInfo, error) 
 	if err != nil {
 		return nil, pkg.ErrUnauthorized("管理员不存在")
 	}
-	a, err := s.ent.Admin.Get(ctx, uid)
+	a, err := s.ent.User.Get(ctx, uid)
 	if ent.IsNotFound(err) {
 		return nil, pkg.ErrUnauthorized("管理员不存在")
 	}

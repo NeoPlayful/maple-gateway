@@ -9,9 +9,6 @@ import (
 // ACMEAccount is the predicate function for acmeaccount builders.
 type ACMEAccount func(*sql.Selector)
 
-// Admin is the predicate function for admin builders.
-type Admin func(*sql.Selector)
-
 // AuditLog is the predicate function for auditlog builders.
 type AuditLog func(*sql.Selector)
 
@@ -68,3 +65,6 @@ type Tenant func(*sql.Selector)
 
 // TrafficPolicy is the predicate function for trafficpolicy builders.
 type TrafficPolicy func(*sql.Selector)
+
+// User is the predicate function for user builders.
+type User func(*sql.Selector)

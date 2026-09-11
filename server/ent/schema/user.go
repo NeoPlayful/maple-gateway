@@ -1,4 +1,4 @@
-// 现有表结构迁移：admins（0001 起 uuid 主键；email 唯一）
+// 现有表结构迁移：users（原 admins，0018 改名；uuid 主键；email 唯一）
 package schema
 
 import (
@@ -8,12 +8,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// Admin 对应 admins 表（Management API 登录账号）。
-type Admin struct {
+// User 对应 users 表（Management API 登录账号 / 平台用户）。
+type User struct {
 	ent.Schema
 }
 
-func (Admin) Fields() []ent.Field {
+func (User) Fields() []ent.Field {
 	return []ent.Field{
 		field.UUID("id", uuid.UUID{}).Default(uuid.New).Immutable(),
 		field.String("email").NotEmpty(),
@@ -26,7 +26,7 @@ func (Admin) Fields() []ent.Field {
 	}
 }
 
-func (Admin) Indexes() []ent.Index {
+func (User) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("email").Unique(),
 	}

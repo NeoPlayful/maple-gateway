@@ -16,7 +16,7 @@ interface Counts {
   rate_limits: number;
   canary: number;
   blue_green: number;
-  admins: number;
+  users: number;
 }
 interface Dist {
   total: number;

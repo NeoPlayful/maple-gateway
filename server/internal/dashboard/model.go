@@ -26,7 +26,7 @@ type Counts struct {
 	RateLimits  int `json:"rate_limits"`
 	Canary      int `json:"canary"`
 	BlueGreen   int `json:"blue_green"`
-	Admins      int `json:"admins"`
+	Users       int `json:"users"`
 }
 
 // Instances 实例聚合：总数 / 可路由数 / health 分布 / status 分布。

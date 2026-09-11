@@ -23,7 +23,7 @@ Management API 管理员认证。
 | POST | `/api/auth/change-password` | 修改密码 |
 
 > 认证：Bearer JWT，载荷含 admin id + email + role（RBAC 授权依据）。登录/刷新/me 均返回管理员 `role`。
-> 管理员账号管理（超管专属）：`GET/POST /api/admin/admins`、`PATCH /api/admin/admins/:id/role`、`PATCH /api/admin/admins/:id/status`。
+> 平台用户账号管理（超管专属）：`GET/POST /api/admin/users`、`PATCH /api/admin/users/:id/role`、`PATCH /api/admin/users/:id/status`。表名 `users`（v0.1.39 由 `admins` 改名）。
 
 ------------------------------------------------------------------------
 

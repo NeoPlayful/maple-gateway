@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/ent"
-	entadmin "github.com/NeoPlayful/maple-gateway/server/ent/admin"
+	entuser "github.com/NeoPlayful/maple-gateway/server/ent/user"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -25,7 +25,7 @@ func seedAdmin(ctx context.Context, client *ent.Client) error {
 		password = "admin123"
 	}
 
-	exists, err := client.Admin.Query().Where(entadmin.EmailEQ(email)).Exist(ctx)
+	exists, err := client.User.Query().Where(entuser.EmailEQ(email)).Exist(ctx)
 	if err != nil {
 		return fmt.Errorf("check admin exists: %w", err)
 	}
@@ -39,7 +39,7 @@ func seedAdmin(ctx context.Context, client *ent.Client) error {
 		return fmt.Errorf("hash password: %w", err)
 	}
 	now := time.Now()
-	if _, err := client.Admin.Create().
+	if _, err := client.User.Create().
 		SetEmail(email).
 		SetPasswordHash(string(hash)).
 		SetName("admin").

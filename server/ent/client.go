@@ -17,7 +17,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
-	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
@@ -37,6 +36,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
+	"github.com/NeoPlayful/maple-gateway/server/ent/user"
 )
 
 // Client is the client that holds all ent builders.
@@ -46,8 +46,6 @@ type Client struct {
 	Schema *migrate.Schema
 	// ACMEAccount is the client for interacting with the ACMEAccount builders.
 	ACMEAccount *ACMEAccountClient
-	// Admin is the client for interacting with the Admin builders.
-	Admin *AdminClient
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
 	// BluegreenDeployment is the client for interacting with the BluegreenDeployment builders.
@@ -86,6 +84,8 @@ type Client struct {
 	Tenant *TenantClient
 	// TrafficPolicy is the client for interacting with the TrafficPolicy builders.
 	TrafficPolicy *TrafficPolicyClient
+	// User is the client for interacting with the User builders.
+	User *UserClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -98,7 +98,6 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.ACMEAccount = NewACMEAccountClient(c.config)
-	c.Admin = NewAdminClient(c.config)
 	c.AuditLog = NewAuditLogClient(c.config)
 	c.BluegreenDeployment = NewBluegreenDeploymentClient(c.config)
 	c.BluegreenEvent = NewBluegreenEventClient(c.config)
@@ -118,6 +117,7 @@ func (c *Client) init() {
 	c.SettingHistory = NewSettingHistoryClient(c.config)
 	c.Tenant = NewTenantClient(c.config)
 	c.TrafficPolicy = NewTrafficPolicyClient(c.config)
+	c.User = NewUserClient(c.config)
 }
 
 type (
@@ -211,7 +211,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:                  ctx,
 		config:               cfg,
 		ACMEAccount:          NewACMEAccountClient(cfg),
-		Admin:                NewAdminClient(cfg),
 		AuditLog:             NewAuditLogClient(cfg),
 		BluegreenDeployment:  NewBluegreenDeploymentClient(cfg),
 		BluegreenEvent:       NewBluegreenEventClient(cfg),
@@ -231,6 +230,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		SettingHistory:       NewSettingHistoryClient(cfg),
 		Tenant:               NewTenantClient(cfg),
 		TrafficPolicy:        NewTrafficPolicyClient(cfg),
+		User:                 NewUserClient(cfg),
 	}, nil
 }
 
@@ -251,7 +251,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:                  ctx,
 		config:               cfg,
 		ACMEAccount:          NewACMEAccountClient(cfg),
-		Admin:                NewAdminClient(cfg),
 		AuditLog:             NewAuditLogClient(cfg),
 		BluegreenDeployment:  NewBluegreenDeploymentClient(cfg),
 		BluegreenEvent:       NewBluegreenEventClient(cfg),
@@ -271,6 +270,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		SettingHistory:       NewSettingHistoryClient(cfg),
 		Tenant:               NewTenantClient(cfg),
 		TrafficPolicy:        NewTrafficPolicyClient(cfg),
+		User:                 NewUserClient(cfg),
 	}, nil
 }
 
@@ -300,11 +300,11 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.ACMEAccount, c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
+		c.ACMEAccount, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
 		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.CertificateOperation,
 		c.Deployment, c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance,
 		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
-		c.TrafficPolicy,
+		c.TrafficPolicy, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -314,11 +314,11 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.ACMEAccount, c.Admin, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
+		c.ACMEAccount, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
 		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.CertificateOperation,
 		c.Deployment, c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance,
 		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
-		c.TrafficPolicy,
+		c.TrafficPolicy, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -329,8 +329,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *ACMEAccountMutation:
 		return c.ACMEAccount.mutate(ctx, m)
-	case *AdminMutation:
-		return c.Admin.mutate(ctx, m)
 	case *AuditLogMutation:
 		return c.AuditLog.mutate(ctx, m)
 	case *BluegreenDeploymentMutation:
@@ -369,6 +367,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Tenant.mutate(ctx, m)
 	case *TrafficPolicyMutation:
 		return c.TrafficPolicy.mutate(ctx, m)
+	case *UserMutation:
+		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -504,139 +504,6 @@ func (c *ACMEAccountClient) mutate(ctx context.Context, m *ACMEAccountMutation) 
 		return (&ACMEAccountDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ACMEAccount mutation op: %q", m.Op())
-	}
-}
-
-// AdminClient is a client for the Admin schema.
-type AdminClient struct {
-	config
-}
-
-// NewAdminClient returns a client for the Admin from the given config.
-func NewAdminClient(c config) *AdminClient {
-	return &AdminClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `admin.Hooks(f(g(h())))`.
-func (c *AdminClient) Use(hooks ...Hook) {
-	c.hooks.Admin = append(c.hooks.Admin, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `admin.Intercept(f(g(h())))`.
-func (c *AdminClient) Intercept(interceptors ...Interceptor) {
-	c.inters.Admin = append(c.inters.Admin, interceptors...)
-}
-
-// Create returns a builder for creating a Admin entity.
-func (c *AdminClient) Create() *AdminCreate {
-	mutation := newAdminMutation(c.config, OpCreate)
-	return &AdminCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of Admin entities.
-func (c *AdminClient) CreateBulk(builders ...*AdminCreate) *AdminCreateBulk {
-	return &AdminCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *AdminClient) MapCreateBulk(slice any, setFunc func(*AdminCreate, int)) *AdminCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &AdminCreateBulk{err: fmt.Errorf("calling to AdminClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*AdminCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &AdminCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for Admin.
-func (c *AdminClient) Update() *AdminUpdate {
-	mutation := newAdminMutation(c.config, OpUpdate)
-	return &AdminUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *AdminClient) UpdateOne(a *Admin) *AdminUpdateOne {
-	mutation := newAdminMutation(c.config, OpUpdateOne, withAdmin(a))
-	return &AdminUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *AdminClient) UpdateOneID(id uuid.UUID) *AdminUpdateOne {
-	mutation := newAdminMutation(c.config, OpUpdateOne, withAdminID(id))
-	return &AdminUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for Admin.
-func (c *AdminClient) Delete() *AdminDelete {
-	mutation := newAdminMutation(c.config, OpDelete)
-	return &AdminDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *AdminClient) DeleteOne(a *Admin) *AdminDeleteOne {
-	return c.DeleteOneID(a.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *AdminClient) DeleteOneID(id uuid.UUID) *AdminDeleteOne {
-	builder := c.Delete().Where(admin.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &AdminDeleteOne{builder}
-}
-
-// Query returns a query builder for Admin.
-func (c *AdminClient) Query() *AdminQuery {
-	return &AdminQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeAdmin},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a Admin entity by its id.
-func (c *AdminClient) Get(ctx context.Context, id uuid.UUID) (*Admin, error) {
-	return c.Query().Where(admin.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *AdminClient) GetX(ctx context.Context, id uuid.UUID) *Admin {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *AdminClient) Hooks() []Hook {
-	return c.hooks.Admin
-}
-
-// Interceptors returns the client interceptors.
-func (c *AdminClient) Interceptors() []Interceptor {
-	return c.inters.Admin
-}
-
-func (c *AdminClient) mutate(ctx context.Context, m *AdminMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&AdminCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&AdminUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&AdminUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&AdminDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown Admin mutation op: %q", m.Op())
 	}
 }
 
@@ -3391,18 +3258,151 @@ func (c *TrafficPolicyClient) mutate(ctx context.Context, m *TrafficPolicyMutati
 	}
 }
 
+// UserClient is a client for the User schema.
+type UserClient struct {
+	config
+}
+
+// NewUserClient returns a client for the User from the given config.
+func NewUserClient(c config) *UserClient {
+	return &UserClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `user.Hooks(f(g(h())))`.
+func (c *UserClient) Use(hooks ...Hook) {
+	c.hooks.User = append(c.hooks.User, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `user.Intercept(f(g(h())))`.
+func (c *UserClient) Intercept(interceptors ...Interceptor) {
+	c.inters.User = append(c.inters.User, interceptors...)
+}
+
+// Create returns a builder for creating a User entity.
+func (c *UserClient) Create() *UserCreate {
+	mutation := newUserMutation(c.config, OpCreate)
+	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of User entities.
+func (c *UserClient) CreateBulk(builders ...*UserCreate) *UserCreateBulk {
+	return &UserCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UserClient) MapCreateBulk(slice any, setFunc func(*UserCreate, int)) *UserCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UserCreateBulk{err: fmt.Errorf("calling to UserClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UserCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UserCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for User.
+func (c *UserClient) Update() *UserUpdate {
+	mutation := newUserMutation(c.config, OpUpdate)
+	return &UserUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UserClient) UpdateOne(u *User) *UserUpdateOne {
+	mutation := newUserMutation(c.config, OpUpdateOne, withUser(u))
+	return &UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *UserClient) UpdateOneID(id uuid.UUID) *UserUpdateOne {
+	mutation := newUserMutation(c.config, OpUpdateOne, withUserID(id))
+	return &UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for User.
+func (c *UserClient) Delete() *UserDelete {
+	mutation := newUserMutation(c.config, OpDelete)
+	return &UserDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UserClient) DeleteOne(u *User) *UserDeleteOne {
+	return c.DeleteOneID(u.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *UserClient) DeleteOneID(id uuid.UUID) *UserDeleteOne {
+	builder := c.Delete().Where(user.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UserDeleteOne{builder}
+}
+
+// Query returns a query builder for User.
+func (c *UserClient) Query() *UserQuery {
+	return &UserQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUser},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a User entity by its id.
+func (c *UserClient) Get(ctx context.Context, id uuid.UUID) (*User, error) {
+	return c.Query().Where(user.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UserClient) GetX(ctx context.Context, id uuid.UUID) *User {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *UserClient) Hooks() []Hook {
+	return c.hooks.User
+}
+
+// Interceptors returns the client interceptors.
+func (c *UserClient) Interceptors() []Interceptor {
+	return c.inters.User
+}
+
+func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UserCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UserUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UserDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown User mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		ACMEAccount, Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
+		ACMEAccount, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
 		CanaryRelease, Certificate, CertificateOperation, Deployment,
 		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Service,
-		Setting, SettingHistory, Tenant, TrafficPolicy []ent.Hook
+		Setting, SettingHistory, Tenant, TrafficPolicy, User []ent.Hook
 	}
 	inters struct {
-		ACMEAccount, Admin, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
+		ACMEAccount, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
 		CanaryRelease, Certificate, CertificateOperation, Deployment,
 		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Service,
-		Setting, SettingHistory, Tenant, TrafficPolicy []ent.Interceptor
+		Setting, SettingHistory, Tenant, TrafficPolicy, User []ent.Interceptor
 	}
 )
