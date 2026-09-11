@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
-	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
@@ -27,6 +26,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
+	"github.com/NeoPlayful/maple-gateway/server/ent/user"
 	"github.com/google/uuid"
 )
 
@@ -64,28 +64,6 @@ func init() {
 	acmeaccountDescID := acmeaccountFields[0].Descriptor()
 	// acmeaccount.DefaultID holds the default value on creation for the id field.
 	acmeaccount.DefaultID = acmeaccountDescID.Default.(func() uuid.UUID)
-	adminFields := schema.Admin{}.Fields()
-	_ = adminFields
-	// adminDescEmail is the schema descriptor for email field.
-	adminDescEmail := adminFields[1].Descriptor()
-	// admin.EmailValidator is a validator for the "email" field. It is called by the builders before save.
-	admin.EmailValidator = adminDescEmail.Validators[0].(func(string) error)
-	// adminDescPasswordHash is the schema descriptor for password_hash field.
-	adminDescPasswordHash := adminFields[2].Descriptor()
-	// admin.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
-	admin.PasswordHashValidator = adminDescPasswordHash.Validators[0].(func(string) error)
-	// adminDescRole is the schema descriptor for role field.
-	adminDescRole := adminFields[4].Descriptor()
-	// admin.DefaultRole holds the default value on creation for the role field.
-	admin.DefaultRole = adminDescRole.Default.(string)
-	// adminDescStatus is the schema descriptor for status field.
-	adminDescStatus := adminFields[5].Descriptor()
-	// admin.DefaultStatus holds the default value on creation for the status field.
-	admin.DefaultStatus = adminDescStatus.Default.(string)
-	// adminDescID is the schema descriptor for id field.
-	adminDescID := adminFields[0].Descriptor()
-	// admin.DefaultID holds the default value on creation for the id field.
-	admin.DefaultID = adminDescID.Default.(func() uuid.UUID)
 	auditlogFields := schema.AuditLog{}.Fields()
 	_ = auditlogFields
 	// auditlogDescAction is the schema descriptor for action field.
@@ -512,4 +490,26 @@ func init() {
 	trafficpolicyDescID := trafficpolicyFields[0].Descriptor()
 	// trafficpolicy.DefaultID holds the default value on creation for the id field.
 	trafficpolicy.DefaultID = trafficpolicyDescID.Default.(func() uuid.UUID)
+	userFields := schema.User{}.Fields()
+	_ = userFields
+	// userDescEmail is the schema descriptor for email field.
+	userDescEmail := userFields[1].Descriptor()
+	// user.EmailValidator is a validator for the "email" field. It is called by the builders before save.
+	user.EmailValidator = userDescEmail.Validators[0].(func(string) error)
+	// userDescPasswordHash is the schema descriptor for password_hash field.
+	userDescPasswordHash := userFields[2].Descriptor()
+	// user.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
+	user.PasswordHashValidator = userDescPasswordHash.Validators[0].(func(string) error)
+	// userDescRole is the schema descriptor for role field.
+	userDescRole := userFields[4].Descriptor()
+	// user.DefaultRole holds the default value on creation for the role field.
+	user.DefaultRole = userDescRole.Default.(string)
+	// userDescStatus is the schema descriptor for status field.
+	userDescStatus := userFields[5].Descriptor()
+	// user.DefaultStatus holds the default value on creation for the status field.
+	user.DefaultStatus = userDescStatus.Default.(string)
+	// userDescID is the schema descriptor for id field.
+	userDescID := userFields[0].Descriptor()
+	// user.DefaultID holds the default value on creation for the id field.
+	user.DefaultID = userDescID.Default.(func() uuid.UUID)
 }

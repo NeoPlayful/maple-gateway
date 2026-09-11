@@ -49,7 +49,7 @@ func TestAuthorize_OperatorDeniedOnGovernanceWrites(t *testing.T) {
 	for _, p := range []string{
 		"/api/admin/settings/logging",
 		"/api/admin/settings",
-		"/api/admin/admins",
+		"/api/admin/users",
 		"/api/admin/cache/rebuild",
 	} {
 		ok, _, _ := authorize(RoleOperator, "PATCH", p)
@@ -83,7 +83,7 @@ func TestAuthorize_ViewerDeniedOnAllWrites(t *testing.T) {
 func TestAuthorize_SuperAdminEverything(t *testing.T) {
 	for _, p := range []string{
 		"/api/admin/settings/logging",
-		"/api/admin/admins",
+		"/api/admin/users",
 		"/api/admin/canary/1/rollback",
 		"/api/admin/cache/rebuild",
 		"/api/admin/tenants",

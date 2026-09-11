@@ -96,13 +96,13 @@ func New(d Deps) *fiber.App {
 	admin.Post("/auth/logout", authH.Logout)
 	admin.Post("/auth/change-password", authH.ChangePassword)
 
-	// 管理员账号管理（super_admin 专属，写操作经 RBAC 拦截为仅超管）。
-	adminsH := &adminHandler{ent: d.Ent}
-	am := admin.Group("/admins")
-	am.Get("/", adminsH.List)
-	am.Post("/", adminsH.Create)
-	am.Patch("/:id/role", adminsH.SetRole)
-	am.Patch("/:id/status", adminsH.ToggleStatus)
+	// 平台用户账号管理（super_admin 专属，写操作经 RBAC 拦截为仅超管）。
+	usersH := &userHandler{ent: d.Ent}
+	us := admin.Group("/users")
+	us.Get("/", usersH.List)
+	us.Post("/", usersH.Create)
+	us.Patch("/:id/role", usersH.SetRole)
+	us.Patch("/:id/status", usersH.ToggleStatus)
 
 	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
 	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent))

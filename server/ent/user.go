@@ -9,12 +9,12 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
+	"github.com/NeoPlayful/maple-gateway/server/ent/user"
 	"github.com/google/uuid"
 )
 
-// Admin is the model entity for the Admin schema.
-type Admin struct {
+// User is the model entity for the User schema.
+type User struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID uuid.UUID `json:"id,omitempty"`
@@ -36,15 +36,15 @@ type Admin struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*Admin) scanValues(columns []string) ([]any, error) {
+func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case admin.FieldEmail, admin.FieldPasswordHash, admin.FieldName, admin.FieldRole, admin.FieldStatus:
+		case user.FieldEmail, user.FieldPasswordHash, user.FieldName, user.FieldRole, user.FieldStatus:
 			values[i] = new(sql.NullString)
-		case admin.FieldCreatedAt, admin.FieldUpdatedAt:
+		case user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
-		case admin.FieldID:
+		case user.FieldID:
 			values[i] = new(uuid.UUID)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -54,123 +54,123 @@ func (*Admin) scanValues(columns []string) ([]any, error) {
 }
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Admin fields.
-func (a *Admin) assignValues(columns []string, values []any) error {
+// to the User fields.
+func (u *User) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
 	for i := range columns {
 		switch columns[i] {
-		case admin.FieldID:
+		case user.FieldID:
 			if value, ok := values[i].(*uuid.UUID); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value != nil {
-				a.ID = *value
+				u.ID = *value
 			}
-		case admin.FieldEmail:
+		case user.FieldEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field email", values[i])
 			} else if value.Valid {
-				a.Email = value.String
+				u.Email = value.String
 			}
-		case admin.FieldPasswordHash:
+		case user.FieldPasswordHash:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field password_hash", values[i])
 			} else if value.Valid {
-				a.PasswordHash = value.String
+				u.PasswordHash = value.String
 			}
-		case admin.FieldName:
+		case user.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
-				a.Name = new(string)
-				*a.Name = value.String
+				u.Name = new(string)
+				*u.Name = value.String
 			}
-		case admin.FieldRole:
+		case user.FieldRole:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field role", values[i])
 			} else if value.Valid {
-				a.Role = value.String
+				u.Role = value.String
 			}
-		case admin.FieldStatus:
+		case user.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
-				a.Status = value.String
+				u.Status = value.String
 			}
-		case admin.FieldCreatedAt:
+		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
-				a.CreatedAt = value.Time
+				u.CreatedAt = value.Time
 			}
-		case admin.FieldUpdatedAt:
+		case user.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
-				a.UpdatedAt = value.Time
+				u.UpdatedAt = value.Time
 			}
 		default:
-			a.selectValues.Set(columns[i], values[i])
+			u.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
 }
 
-// Value returns the ent.Value that was dynamically selected and assigned to the Admin.
+// Value returns the ent.Value that was dynamically selected and assigned to the User.
 // This includes values selected through modifiers, order, etc.
-func (a *Admin) Value(name string) (ent.Value, error) {
-	return a.selectValues.Get(name)
+func (u *User) Value(name string) (ent.Value, error) {
+	return u.selectValues.Get(name)
 }
 
-// Update returns a builder for updating this Admin.
-// Note that you need to call Admin.Unwrap() before calling this method if this Admin
+// Update returns a builder for updating this User.
+// Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (a *Admin) Update() *AdminUpdateOne {
-	return NewAdminClient(a.config).UpdateOne(a)
+func (u *User) Update() *UserUpdateOne {
+	return NewUserClient(u.config).UpdateOne(u)
 }
 
-// Unwrap unwraps the Admin entity that was returned from a transaction after it was closed,
+// Unwrap unwraps the User entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (a *Admin) Unwrap() *Admin {
-	_tx, ok := a.config.driver.(*txDriver)
+func (u *User) Unwrap() *User {
+	_tx, ok := u.config.driver.(*txDriver)
 	if !ok {
-		panic("ent: Admin is not a transactional entity")
+		panic("ent: User is not a transactional entity")
 	}
-	a.config.driver = _tx.drv
-	return a
+	u.config.driver = _tx.drv
+	return u
 }
 
 // String implements the fmt.Stringer.
-func (a *Admin) String() string {
+func (u *User) String() string {
 	var builder strings.Builder
-	builder.WriteString("Admin(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", a.ID))
+	builder.WriteString("User(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", u.ID))
 	builder.WriteString("email=")
-	builder.WriteString(a.Email)
+	builder.WriteString(u.Email)
 	builder.WriteString(", ")
 	builder.WriteString("password_hash=")
-	builder.WriteString(a.PasswordHash)
+	builder.WriteString(u.PasswordHash)
 	builder.WriteString(", ")
-	if v := a.Name; v != nil {
+	if v := u.Name; v != nil {
 		builder.WriteString("name=")
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")
 	builder.WriteString("role=")
-	builder.WriteString(a.Role)
+	builder.WriteString(u.Role)
 	builder.WriteString(", ")
 	builder.WriteString("status=")
-	builder.WriteString(a.Status)
+	builder.WriteString(u.Status)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
-	builder.WriteString(a.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(u.CreatedAt.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
-	builder.WriteString(a.UpdatedAt.Format(time.ANSIC))
+	builder.WriteString(u.UpdatedAt.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }
 
-// Admins is a parsable slice of Admin.
-type Admins []*Admin
+// Users is a parsable slice of User.
+type Users []*User

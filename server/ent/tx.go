@@ -14,8 +14,6 @@ type Tx struct {
 	config
 	// ACMEAccount is the client for interacting with the ACMEAccount builders.
 	ACMEAccount *ACMEAccountClient
-	// Admin is the client for interacting with the Admin builders.
-	Admin *AdminClient
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
 	// BluegreenDeployment is the client for interacting with the BluegreenDeployment builders.
@@ -54,6 +52,8 @@ type Tx struct {
 	Tenant *TenantClient
 	// TrafficPolicy is the client for interacting with the TrafficPolicy builders.
 	TrafficPolicy *TrafficPolicyClient
+	// User is the client for interacting with the User builders.
+	User *UserClient
 
 	// lazily loaded.
 	client     *Client
@@ -186,7 +186,6 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.ACMEAccount = NewACMEAccountClient(tx.config)
-	tx.Admin = NewAdminClient(tx.config)
 	tx.AuditLog = NewAuditLogClient(tx.config)
 	tx.BluegreenDeployment = NewBluegreenDeploymentClient(tx.config)
 	tx.BluegreenEvent = NewBluegreenEventClient(tx.config)
@@ -206,6 +205,7 @@ func (tx *Tx) init() {
 	tx.SettingHistory = NewSettingHistoryClient(tx.config)
 	tx.Tenant = NewTenantClient(tx.config)
 	tx.TrafficPolicy = NewTrafficPolicyClient(tx.config)
+	tx.User = NewUserClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

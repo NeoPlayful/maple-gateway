@@ -64,7 +64,7 @@ func (r *Repository) counts(ctx context.Context) (Counts, error) {
 		{&c.RateLimits, r.ent.RateLimit.Query().Count},
 		{&c.Canary, r.ent.CanaryRelease.Query().Count},
 		{&c.BlueGreen, r.ent.BluegreenDeployment.Query().Count},
-		{&c.Admins, r.ent.Admin.Query().Count},
+		{&c.Users, r.ent.User.Query().Count},
 	}
 	for _, it := range items {
 		n, err := it.q(ctx)

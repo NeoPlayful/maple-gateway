@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
-	"github.com/NeoPlayful/maple-gateway/server/ent/admin"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
@@ -33,6 +32,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
+	"github.com/NeoPlayful/maple-gateway/server/ent/user"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -94,7 +94,6 @@ func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			acmeaccount.Table:          acmeaccount.ValidColumn,
-			admin.Table:                admin.ValidColumn,
 			auditlog.Table:             auditlog.ValidColumn,
 			bluegreendeployment.Table:  bluegreendeployment.ValidColumn,
 			bluegreenevent.Table:       bluegreenevent.ValidColumn,
@@ -114,6 +113,7 @@ func checkColumn(table, column string) error {
 			settinghistory.Table:       settinghistory.ValidColumn,
 			tenant.Table:               tenant.ValidColumn,
 			trafficpolicy.Table:        trafficpolicy.ValidColumn,
+			user.Table:                 user.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)
