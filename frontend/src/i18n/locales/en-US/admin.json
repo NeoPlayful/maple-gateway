@@ -70,6 +70,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "tenants": "Tenants",
+    "users": "Users",
     "domains": "Domains",
     "certificates": "Certificates",
     "services": "Services",
@@ -94,6 +95,8 @@
   "fields": {
     "id": "ID",
     "name": "Name",
+    "email": "Email",
+    "role": "Role",
     "slug": "Slug",
     "description": "Description",
     "status": "Status",
@@ -135,6 +138,19 @@
   "tenants": {
     "title": "Tenants",
     "slugPh": "e.g. tenant_1001"
+  },
+  "users": {
+    "title": "Users",
+    "new": "New User",
+    "emailPh": "e.g. ops@maple.com",
+    "password": "Password",
+    "passwordPh": "At least 8 characters",
+    "errPassword": "Password must be at least 8 characters",
+    "role": {
+      "super_admin": "Super Admin",
+      "operator": "Operator",
+      "viewer": "Viewer"
+    }
   },
   "services": {
     "title": "Services",

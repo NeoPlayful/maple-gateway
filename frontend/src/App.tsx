@@ -7,6 +7,7 @@ import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import TenantsPage from './pages/admin/TenantsPage';
+import UsersPage from './pages/admin/UsersPage';
 import DomainsPage from './pages/admin/DomainsPage';
 import CertificatesPage from './pages/admin/CertificatesPage';
 import ServicesPage from './pages/admin/ServicesPage';
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="tenants" element={<TenantsPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="domains" element={<DomainsPage />} />
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="services" element={<ServicesPage />} />
