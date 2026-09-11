@@ -70,6 +70,7 @@
   "nav": {
     "dashboard": "概览",
     "tenants": "租户",
+    "users": "用户",
     "domains": "域名",
     "certificates": "证书",
     "services": "服务",
@@ -94,6 +95,8 @@
   "fields": {
     "id": "ID",
     "name": "名称",
+    "email": "邮箱",
+    "role": "角色",
     "slug": "标识",
     "description": "描述",
     "status": "状态",
@@ -135,6 +138,19 @@
   "tenants": {
     "title": "租户管理",
     "slugPh": "如 tenant_1001"
+  },
+  "users": {
+    "title": "用户管理",
+    "new": "新建用户",
+    "emailPh": "如 ops@maple.com",
+    "password": "密码",
+    "passwordPh": "至少 8 位",
+    "errPassword": "密码至少 8 位",
+    "role": {
+      "super_admin": "超级管理员",
+      "operator": "运维",
+      "viewer": "只读"
+    }
   },
   "services": {
     "title": "服务管理",
