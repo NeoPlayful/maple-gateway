@@ -3,13 +3,13 @@
 # Agent 运行在每台 Node 上，是唯一直连本机 Docker Engine 的组件；仅绑内网。
 
 agent:
-  listen: "127.0.0.1:8200"        # 供 CM 调用容器操作；生产应绑内网地址，禁止公网可达
-  token: ""                       # 校验 CM 访问本 Agent 的令牌（MAPLE_AGENT_TOKEN）
+  listen: "127.0.0.1:9092"        # 供 CM 调用容器操作；生产应绑内网地址，禁止公网可达
+  token: "dev-agent-token"        # 校验 CM 访问本 Agent 的令牌（MAPLE_AGENT_TOKEN）
   docker_host: ""                 # 空则用 SDK 默认 /var/run/docker.sock
   allowed_cidrs: []               # 允许访问的来源网段（空则仅令牌校验）
   allowed_images: []              # 镜像允许清单（前缀匹配，空则不限）
   managed_label: "maple.managed"  # 受管容器标签键：Agent 只操作带此标签的容器
-  node_name: ""                   # 本节点标识（上报 CM）
+  node_name: "node-local"         # 本节点标识（上报 CM）
 
 logging:
   level: info

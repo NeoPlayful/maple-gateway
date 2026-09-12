@@ -37,19 +37,20 @@ import (
 
 // Deps 是 Management API 所需依赖。
 type Deps struct {
-	Ent          *ent.Client                 // nil 表示未接入 DB（禁用 admin 与业务接口）
-	ReadyDB      func(context.Context) error // DB 就绪探针；nil 表示无 DB（health/ready 报 not-ready）
-	RouteCache   *cache.Cache                // 可空；用于 route/cache 查看与手动重建
-	Metrics      *metrics.Registry           // 可空；提供 /metrics 导出
-	AccessLog    *logs.AccessLog             // 可空；提供访问日志查询
-	ErrLog       *logs.ErrLog                // 可空；提供错误日志查询
-	Settings     *settings.Repository        // 可空；提供动态 Settings 读写
-	Series       dashboard.SeriesReader      // 可空；提供 Dashboard 趋势时序数据
-	HA           *ha.Handler                 // 可空；提供 Gateway 自身实例（HA）查看
-	Certificates *certificate.Handler        // 可空；提供 Direct TLS 证书管理（需 MAPLE_CERT_ENC_KEY）
-	CMClient     *cmclient.Client            // 可空；接入 CM 后由 Leader 下发部署意图
-	IsLeader     func() bool                 // 可空；下发前判定本进程是否 Leader（nil 视为单实例）
-	UIDir        string                      // 可空；管理后台前端产物目录（dist），空则不托管 UI
+	Ent           *ent.Client                 // nil 表示未接入 DB（禁用 admin 与业务接口）
+	ReadyDB       func(context.Context) error // DB 就绪探针；nil 表示无 DB（health/ready 报 not-ready）
+	RouteCache    *cache.Cache                // 可空；用于 route/cache 查看与手动重建
+	Metrics       *metrics.Registry           // 可空；提供 /metrics 导出
+	AccessLog     *logs.AccessLog             // 可空；提供访问日志查询
+	ErrLog        *logs.ErrLog                // 可空；提供错误日志查询
+	Settings      *settings.Repository        // 可空；提供动态 Settings 读写
+	Series        dashboard.SeriesReader      // 可空；提供 Dashboard 趋势时序数据
+	HA            *ha.Handler                 // 可空；提供 Gateway 自身实例（HA）查看
+	Certificates  *certificate.Handler        // 可空；提供 Direct TLS 证书管理（需 MAPLE_CERT_ENC_KEY）
+	CMClient      *cmclient.Client            // 可空；接入 CM 后由 Leader 下发部署意图
+	IsLeader      func() bool                 // 可空；下发前判定本进程是否 Leader（nil 视为单实例）
+	UIDir         string                      // 可空；管理后台前端产物目录（dist），空则不托管 UI
+	InternalToken string                      // /api/internal/* 鉴权令牌（config security.internal_token）
 }
 
 // New 构造 Fiber app 并注册全部 Management API 路由。
@@ -123,8 +124,8 @@ func New(d Deps) *fiber.App {
 		g.Post("/instances/:id/drain", disc.DrainInstance)
 		g.Post("/sync", disc.Sync)
 	}
-	registerInternal(app.Group("/api/internal", discovery.Middleware()))
-	registerInternal(app.Group("/api/internal/discovery", discovery.Middleware()))
+	registerInternal(app.Group("/api/internal", discovery.Middleware(d.InternalToken)))
+	registerInternal(app.Group("/api/internal/discovery", discovery.Middleware(d.InternalToken)))
 
 	// 业务模块 CRUD。
 	tenantH := tenant.NewHandler(tenant.NewRepository(d.Ent))

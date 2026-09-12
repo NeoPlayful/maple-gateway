@@ -450,9 +450,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series,
 			HA: ha.NewHandler(ha.NewRepository(entClient), coord), Certificates: certH, UIDir: uiDir,
-			CMClient: cmClient, IsLeader: isLeader})
+			CMClient: cmClient, IsLeader: isLeader, InternalToken: cfg.Security.InternalToken})
 	} else {
-		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir})
+		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir, InternalToken: cfg.Security.InternalToken})
 	}
 	go func() {
 		logger.Info("management api listening", zap.String("addr", cfg.Addr(cfg.Management.Port)))

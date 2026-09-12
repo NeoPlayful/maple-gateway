@@ -37,7 +37,7 @@ type Config struct {
 
 // CMClientConfig 是 Gateway 面向 Container Manager 的下发通道配置。
 type CMClientConfig struct {
-	// BaseURL CM 内部 API 基址（如 http://cm:8100）；空则未接入 CM，下发为 no-op。
+	// BaseURL CM 内部 API 基址（如 http://cm:9091）；空则未接入 CM，下发为 no-op。
 	BaseURL string `yaml:"base_url"`
 	// Token 访问 CM 所用令牌（= CM 的 MAPLE_CM_TOKEN）。
 	Token string `yaml:"token"`
@@ -115,7 +115,10 @@ type LoggingConfig struct {
 }
 
 type SecurityConfig struct {
-	AdminToken           string   `yaml:"admin_token"`
+	AdminToken string `yaml:"admin_token"`
+	// InternalToken 校验 Container Manager / Node Agent 状态上报（/api/internal/*）。
+	// 空则回退读 MAPLE_INTERNAL_TOKEN 环境变量。
+	InternalToken        string   `yaml:"internal_token"`
 	TrustedProxies       []string `yaml:"trusted_proxies"`
 	InstanceAllowPrivate bool     `yaml:"instance_allow_private"`
 }
@@ -290,6 +293,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_ADMIN_TOKEN"); v != "" {
 		c.Security.AdminToken = v
+	}
+	if v := os.Getenv("MAPLE_INTERNAL_TOKEN"); v != "" {
+		c.Security.InternalToken = v
 	}
 	if v := os.Getenv("MAPLE_LOG_LEVEL"); v != "" {
 		c.Logging.Level = v

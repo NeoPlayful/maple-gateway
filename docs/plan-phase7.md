@@ -515,7 +515,7 @@ github.com/docker/docker/client        # Node Agent 直连 Docker Engine（Docke
 ```yaml
 # containermanager.yaml（+ MAPLE_CM_*）
 cm:
-  listen: ":8100"
+  listen: ":9091"
   token: ""                 # CM 接收 Gateway 意图 / Agent 上报的令牌
   gateway_base_url: ""      # 上报 Gateway 的地址（状态上行）
   gateway_token: ""         # = Gateway 的 MAPLE_INTERNAL_TOKEN
@@ -525,7 +525,7 @@ cm:
 
 # nodeagent.yaml（+ MAPLE_AGENT_*）
 agent:
-  listen: "10.0.0.1:8200"   # 仅内网
+  listen: "10.0.0.1:9092"   # 仅内网
   token: ""                 # CM 访问 Agent 的令牌
   docker_host: ""           # 空则 /var/run/docker.sock
   allowed_cidrs: []         # 允许 CM 来源网段
@@ -537,7 +537,7 @@ agent:
 MAPLE_CM_TOKEN=...
 MAPLE_CM_GATEWAY_BASE_URL=http://gateway:8090
 MAPLE_AGENT_TOKEN=...
-MAPLE_AGENT_LISTEN=10.0.0.1:8200
+MAPLE_AGENT_LISTEN=10.0.0.1:9092
 ```
 
 ### 迁移新增（同一 DB，同一目录）

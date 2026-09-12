@@ -6,10 +6,10 @@ listen:
 
 gateway:
   http:
-    port: 9091              # e2e HTTP
+    port: 90              # e2e HTTP
   https:
     enabled: true            # e2e HTTPS 验证
-    port: 9093              # e2e HTTPS
+    port: 93              # e2e HTTPS
     cert: certs/test-cert.pem
     key: certs/test-key.pem
 
