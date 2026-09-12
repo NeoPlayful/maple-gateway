@@ -39,6 +39,10 @@ type Container struct {
 	Labels     map[string]string `json:"labels"`
 	InstanceID string            `json:"instance_id"`
 	HostPort   int               `json:"host_port"`
+	// 退出信息：非 running 容器的诊断线索。
+	ExitCode   int    `json:"exit_code"`
+	OOMKilled  bool   `json:"oom_killed"`
+	FinishedAt string `json:"finished_at,omitempty"`
 }
 
 // NodeInfo 是 Agent 上报的节点资源摘要。
@@ -49,6 +53,32 @@ type NodeInfo struct {
 	MemoryBytes   int64  `json:"memory_bytes"`
 	Containers    int    `json:"containers"`
 	DockerVersion string `json:"docker_version"`
+}
+
+// HostMetrics 是节点主机资源使用率（与 nodeagent/hostmetrics.Metrics 对应）。
+type HostMetrics struct {
+	Available   bool    `json:"available"`
+	CPUPercent  float64 `json:"cpu_percent"`
+	MemTotal    int64   `json:"mem_total"`
+	MemUsed     int64   `json:"mem_used"`
+	MemPercent  float64 `json:"mem_percent"`
+	DiskTotal   int64   `json:"disk_total"`
+	DiskUsed    int64   `json:"disk_used"`
+	DiskPercent float64 `json:"disk_percent"`
+}
+
+// DockerDisk 是 Docker 引擎空间占用摘要。
+type DockerDisk struct {
+	LayersSize int64 `json:"layers_size"`
+	Images     int   `json:"images"`
+	Containers int   `json:"containers"`
+	Volumes    int   `json:"volumes"`
+}
+
+// NodeMetrics 是节点指标聚合（主机 + Docker）。
+type NodeMetrics struct {
+	Host   HostMetrics `json:"host"`
+	Docker DockerDisk  `json:"docker"`
 }
 
 // CreateSpec 是下发给 Agent 的容器创建规格。
@@ -108,6 +138,37 @@ func (c *AgentClient) Create(ctx context.Context, spec CreateSpec) (CreateResult
 // Stop 停止容器（id 可为容器 ID 或 instance_id）。
 func (c *AgentClient) Stop(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/internal/containers/%s/stop", id), nil, nil)
+}
+
+// Restart 重启容器（id 可为容器 ID 或 instance_id）。
+func (c *AgentClient) Restart(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/internal/containers/%s/restart", id), nil, nil)
+}
+
+// Start 启动容器（id 可为容器 ID 或 instance_id）。
+func (c *AgentClient) Start(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/internal/containers/%s/start", id), nil, nil)
+}
+
+// Logs 读取容器最近 tail 行日志。
+func (c *AgentClient) Logs(ctx context.Context, id string, tail int) (string, error) {
+	var out struct {
+		Logs string `json:"logs"`
+	}
+	if err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/api/internal/containers/%s/logs?tail=%d", id, tail), nil, &out); err != nil {
+		return "", err
+	}
+	return out.Logs, nil
+}
+
+// Metrics 拉取节点主机与 Docker 指标。
+func (c *AgentClient) Metrics(ctx context.Context) (NodeMetrics, error) {
+	var out NodeMetrics
+	if err := c.do(ctx, http.MethodGet, "/api/internal/node/metrics", nil, &out); err != nil {
+		return NodeMetrics{}, err
+	}
+	return out, nil
 }
 
 // Remove 删除容器（id 可为容器 ID 或 instance_id）。

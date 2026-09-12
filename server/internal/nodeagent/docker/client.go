@@ -11,10 +11,12 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -85,6 +88,10 @@ type Container struct {
 	Labels     map[string]string `json:"labels"`
 	InstanceID string            `json:"instance_id"`
 	HostPort   int               `json:"host_port"` // 本机映射端口（从端口映射解析）
+	// 退出信息：非 running 容器的诊断线索（exited/dead 时填充）。
+	ExitCode   int    `json:"exit_code"`
+	OOMKilled  bool   `json:"oom_killed"`
+	FinishedAt string `json:"finished_at,omitempty"`
 }
 
 // NodeInfo 是节点资源与容量摘要。
@@ -95,6 +102,14 @@ type NodeInfo struct {
 	MemoryBytes   int64  `json:"memory_bytes"`
 	Containers    int    `json:"containers"` // 运行中的受管容器数
 	DockerVersion string `json:"docker_version"`
+}
+
+// DiskUsage 是 Docker 引擎空间占用摘要。
+type DiskUsage struct {
+	LayersSize int64 `json:"layers_size"` // 镜像层总大小（字节）
+	Images     int   `json:"images"`
+	Containers int   `json:"containers"`
+	Volumes    int   `json:"volumes"`
 }
 
 // managedFilter 返回"仅受管容器"的过滤参数。
@@ -245,6 +260,61 @@ func (c *Client) Remove(ctx context.Context, id string, force bool) error {
 	return nil
 }
 
+// Restart 重启容器（先优雅停止再启动，timeout 秒后强杀）。
+func (c *Client) Restart(ctx context.Context, id string, timeout time.Duration) error {
+	secs := int(timeout.Seconds())
+	opts := container.StopOptions{Timeout: &secs}
+	if err := c.cli.ContainerRestart(ctx, id, opts); err != nil {
+		return fmt.Errorf("restart container: %w", err)
+	}
+	return nil
+}
+
+// Logs 读取容器最近 tail 行日志，合并 stdout 与 stderr（按时间戳前缀可选）。
+func (c *Client) Logs(ctx context.Context, id string, tail int) (string, error) {
+	if tail <= 0 || tail > 5000 {
+		tail = 200
+	}
+	opts := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Timestamps: true,
+		Tail:       strconv.Itoa(tail),
+	}
+	rc, err := c.cli.ContainerLogs(ctx, id, opts)
+	if err != nil {
+		return "", fmt.Errorf("container logs: %w", err)
+	}
+	defer func() { _ = rc.Close() }()
+	// 非 TTY 容器：stdout/stderr 以帧复用，需 demux 后按序拼接。
+	var out, errBuf bytes.Buffer
+	if _, err := stdcopy.StdCopy(&out, &errBuf, rc); err != nil {
+		return "", fmt.Errorf("read container logs: %w", err)
+	}
+	combined := out.String()
+	if errBuf.Len() > 0 {
+		if combined != "" && !strings.HasSuffix(combined, "\n") {
+			combined += "\n"
+		}
+		combined += errBuf.String()
+	}
+	return combined, nil
+}
+
+// DiskUsage 返回 Docker 引擎的空间占用摘要。
+func (c *Client) DiskUsage(ctx context.Context) (DiskUsage, error) {
+	du, err := c.cli.DiskUsage(ctx, types.DiskUsageOptions{})
+	if err != nil {
+		return DiskUsage{}, fmt.Errorf("docker disk usage: %w", err)
+	}
+	return DiskUsage{
+		LayersSize: du.LayersSize,
+		Images:     len(du.Images),
+		Containers: len(du.Containers),
+		Volumes:    len(du.Volumes),
+	}, nil
+}
+
 // FindByInstance 按 instance_id 标签查找受管容器。
 func (c *Client) FindByInstance(ctx context.Context, instanceID string) (Container, bool, error) {
 	f := c.managedFilter()
@@ -298,7 +368,7 @@ func fromSummary(s types.Container) Container {
 	if len(s.Names) > 0 {
 		name = strings.TrimPrefix(s.Names[0], "/")
 	}
-	return Container{
+	c := Container{
 		ID:         s.ID,
 		Name:       name,
 		Image:      s.Image,
@@ -308,6 +378,26 @@ func fromSummary(s types.Container) Container {
 		InstanceID: s.Labels[LabelInstanceID],
 		HostPort:   hostPortFromPorts(s.Ports),
 	}
+	// 退出码藏在 Status 文本里（如 "Exited (137) 3 minutes ago"）：列表接口无专门字段，
+	// 从文本解析是拿到退出码 / OOM 线索的低成本方式，避免逐容器 Inspect。
+	if s.State != "running" {
+		c.ExitCode, c.OOMKilled = parseExit(s.Status)
+	}
+	return c
+}
+
+// parseExit 从 "Exited (137) ..." / "Exited (0) ..." 解析退出码；137 常见于 OOM/SIGKILL。
+func parseExit(status string) (int, bool) {
+	open := strings.IndexByte(status, '(')
+	closeIdx := strings.IndexByte(status, ')')
+	if open < 0 || closeIdx < 0 || closeIdx <= open {
+		return 0, false
+	}
+	code, err := strconv.Atoi(strings.TrimSpace(status[open+1 : closeIdx]))
+	if err != nil {
+		return 0, false
+	}
+	return code, code == 137
 }
 
 // hostPortFromPorts 从端口映射中取首个本机端口。

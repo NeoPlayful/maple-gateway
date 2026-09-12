@@ -70,6 +70,29 @@ func (r *Runtime) Remove(ctx context.Context, id string, force bool) error {
 	return r.docker.Remove(ctx, real, force)
 }
 
+// Restart 重启容器（id 可为容器 ID 或 instance_id）。
+func (r *Runtime) Restart(ctx context.Context, id string) error {
+	real, err := r.resolve(ctx, id)
+	if err != nil {
+		return err
+	}
+	return r.docker.Restart(ctx, real, r.stopTimeout)
+}
+
+// Logs 读取容器最近 tail 行日志（id 可为容器 ID 或 instance_id）。
+func (r *Runtime) Logs(ctx context.Context, id string, tail int) (string, error) {
+	real, err := r.resolve(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return r.docker.Logs(ctx, real, tail)
+}
+
+// DiskUsage 返回 Docker 引擎空间占用摘要。
+func (r *Runtime) DiskUsage(ctx context.Context) (docker.DiskUsage, error) {
+	return r.docker.DiskUsage(ctx)
+}
+
 // PullImage 拉取镜像（受允许清单约束）。
 func (r *Runtime) PullImage(ctx context.Context, ref string) error {
 	return r.docker.Pull(ctx, ref, r.allowedImages)

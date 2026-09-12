@@ -30,6 +30,7 @@ import (
 // DesiredReader 提供期望态列表（由 desired.Store 实现）。
 type DesiredReader interface {
 	All() []desired.State
+	PausedCount() map[string]int // 人工置为维护的实例数（version_id → 数量）
 }
 
 // ActualReader 提供实际态容器快照（由 observer.Observer 实现）。
@@ -131,6 +132,11 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 		runningCount[pr.versionID]++
 	}
 	r.mu.Unlock()
+
+	// 人工维护的实例计入实际副本数：管理员手动停掉的实例不再被对账器补回。
+	for vid, n := range r.desired.PausedCount() {
+		runningCount[vid] += n
+	}
 
 	// 生成有序操作：同部署内 surge 全部先于 drain（先起后停，保最低可用数）。
 	ops := rollout.Plan(states, runningCount)

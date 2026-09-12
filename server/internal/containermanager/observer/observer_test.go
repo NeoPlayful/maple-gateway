@@ -164,3 +164,74 @@ func TestObserverDeregistersVanished(t *testing.T) {
 		t.Errorf("deleted = %d, want 1", deleted)
 	}
 }
+
+// 崩溃容器：非 running 的受管容器应上报为 unhealthy（可见），而非从上报流中消失。
+func TestObserverReportsCrashedAsUnhealthy(t *testing.T) {
+	const iid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		case "/api/internal/node/metrics":
+			_, _ = w.Write([]byte(`{"host":{"available":false}}`))
+		case "/api/internal/containers":
+			// exited 容器：无 host_port、带退出码。
+			_, _ = w.Write([]byte(`[{"id":"c1","state":"exited","instance_id":"` + iid + `",
+				"exit_code":137,"oom_killed":true,
+				"labels":{"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer agent.Close()
+
+	var mu sync.Mutex
+	healthReports := []string{}
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case r.URL.Path == "/api/internal/nodes/register":
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"n1"}}`))
+		case r.URL.Path == "/api/internal/instances/"+iid+"/health":
+			var body struct {
+				Health string `json:"health"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			healthReports = append(healthReports, body.Health)
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		}
+	}))
+	defer gateway.Close()
+
+	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
+	gw := gwclient.NewGatewayClient(gateway.URL, "tok")
+	obs := New(reg, gw, time.Second, zap.NewNop())
+
+	obs.tick(context.Background())
+
+	mu.Lock()
+	defer mu.Unlock()
+	found := false
+	for _, h := range healthReports {
+		if h == "unhealthy" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("health reports = %v, want an unhealthy report for crashed instance", healthReports)
+	}
+	// 运行时报错应记录该实例。
+	var hasErr bool
+	for _, e := range obs.RuntimeErrors() {
+		if e.InstanceID == iid && e.ExitCode == 137 && e.OOMKilled {
+			hasErr = true
+		}
+	}
+	if !hasErr {
+		t.Errorf("runtime errors = %+v, want an entry for %s (exit 137, oom)", obs.RuntimeErrors(), iid)
+	}
+}

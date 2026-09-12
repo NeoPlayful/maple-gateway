@@ -16,6 +16,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/control"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
@@ -62,7 +63,30 @@ func run(configPath string) error {
 		zap.Int("nodes", len(registry.All())),
 		zap.Bool("gateway_report_enabled", gw.Enabled()))
 
-	app := api.New(cfg, logger, store, obs)
+	// 人工控制通道：管理端经 Gateway 下发的实例操作（与对账器自动决策区分）。
+	ctrl := control.New(registry, obs, store, logger)
+	mgmt := api.Mgmt{
+		Stats:   obs.Stats,
+		Metrics: obs.Metrics,
+		Errors:  obs.RuntimeErrors,
+		Phases:  store.AllPhases,
+		Nodes: func() []api.NodeStatus {
+			nodes := registry.All()
+			out := make([]api.NodeStatus, 0, len(nodes))
+			for _, n := range nodes {
+				out = append(out, api.NodeStatus{
+					Name: n.Name, Host: n.Host, Region: n.Region, Labels: n.Labels,
+					Healthy: n.Healthy, GatewayID: n.GatewayID, LastSeenMs: n.LastSeenMs,
+				})
+			}
+			return out
+		},
+		Restart: func(id string) error { return ctrl.Restart(ctx, id) },
+		Stop:    func(id string) error { return ctrl.Stop(ctx, id) },
+		Start:   func(id string) error { return ctrl.Start(ctx, id) },
+		Logs:    func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
+	}
+	app := api.New(cfg, logger, store, obs, mgmt)
 
 	errCh := make(chan error, 1)
 	go func() {

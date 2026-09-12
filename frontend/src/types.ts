@@ -179,3 +179,66 @@ export interface BlueGreenDeployment {
   active_version?: string;
   created_at: string;
 }
+
+// ---- Container Manager 运行时运维数据（经 Gateway /api/admin/cm/* 代理）----
+
+export interface HostMetrics {
+  available: boolean;
+  cpu_percent: number;
+  mem_total: number;
+  mem_used: number;
+  mem_percent: number;
+  disk_total: number;
+  disk_used: number;
+  disk_percent: number;
+}
+
+export interface DockerDisk {
+  layers_size: number;
+  images: number;
+  containers: number;
+  volumes: number;
+}
+
+export interface NodeMetric {
+  node_name: string;
+  metrics: { host: HostMetrics; docker: DockerDisk };
+  error?: string;
+}
+
+export interface CMNodeStatus {
+  name: string;
+  host: string;
+  region?: string;
+  labels?: Record<string, string>;
+  healthy: boolean;
+  gateway_id?: string;
+  last_seen_ms: number;
+}
+
+export interface CMStats {
+  node_up: number;
+  containers: number;
+  last_report_at: string;
+  last_error?: string;
+}
+
+export interface CMPhase {
+  status: string;
+  message?: string;
+}
+
+export interface CMRuntimeError {
+  node_name: string;
+  instance_id: string;
+  state: string;
+  exit_code: number;
+  oom_killed: boolean;
+  at: number;
+}
+
+export interface CMOverview {
+  stats?: CMStats;
+  deployments?: Record<string, CMPhase>;
+  nodes?: CMNodeStatus[];
+}

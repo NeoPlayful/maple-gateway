@@ -196,6 +196,21 @@ func New(d Deps) *fiber.App {
 	if d.CMClient != nil && d.CMClient.Enabled() {
 		deployH = deployH.WithPusher(d.CMClient, d.IsLeader)
 	}
+
+	// Container Manager 运行时运维代理：前端只与 Gateway 对话，会话/RBAC/审计自动继承。
+	// CM 未接入时各端点返回 503，前端据此显示"未启用运行时编排"。
+	if d.CMClient != nil {
+		cmH := cmclient.NewHandler(d.CMClient)
+		cg := admin.Group("/cm")
+		cg.Get("/overview", cmH.Overview)
+		cg.Get("/nodes", cmH.Nodes)
+		cg.Get("/metrics", cmH.Metrics)
+		cg.Get("/errors", cmH.Errors)
+		cg.Post("/instances/:id/restart", cmH.RestartInstance)
+		cg.Post("/instances/:id/stop", cmH.StopInstance)
+		cg.Post("/instances/:id/start", cmH.StartInstance)
+		cg.Get("/instances/:id/logs", cmH.InstanceLogs)
+	}
 	dpl := admin.Group("/deployments")
 	dpl.Get("/", deployH.ListDeployments)
 	dpl.Post("/", deployH.CreateDeployment)
