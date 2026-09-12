@@ -122,8 +122,33 @@ func (c *Checker) checkOnce(ctx context.Context) {
 		c.logger.Warn("health check: list instances failed", zap.String("err", err.Error()))
 		return
 	}
+	alive := make(map[string]struct{}, len(insts))
 	for _, in := range insts {
+		alive[in.ID.String()] = struct{}{}
 		c.probeOne(ctx, in)
+	}
+	c.prune(alive)
+}
+
+// prune 删除已不在库存中的实例状态。键按实例 UUID 记录，容器重建会生成新 UUID、
+// 旧行被删除，若不回收这三张 map 会随历史 UUID 累积无界增长。
+func (c *Checker) prune(alive map[string]struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.failCount {
+		if _, ok := alive[k]; !ok {
+			delete(c.failCount, k)
+		}
+	}
+	for k := range c.okCount {
+		if _, ok := alive[k]; !ok {
+			delete(c.okCount, k)
+		}
+	}
+	for k := range c.startedAt {
+		if _, ok := alive[k]; !ok {
+			delete(c.startedAt, k)
+		}
 	}
 }
 

@@ -144,6 +144,66 @@ func waitState(t *testing.T, repo *fakeRepo, want instance.Health, deadline <-ch
 	}
 }
 
+func hasKey(c *Checker, m map[string]int, k string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := m[k]
+	return ok
+}
+
+func hasStart(c *Checker, k string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.startedAt[k]
+	return ok
+}
+
+// TestChecker_PrunesRemovedInstances 验证移出库存的实例状态被回收，存活实例状态保留。
+func TestChecker_PrunesRemovedInstances(t *testing.T) {
+	up := httptest.NewServer(nil)
+	defer up.Close()
+
+	keep := uuid.New()
+	drop := uuid.New()
+	repo := &fakeRepo{insts: []*instance.Instance{
+		instFromURL(up.URL, keep),
+		instFromURL(up.URL, drop),
+	}}
+
+	cfg := Config{
+		Interval:         50 * time.Millisecond,
+		Timeout:          500 * time.Millisecond,
+		FailureThreshold: 2,
+		SuccessThreshold: 1,
+		GracePeriod:      0,
+		Path:             "/health",
+	}
+	c := NewChecker(repo, cfg, zap.NewNop())
+	ctx := context.Background()
+
+	// 第一轮：两个实例都产生状态。
+	c.checkOnce(ctx)
+	if !hasKey(c, c.okCount, keep.String()) || !hasKey(c, c.okCount, drop.String()) {
+		t.Fatalf("expected both instances tracked after first round")
+	}
+	if !hasStart(c, keep.String()) || !hasStart(c, drop.String()) {
+		t.Fatalf("expected startedAt for both instances after first round")
+	}
+
+	// 移出 drop 实例后再扫一轮：其状态应被剪枝，keep 保留。
+	repo.mu.Lock()
+	repo.insts = []*instance.Instance{instFromURL(up.URL, keep)}
+	repo.mu.Unlock()
+	c.checkOnce(ctx)
+
+	if !hasKey(c, c.okCount, keep.String()) || !hasStart(c, keep.String()) {
+		t.Fatalf("live instance state must be retained")
+	}
+	if hasKey(c, c.okCount, drop.String()) || hasKey(c, c.failCount, drop.String()) || hasStart(c, drop.String()) {
+		t.Fatalf("removed instance state must be pruned")
+	}
+}
+
 func repoChanges(repo *fakeRepo) []string {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
