@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
@@ -112,6 +113,17 @@ func run(configPath string) error {
 					FinishedAt:  c.FinishedAt,
 				})
 			}
+			// 观测快照是映射表，遍历顺序随机；按 节点名 → 容器名 → 实例 ID 稳定排序，
+			// 避免前端列表每次刷新都跳序。
+			sort.Slice(out, func(i, j int) bool {
+				if out[i].NodeName != out[j].NodeName {
+					return out[i].NodeName < out[j].NodeName
+				}
+				if out[i].Name != out[j].Name {
+					return out[i].Name < out[j].Name
+				}
+				return out[i].InstanceID < out[j].InstanceID
+			})
 			return out
 		},
 	}

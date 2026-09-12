@@ -124,6 +124,17 @@ export default function RuntimePage() {
     return m;
   }, [instances]);
 
+  // 稳定排序兜底：后端基于映射表产出，顺序不保证；按 节点 → 名称 → 实例 ID 固定展示序。
+  const sortedContainers = useMemo(() => {
+    return [...containers].sort((a, b) => {
+      if (a.node_name !== b.node_name) return a.node_name < b.node_name ? -1 : 1;
+      const an = a.name || a.container_id;
+      const bn = b.name || b.container_id;
+      if (an !== bn) return an < bn ? -1 : 1;
+      return a.instance_id < b.instance_id ? -1 : 1;
+    });
+  }, [containers]);
+
   const stats = overview?.stats;
   const lastReport = stats?.last_report_at ? new Date(stats.last_report_at).toLocaleString() : '-';
 
@@ -242,12 +253,12 @@ export default function RuntimePage() {
             </tr>
           </thead>
           <tbody>
-            {containers.length === 0 && (
+            {sortedContainers.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
               </tr>
             )}
-            {containers.map((ct) => {
+            {sortedContainers.map((ct) => {
               const inst = instanceById.get(ct.instance_id);
               const version = inst?.version ?? '';
               const running = ct.state === 'running';
