@@ -14,6 +14,7 @@ const (
 	StatusEnabled  Status = "enabled"
 	StatusDisabled Status = "disabled"
 	StatusDraining Status = "draining"
+	StatusStale    Status = "stale" // 上报超时：CM 长时间未看见该实例
 )
 
 // Health 是实例健康状态。
@@ -47,6 +48,9 @@ type Instance struct {
 
 // New 创建输入。deployment_id/version_id 为空时按 Phase 1 语义直挂 Service。
 type New struct {
+	// ID 显式指定实例 ID；为空则数据库生成。CM 上报时用容器 maple.instance_id 标签，
+	// 与 Gateway 实例 ID 一一对应。
+	ID           *uuid.UUID `json:"id"`
 	ServiceID    uuid.UUID  `json:"service_id" validate:"required"`
 	DeploymentID *uuid.UUID `json:"deployment_id"`
 	VersionID    *uuid.UUID `json:"version_id"`

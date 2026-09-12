@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,6 +14,22 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 )
+
+// nonNilEnv 保证 JSONB map 写入非 nil（ent 对 nil map 写 NULL，空 map 更便于查询）。
+func nonNilEnv(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return m
+}
+
+// nonNilRaw 保证 JSONB RawMessage 写入非 nil。
+func nonNilRaw(m json.RawMessage) json.RawMessage {
+	if m == nil {
+		return json.RawMessage(`{}`)
+	}
+	return m
+}
 
 // Repository 是 Deployment / Version 数据访问层（基于 Ent）。
 type Repository struct {
@@ -44,6 +61,12 @@ func toVersion(e *ent.DeploymentVersion) *Version {
 		Image:        e.Image,
 		Weight:       e.Weight,
 		Status:       VersionStatus(e.Status),
+		Replicas:     e.Replicas,
+		Port:         e.Port,
+		Env:          e.Env,
+		Resources:    json.RawMessage(e.Resources),
+		HealthPath:   e.HealthPath,
+		NodeSelector: e.NodeSelector,
 		CreatedAt:    e.CreatedAt,
 		UpdatedAt:    e.UpdatedAt,
 	}
@@ -187,6 +210,10 @@ func (r *Repository) CreateVersion(ctx context.Context, deploymentID uuid.UUID, 
 	if status == "" {
 		status = VersionStable
 	}
+	replicas := in.Replicas
+	if replicas == 0 {
+		replicas = 1
+	}
 	now := time.Now()
 	e, err := r.ent.DeploymentVersion.Create().
 		SetDeploymentID(deploymentID).
@@ -194,6 +221,12 @@ func (r *Repository) CreateVersion(ctx context.Context, deploymentID uuid.UUID, 
 		SetImage(in.Image).
 		SetWeight(weight).
 		SetStatus(string(status)).
+		SetReplicas(replicas).
+		SetPort(in.Port).
+		SetEnv(nonNilEnv(in.Env)).
+		SetResources(nonNilRaw(in.Resources)).
+		SetHealthPath(in.HealthPath).
+		SetNodeSelector(nonNilEnv(in.NodeSelector)).
 		SetCreatedAt(now).
 		SetUpdatedAt(now).
 		Save(ctx)
@@ -273,6 +306,24 @@ func (r *Repository) UpdateVersion(ctx context.Context, id uuid.UUID, in UpdateV
 	}
 	if in.Status != nil {
 		upd = upd.SetStatus(string(*in.Status))
+	}
+	if in.Replicas != nil {
+		upd = upd.SetReplicas(*in.Replicas)
+	}
+	if in.Port != nil {
+		upd = upd.SetPort(*in.Port)
+	}
+	if in.Env != nil {
+		upd = upd.SetEnv(in.Env)
+	}
+	if in.Resources != nil {
+		upd = upd.SetResources(in.Resources)
+	}
+	if in.HealthPath != nil {
+		upd = upd.SetHealthPath(*in.HealthPath)
+	}
+	if in.NodeSelector != nil {
+		upd = upd.SetNodeSelector(in.NodeSelector)
 	}
 	e, err := upd.Save(ctx)
 	if err != nil {

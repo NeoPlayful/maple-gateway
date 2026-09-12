@@ -75,6 +75,7 @@
     "certificates": "Certificates",
     "services": "Services",
     "deployments": "Deployments",
+    "versions": "Versions",
     "instances": "Instances",
     "nodes": "Nodes",
     "traffic": "Traffic Policies",
@@ -133,7 +134,13 @@
     "issuedAt": "Issued at",
     "renewAttempts": "Renew attempts",
     "lastError": "Last error",
-    "verifiedAt": "Verified at"
+    "verifiedAt": "Verified at",
+    "image": "Image",
+    "replicas": "Replicas",
+    "containerPort": "Container port",
+    "healthPath": "Health path",
+    "env": "Env vars",
+    "nodeSelector": "Node selector"
   },
   "tenants": {
     "title": "Tenants",
@@ -223,6 +230,20 @@
   "deployments": {
     "title": "Deployments",
     "namePh": "e.g. prod"
+  },
+  "versions": {
+    "title": "Versions & Specs",
+    "newVersion": "New Version",
+    "none": "Select a deployment to view its versions",
+    "createTitle": "New Version",
+    "editTitle": "Edit Version",
+    "setDefault": "Set default",
+    "deleteTitle": "Delete version",
+    "deleteConfirm": "Delete this version? Containers of this version will be removed by Container Manager.",
+    "createHint": "Version created; spec pushed to Container Manager.",
+    "updateHint": "Version updated; spec pushed to Container Manager.",
+    "defaultHint": "Version set as default.",
+    "deleteHint": "Version deleted."
   },
   "nodes": {
     "title": "Nodes",

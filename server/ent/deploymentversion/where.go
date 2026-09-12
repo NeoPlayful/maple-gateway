@@ -81,6 +81,21 @@ func Status(v string) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldEQ(FieldStatus, v))
 }
 
+// Replicas applies equality check predicate on the "replicas" field. It's identical to ReplicasEQ.
+func Replicas(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldReplicas, v))
+}
+
+// Port applies equality check predicate on the "port" field. It's identical to PortEQ.
+func Port(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldPort, v))
+}
+
+// HealthPath applies equality check predicate on the "health_path" field. It's identical to HealthPathEQ.
+func HealthPath(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldHealthPath, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldEQ(FieldCreatedAt, v))
@@ -354,6 +369,201 @@ func StatusEqualFold(v string) predicate.DeploymentVersion {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldContainsFold(FieldStatus, v))
+}
+
+// ReplicasEQ applies the EQ predicate on the "replicas" field.
+func ReplicasEQ(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldReplicas, v))
+}
+
+// ReplicasNEQ applies the NEQ predicate on the "replicas" field.
+func ReplicasNEQ(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNEQ(FieldReplicas, v))
+}
+
+// ReplicasIn applies the In predicate on the "replicas" field.
+func ReplicasIn(vs ...int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIn(FieldReplicas, vs...))
+}
+
+// ReplicasNotIn applies the NotIn predicate on the "replicas" field.
+func ReplicasNotIn(vs ...int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotIn(FieldReplicas, vs...))
+}
+
+// ReplicasGT applies the GT predicate on the "replicas" field.
+func ReplicasGT(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGT(FieldReplicas, v))
+}
+
+// ReplicasGTE applies the GTE predicate on the "replicas" field.
+func ReplicasGTE(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGTE(FieldReplicas, v))
+}
+
+// ReplicasLT applies the LT predicate on the "replicas" field.
+func ReplicasLT(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLT(FieldReplicas, v))
+}
+
+// ReplicasLTE applies the LTE predicate on the "replicas" field.
+func ReplicasLTE(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLTE(FieldReplicas, v))
+}
+
+// PortEQ applies the EQ predicate on the "port" field.
+func PortEQ(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldPort, v))
+}
+
+// PortNEQ applies the NEQ predicate on the "port" field.
+func PortNEQ(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNEQ(FieldPort, v))
+}
+
+// PortIn applies the In predicate on the "port" field.
+func PortIn(vs ...int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIn(FieldPort, vs...))
+}
+
+// PortNotIn applies the NotIn predicate on the "port" field.
+func PortNotIn(vs ...int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotIn(FieldPort, vs...))
+}
+
+// PortGT applies the GT predicate on the "port" field.
+func PortGT(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGT(FieldPort, v))
+}
+
+// PortGTE applies the GTE predicate on the "port" field.
+func PortGTE(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGTE(FieldPort, v))
+}
+
+// PortLT applies the LT predicate on the "port" field.
+func PortLT(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLT(FieldPort, v))
+}
+
+// PortLTE applies the LTE predicate on the "port" field.
+func PortLTE(v int) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLTE(FieldPort, v))
+}
+
+// PortIsNil applies the IsNil predicate on the "port" field.
+func PortIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldPort))
+}
+
+// PortNotNil applies the NotNil predicate on the "port" field.
+func PortNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldPort))
+}
+
+// EnvIsNil applies the IsNil predicate on the "env" field.
+func EnvIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldEnv))
+}
+
+// EnvNotNil applies the NotNil predicate on the "env" field.
+func EnvNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldEnv))
+}
+
+// ResourcesIsNil applies the IsNil predicate on the "resources" field.
+func ResourcesIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldResources))
+}
+
+// ResourcesNotNil applies the NotNil predicate on the "resources" field.
+func ResourcesNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldResources))
+}
+
+// HealthPathEQ applies the EQ predicate on the "health_path" field.
+func HealthPathEQ(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldHealthPath, v))
+}
+
+// HealthPathNEQ applies the NEQ predicate on the "health_path" field.
+func HealthPathNEQ(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNEQ(FieldHealthPath, v))
+}
+
+// HealthPathIn applies the In predicate on the "health_path" field.
+func HealthPathIn(vs ...string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIn(FieldHealthPath, vs...))
+}
+
+// HealthPathNotIn applies the NotIn predicate on the "health_path" field.
+func HealthPathNotIn(vs ...string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotIn(FieldHealthPath, vs...))
+}
+
+// HealthPathGT applies the GT predicate on the "health_path" field.
+func HealthPathGT(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGT(FieldHealthPath, v))
+}
+
+// HealthPathGTE applies the GTE predicate on the "health_path" field.
+func HealthPathGTE(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGTE(FieldHealthPath, v))
+}
+
+// HealthPathLT applies the LT predicate on the "health_path" field.
+func HealthPathLT(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLT(FieldHealthPath, v))
+}
+
+// HealthPathLTE applies the LTE predicate on the "health_path" field.
+func HealthPathLTE(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLTE(FieldHealthPath, v))
+}
+
+// HealthPathContains applies the Contains predicate on the "health_path" field.
+func HealthPathContains(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldContains(FieldHealthPath, v))
+}
+
+// HealthPathHasPrefix applies the HasPrefix predicate on the "health_path" field.
+func HealthPathHasPrefix(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldHasPrefix(FieldHealthPath, v))
+}
+
+// HealthPathHasSuffix applies the HasSuffix predicate on the "health_path" field.
+func HealthPathHasSuffix(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldHasSuffix(FieldHealthPath, v))
+}
+
+// HealthPathIsNil applies the IsNil predicate on the "health_path" field.
+func HealthPathIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldHealthPath))
+}
+
+// HealthPathNotNil applies the NotNil predicate on the "health_path" field.
+func HealthPathNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldHealthPath))
+}
+
+// HealthPathEqualFold applies the EqualFold predicate on the "health_path" field.
+func HealthPathEqualFold(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEqualFold(FieldHealthPath, v))
+}
+
+// HealthPathContainsFold applies the ContainsFold predicate on the "health_path" field.
+func HealthPathContainsFold(v string) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldContainsFold(FieldHealthPath, v))
+}
+
+// NodeSelectorIsNil applies the IsNil predicate on the "node_selector" field.
+func NodeSelectorIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldNodeSelector))
+}
+
+// NodeSelectorNotNil applies the NotNil predicate on the "node_selector" field.
+func NodeSelectorNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldNodeSelector))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

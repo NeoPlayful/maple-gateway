@@ -2,6 +2,8 @@
 package schema
 
 import (
+	"encoding/json"
+
 	"entgo.io/ent"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
@@ -22,6 +24,13 @@ func (DeploymentVersion) Fields() []ent.Field {
 		field.String("image").Optional().Default(""),
 		field.Int("weight").Default(100),
 		field.String("status").Default("stable"),
+		// 容器执行规格：由 Container Manager 读取并驱动 Node Agent 创建容器。
+		field.Int("replicas").Default(1),
+		field.Int("port").Optional().Default(0),
+		field.JSON("env", map[string]string{}).Optional(),
+		field.JSON("resources", json.RawMessage{}).Optional(),
+		field.String("health_path").Optional().Default(""),
+		field.JSON("node_selector", map[string]string{}).Optional(),
 		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),
 	}

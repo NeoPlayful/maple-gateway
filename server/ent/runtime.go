@@ -246,6 +246,18 @@ func init() {
 	deploymentversionDescStatus := deploymentversionFields[5].Descriptor()
 	// deploymentversion.DefaultStatus holds the default value on creation for the status field.
 	deploymentversion.DefaultStatus = deploymentversionDescStatus.Default.(string)
+	// deploymentversionDescReplicas is the schema descriptor for replicas field.
+	deploymentversionDescReplicas := deploymentversionFields[6].Descriptor()
+	// deploymentversion.DefaultReplicas holds the default value on creation for the replicas field.
+	deploymentversion.DefaultReplicas = deploymentversionDescReplicas.Default.(int)
+	// deploymentversionDescPort is the schema descriptor for port field.
+	deploymentversionDescPort := deploymentversionFields[7].Descriptor()
+	// deploymentversion.DefaultPort holds the default value on creation for the port field.
+	deploymentversion.DefaultPort = deploymentversionDescPort.Default.(int)
+	// deploymentversionDescHealthPath is the schema descriptor for health_path field.
+	deploymentversionDescHealthPath := deploymentversionFields[10].Descriptor()
+	// deploymentversion.DefaultHealthPath holds the default value on creation for the health_path field.
+	deploymentversion.DefaultHealthPath = deploymentversionDescHealthPath.Default.(string)
 	// deploymentversionDescID is the schema descriptor for id field.
 	deploymentversionDescID := deploymentversionFields[0].Descriptor()
 	// deploymentversion.DefaultID holds the default value on creation for the id field.

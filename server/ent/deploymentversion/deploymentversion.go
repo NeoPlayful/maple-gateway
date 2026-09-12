@@ -23,6 +23,18 @@ const (
 	FieldWeight = "weight"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldReplicas holds the string denoting the replicas field in the database.
+	FieldReplicas = "replicas"
+	// FieldPort holds the string denoting the port field in the database.
+	FieldPort = "port"
+	// FieldEnv holds the string denoting the env field in the database.
+	FieldEnv = "env"
+	// FieldResources holds the string denoting the resources field in the database.
+	FieldResources = "resources"
+	// FieldHealthPath holds the string denoting the health_path field in the database.
+	FieldHealthPath = "health_path"
+	// FieldNodeSelector holds the string denoting the node_selector field in the database.
+	FieldNodeSelector = "node_selector"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -48,6 +60,12 @@ var Columns = []string{
 	FieldImage,
 	FieldWeight,
 	FieldStatus,
+	FieldReplicas,
+	FieldPort,
+	FieldEnv,
+	FieldResources,
+	FieldHealthPath,
+	FieldNodeSelector,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -71,6 +89,12 @@ var (
 	DefaultWeight int
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
+	// DefaultReplicas holds the default value on creation for the "replicas" field.
+	DefaultReplicas int
+	// DefaultPort holds the default value on creation for the "port" field.
+	DefaultPort int
+	// DefaultHealthPath holds the default value on creation for the "health_path" field.
+	DefaultHealthPath string
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -106,6 +130,21 @@ func ByWeight(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByReplicas orders the results by the replicas field.
+func ByReplicas(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReplicas, opts...).ToFunc()
+}
+
+// ByPort orders the results by the port field.
+func ByPort(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPort, opts...).ToFunc()
+}
+
+// ByHealthPath orders the results by the health_path field.
+func ByHealthPath(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHealthPath, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

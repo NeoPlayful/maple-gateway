@@ -297,6 +297,12 @@ var (
 		{Name: "image", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "weight", Type: field.TypeInt, Default: 100},
 		{Name: "status", Type: field.TypeString, Default: "stable"},
+		{Name: "replicas", Type: field.TypeInt, Default: 1},
+		{Name: "port", Type: field.TypeInt, Nullable: true, Default: 0},
+		{Name: "env", Type: field.TypeJSON, Nullable: true},
+		{Name: "resources", Type: field.TypeJSON, Nullable: true},
+		{Name: "health_path", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "node_selector", Type: field.TypeJSON, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "deployment_id", Type: field.TypeUUID},
@@ -309,7 +315,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "deployment_versions_deployments_versions",
-				Columns:    []*schema.Column{DeploymentVersionsColumns[7]},
+				Columns:    []*schema.Column{DeploymentVersionsColumns[13]},
 				RefColumns: []*schema.Column{DeploymentsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -318,7 +324,7 @@ var (
 			{
 				Name:    "deploymentversion_deployment_id_version",
 				Unique:  true,
-				Columns: []*schema.Column{DeploymentVersionsColumns[7], DeploymentVersionsColumns[1]},
+				Columns: []*schema.Column{DeploymentVersionsColumns[13], DeploymentVersionsColumns[1]},
 			},
 		},
 	}

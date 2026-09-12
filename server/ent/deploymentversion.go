@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -29,6 +30,18 @@ type DeploymentVersion struct {
 	Weight int `json:"weight,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
+	// Replicas holds the value of the "replicas" field.
+	Replicas int `json:"replicas,omitempty"`
+	// Port holds the value of the "port" field.
+	Port int `json:"port,omitempty"`
+	// Env holds the value of the "env" field.
+	Env map[string]string `json:"env,omitempty"`
+	// Resources holds the value of the "resources" field.
+	Resources json.RawMessage `json:"resources,omitempty"`
+	// HealthPath holds the value of the "health_path" field.
+	HealthPath string `json:"health_path,omitempty"`
+	// NodeSelector holds the value of the "node_selector" field.
+	NodeSelector map[string]string `json:"node_selector,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -64,9 +77,11 @@ func (*DeploymentVersion) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case deploymentversion.FieldWeight:
+		case deploymentversion.FieldEnv, deploymentversion.FieldResources, deploymentversion.FieldNodeSelector:
+			values[i] = new([]byte)
+		case deploymentversion.FieldWeight, deploymentversion.FieldReplicas, deploymentversion.FieldPort:
 			values[i] = new(sql.NullInt64)
-		case deploymentversion.FieldVersion, deploymentversion.FieldImage, deploymentversion.FieldStatus:
+		case deploymentversion.FieldVersion, deploymentversion.FieldImage, deploymentversion.FieldStatus, deploymentversion.FieldHealthPath:
 			values[i] = new(sql.NullString)
 		case deploymentversion.FieldCreatedAt, deploymentversion.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -122,6 +137,48 @@ func (dv *DeploymentVersion) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				dv.Status = value.String
+			}
+		case deploymentversion.FieldReplicas:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field replicas", values[i])
+			} else if value.Valid {
+				dv.Replicas = int(value.Int64)
+			}
+		case deploymentversion.FieldPort:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field port", values[i])
+			} else if value.Valid {
+				dv.Port = int(value.Int64)
+			}
+		case deploymentversion.FieldEnv:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field env", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &dv.Env); err != nil {
+					return fmt.Errorf("unmarshal field env: %w", err)
+				}
+			}
+		case deploymentversion.FieldResources:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field resources", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &dv.Resources); err != nil {
+					return fmt.Errorf("unmarshal field resources: %w", err)
+				}
+			}
+		case deploymentversion.FieldHealthPath:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field health_path", values[i])
+			} else if value.Valid {
+				dv.HealthPath = value.String
+			}
+		case deploymentversion.FieldNodeSelector:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field node_selector", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &dv.NodeSelector); err != nil {
+					return fmt.Errorf("unmarshal field node_selector: %w", err)
+				}
 			}
 		case deploymentversion.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -190,6 +247,24 @@ func (dv *DeploymentVersion) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(dv.Status)
+	builder.WriteString(", ")
+	builder.WriteString("replicas=")
+	builder.WriteString(fmt.Sprintf("%v", dv.Replicas))
+	builder.WriteString(", ")
+	builder.WriteString("port=")
+	builder.WriteString(fmt.Sprintf("%v", dv.Port))
+	builder.WriteString(", ")
+	builder.WriteString("env=")
+	builder.WriteString(fmt.Sprintf("%v", dv.Env))
+	builder.WriteString(", ")
+	builder.WriteString("resources=")
+	builder.WriteString(fmt.Sprintf("%v", dv.Resources))
+	builder.WriteString(", ")
+	builder.WriteString("health_path=")
+	builder.WriteString(dv.HealthPath)
+	builder.WriteString(", ")
+	builder.WriteString("node_selector=")
+	builder.WriteString(fmt.Sprintf("%v", dv.NodeSelector))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(dv.CreatedAt.Format(time.ANSIC))

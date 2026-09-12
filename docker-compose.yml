@@ -1,5 +1,6 @@
 # Maple Gateway 开发 / 测试编排。
 # maple-gateway 服务依赖 postgres；redis 同栈运行，供本地/数据面使用。
+# 控制面由 containermanager(CM) 与 nodeagent 组成：CM 编排、Agent 直连 Docker。
 # 测试容器 shop-* 仅用于开发验证，模拟真实租户实例（生产由 Container Manager 管理）。
 
 services:
@@ -29,12 +30,14 @@ services:
 
   maple-gateway:
     build: ./server
+    image: maple-gateway:dev
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       MAPLE_DATABASE_URL: postgres://maple:maple@postgres:5432/maple?sslmode=disable
       MAPLE_ADMIN_TOKEN: dev-admin-token
+      MAPLE_INTERNAL_TOKEN: dev-internal-token
       MAPLE_LISTEN_HOST: 0.0.0.0
       MAPLE_GATEWAY_HTTP_PORT: "80"
       MAPLE_GATEWAY_HTTPS_PORT: "443"
@@ -43,6 +46,39 @@ services:
       - "80:80"          # 数据平面 HTTP
       - "443:443"        # 数据平面 HTTPS
       - "8090:8090"      # Management API
+    restart: unless-stopped
+
+  # ---- 控制面：Container Manager（编排，不碰 Docker） ----
+  containermanager:
+    image: maple-gateway:dev
+    entrypoint: ["maple-cm"]
+    depends_on:
+      - maple-gateway
+    environment:
+      MAPLE_CM_LISTEN: ":8100"                                  # 供 Gateway 下发部署意图
+      MAPLE_CM_TOKEN: dev-cm-token                              # 校验 Gateway 访问
+      MAPLE_CM_GATEWAY_BASE_URL: http://maple-gateway:8090      # 状态上报目标
+      MAPLE_CM_GATEWAY_TOKEN: dev-internal-token                # = Gateway MAPLE_INTERNAL_TOKEN
+      MAPLE_CM_RECONCILE_INTERVAL: 5s
+      MAPLE_CM_OBSERVE_INTERVAL: 10s
+    ports:
+      - "8100:8100"
+    restart: unless-stopped
+
+  # ---- 控制面：Node Agent（唯一直连本机 Docker Engine 的组件） ----
+  nodeagent:
+    image: maple-gateway:dev
+    entrypoint: ["maple-nodeagent"]
+    environment:
+      MAPLE_AGENT_LISTEN: "0.0.0.0:8200"        # 供 CM 调用容器操作，应仅内网可达
+      MAPLE_AGENT_TOKEN: dev-agent-token        # 校验 CM 访问
+      MAPLE_AGENT_DOCKER_HOST: ""               # 空则用挂载的 docker.sock
+      MAPLE_AGENT_MANAGED_LABEL: maple.managed  # 仅操作带此标签的容器
+      MAPLE_AGENT_NODE_NAME: node-local         # 本节点标识
+    ports:
+      - "8200:8200"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # Agent 直接驱动本机 Docker Engine
     restart: unless-stopped
 
   # ---- 开发测试容器（模拟租户实例，供数据平面转发验证） ----
