@@ -38,6 +38,13 @@ database:
   driver: postgres
   url: "postgres://maple:maple@localhost:5432/maple?sslmode=disable"
 
+# ---- Container Manager 下发通道（控制下行，Gateway → CM） ----
+# 空 base_url 则未接入 CM：部署意图不下发，前端运行时页显示"容器管理器未接入"。
+# 本地开发指向 CM 进程；token 与 CM 的 MAPLE_CM_TOKEN 一致。
+cm:
+  base_url: "http://127.0.0.1:9091"
+  token: "dev-cm-token"
+
 redis:
   enabled: true
   url: "redis://localhost:6379"
@@ -49,6 +56,7 @@ logging:
 
 security:
   admin_token: dev-admin-token       # 与 .env MAPLE_ADMIN_TOKEN 对齐；加载时 .env 仍会覆盖本值
+  internal_token: dev-internal-token # /api/internal/* 鉴权令牌；供 CM/Agent 状态上报，需与 CM gateway_token 一致
   trusted_proxies: []                # 如 ["127.0.0.1", "::1"]
   instance_allow_private: true       # Instance 地址默认允许内网段
 

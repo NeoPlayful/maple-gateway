@@ -55,14 +55,14 @@ services:
     depends_on:
       - maple-gateway
     environment:
-      MAPLE_CM_LISTEN: ":8100"                                  # 供 Gateway 下发部署意图
+      MAPLE_CM_LISTEN: ":9091"                                  # 供 Gateway 下发部署意图
       MAPLE_CM_TOKEN: dev-cm-token                              # 校验 Gateway 访问
       MAPLE_CM_GATEWAY_BASE_URL: http://maple-gateway:8090      # 状态上报目标
       MAPLE_CM_GATEWAY_TOKEN: dev-internal-token                # = Gateway MAPLE_INTERNAL_TOKEN
       MAPLE_CM_RECONCILE_INTERVAL: 5s
       MAPLE_CM_OBSERVE_INTERVAL: 10s
     ports:
-      - "8100:8100"
+      - "9091:9091"
     restart: unless-stopped
 
   # ---- 控制面：Node Agent（唯一直连本机 Docker Engine 的组件） ----
@@ -70,13 +70,13 @@ services:
     image: maple-gateway:dev
     entrypoint: ["maple-nodeagent"]
     environment:
-      MAPLE_AGENT_LISTEN: "0.0.0.0:8200"        # 供 CM 调用容器操作，应仅内网可达
+      MAPLE_AGENT_LISTEN: "0.0.0.0:9092"        # 供 CM 调用容器操作，应仅内网可达
       MAPLE_AGENT_TOKEN: dev-agent-token        # 校验 CM 访问
       MAPLE_AGENT_DOCKER_HOST: ""               # 空则用挂载的 docker.sock
       MAPLE_AGENT_MANAGED_LABEL: maple.managed  # 仅操作带此标签的容器
       MAPLE_AGENT_NODE_NAME: node-local         # 本节点标识
     ports:
-      - "8200:8200"
+      - "9092:9092"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock   # Agent 直接驱动本机 Docker Engine
     restart: unless-stopped

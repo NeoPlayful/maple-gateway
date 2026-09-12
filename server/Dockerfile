@@ -22,7 +22,7 @@ COPY --from=builder /out/maple-gateway /usr/local/bin/maple-gateway
 COPY --from=builder /out/maple-cm /usr/local/bin/maple-cm
 COPY --from=builder /out/maple-nodeagent /usr/local/bin/maple-nodeagent
 
-# Gateway 数据平面(80/443) + Management API(8090)；CM(:8100)；Agent(:8200)
-EXPOSE 80 443 8090 8100 8200
+# Gateway 数据平面(80/443) + Management API(8090)；CM(:9091)；Agent(:9092)
+EXPOSE 80 443 8090 9091 9092
 # 容器内配置通过 MAPLE_* 环境变量注入（见 docker-compose.yml）
 ENTRYPOINT ["maple-gateway"]

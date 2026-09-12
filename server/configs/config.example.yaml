@@ -95,5 +95,5 @@ acme:
 
 # ---- Container Manager 下发通道（控制下行，Gateway → CM） ----
 cm:
-  base_url: ""                       # CM 内部 API 基址（如 http://cm:8100）；空则未接入 CM，下发为 no-op
+  base_url: ""                       # CM 内部 API 基址（如 http://cm:9091）；空则未接入 CM，下发为 no-op
   token: ""                          # 访问 CM 所用令牌（= CM 的 MAPLE_CM_TOKEN）；建议 MAPLE_CM_TOKEN 注入

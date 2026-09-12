@@ -3,21 +3,26 @@
 # 与 Gateway 同仓库、同 Go module，但作为独立进程与独立部署单元运行。
 
 cm:
-  listen: ":8100"                 # CM 对外监听（接收 Gateway 部署意图 / 状态查询）
-  token: ""                       # 校验 Gateway 访问本进程的令牌（MAPLE_CM_TOKEN）
+  listen: ":9091"                 # CM 对外监听（接收 Gateway 部署意图 / 状态查询）
+  token: "dev-cm-token"           # 校验 Gateway 访问本进程的令牌（MAPLE_CM_TOKEN）
   gateway_base_url: "http://localhost:8090"  # 状态上行目标（Gateway 内部 API 基址）
-  gateway_token: ""               # 上报 Gateway 令牌（= Gateway 的 MAPLE_INTERNAL_TOKEN）
+  gateway_token: "dev-internal-token"  # 上报 Gateway 令牌（= Gateway 的 MAPLE_INTERNAL_TOKEN）
   reconcile_interval: 5s          # 期望态对账周期
   observe_interval: 10s           # 采集节点容器/资源状态周期
   default_replicas: 1             # 期望态缺省副本数
   # 静态登记的节点清单：CM 据此探测各节点 Agent 并采集容器状态、上报 Gateway。
   # 生产可由 Agent 自注册扩展；本期以配置登记为主。
-  nodes: []
+  nodes:
+    - name: node-local            # 本地开发节点（与 nodeagent MAPLE_AGENT_NODE_NAME 一致）
+      host: 127.0.0.1             # 节点地址（上报 Gateway 供展示/回连）
+      region: local
+      agent_addr: http://127.0.0.1:9092  # 该节点 Node Agent 基址
+      agent_token: dev-agent-token       # = Agent 的 MAPLE_AGENT_TOKEN
   # - name: node-01
   #   host: 10.0.0.11              # 节点地址（上报 Gateway 供展示/回连）
   #   region: cn-east
   #   labels: { zone: a }
-  #   agent_addr: http://10.0.0.11:8200   # 该节点 Node Agent 基址
+  #   agent_addr: http://10.0.0.11:9092   # 该节点 Node Agent 基址
   #   agent_token: ""              # 访问该 Agent 的令牌（= Agent 的 MAPLE_AGENT_TOKEN）
 
 logging:

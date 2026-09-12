@@ -48,7 +48,7 @@ type NodeConfig struct {
 	Region string `yaml:"region"`
 	// Labels 节点标签（调度约束 node_selector 匹配）。
 	Labels map[string]string `yaml:"labels"`
-	// AgentAddr 本节点 Node Agent 的基址（如 http://10.0.0.11:8200）。
+	// AgentAddr 本节点 Node Agent 的基址（如 http://10.0.0.11:9092）。
 	AgentAddr string `yaml:"agent_addr"`
 	// AgentToken 访问该 Agent 的令牌（= Agent 的 MAPLE_AGENT_TOKEN）。
 	AgentToken string `yaml:"agent_token"`
@@ -64,7 +64,7 @@ type LoggingConfig struct {
 func Default() *Config {
 	return &Config{
 		CM: CMConfig{
-			Listen:            ":8100",
+			Listen:            ":9091",
 			ReconcileInterval: 5 * time.Second,
 			ObserveInterval:   10 * time.Second,
 			DefaultReplicas:   1,

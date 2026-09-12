@@ -149,6 +149,31 @@ gateway:
 	}
 }
 
+func TestLoad_InternalTokenFromYAMLAndEnv(t *testing.T) {
+	// yaml 提供 security.internal_token。
+	path := writeTemp(t, `
+security:
+  internal_token: "yaml-internal"
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.Security.InternalToken != "yaml-internal" {
+		t.Fatalf("yaml internal_token = %q", cfg.Security.InternalToken)
+	}
+
+	// 环境变量 MAPLE_INTERNAL_TOKEN 优先于 yaml。
+	t.Setenv("MAPLE_INTERNAL_TOKEN", "env-internal")
+	cfg2, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg2.Security.InternalToken != "env-internal" {
+		t.Fatalf("env internal_token = %q", cfg2.Security.InternalToken)
+	}
+}
+
 func TestLoad_CertEncKeyFromYAMLAndEnv(t *testing.T) {
 	// yaml 提供 tls.cert_enc_key。
 	path := writeTemp(t, `

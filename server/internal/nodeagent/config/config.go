@@ -43,7 +43,7 @@ type LoggingConfig struct {
 func Default() *Config {
 	return &Config{
 		Agent: AgentConfig{
-			Listen:       "127.0.0.1:8200",
+			Listen:       "127.0.0.1:9092",
 			ManagedLabel: "maple.managed",
 		},
 		Logging: LoggingConfig{Level: "info"},
