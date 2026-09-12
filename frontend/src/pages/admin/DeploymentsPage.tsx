@@ -43,6 +43,39 @@ function InstanceRow({
   );
 }
 
+// 部署编排阶段流：pending → reconciling → ready；failed/stopped 单独提示。
+const DEPLOY_STEPS = ['pending', 'reconciling', 'ready'] as const;
+
+function PhaseFlow({ phase }: { phase: string }) {
+  const { t } = useTranslation('admin');
+  const terminal = phase === 'failed' || phase === 'stopped';
+  const idx = DEPLOY_STEPS.indexOf(phase as (typeof DEPLOY_STEPS)[number]);
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900/40">
+      <span className="text-slate-500 dark:text-slate-400">{t('deployments.phase')}:</span>
+      {terminal ? (
+        <StatusBadge value={phase} raw />
+      ) : (
+        <div className="flex items-center gap-2">
+          {DEPLOY_STEPS.map((s, i) => {
+            const done = idx >= 0 && i < idx;
+            const current = i === idx;
+            return (
+              <div key={s} className="flex items-center gap-2">
+                {i > 0 && <span className="h-px w-4 bg-slate-300 dark:bg-slate-600" />}
+                <span className={`inline-flex items-center gap-1 ${done || current ? 'font-medium text-th-accent' : 'text-slate-400 dark:text-slate-500'}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${current ? 'animate-pulse bg-th-accent' : done ? 'bg-th-accent' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                  {t(`deployments.phase_${s}`)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 部署详情：按版本分组展示实例，并叠加 CM 编排进度。
 function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
   const { t } = useTranslation('admin');
@@ -115,12 +148,7 @@ function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
           {t('runtime.notEnabled')}
         </p>
       )}
-      {cmEnabled && phase && (
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span>{t('deployments.phase')}:</span>
-          <StatusBadge value={phase} raw />
-        </div>
-      )}
+      {cmEnabled && phase && <PhaseFlow phase={phase} />}
       {versions.length === 0 && <p className="text-xs text-slate-400">{t('deployments.noVersions')}</p>}
       {versions.map((v) => {
         const insts = instances.filter((i) => i.version_id === v.id);

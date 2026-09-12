@@ -244,7 +244,10 @@
     "stop": "Stop",
     "start": "Start",
     "logTitle": "Container logs",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "phase_pending": "Pending",
+    "phase_reconciling": "Reconciling",
+    "phase_ready": "Ready"
   },
   "versions": {
     "title": "Versions & Specs",
@@ -264,7 +267,9 @@
     "title": "Nodes",
     "namePh": "e.g. node-01",
     "hostPh": "e.g. 192.168.1.10",
-    "maintenance": "Maintenance"
+    "maintenance": "Maintenance",
+    "agent": "Agent",
+    "errFill": "Please fill in node name and host"
   },
   "crud": {
     "requiredField": "Please fill in {{field}}",
@@ -365,7 +370,8 @@
     "undrain": "Undrain",
     "errFill": "Fill in service and address",
     "registerSuccess": "Registered",
-    "registerFailed": "Registration failed"
+    "registerFailed": "Registration failed",
+    "container": "Container"
   },
   "logs": {
     "title": "Logs",
@@ -472,6 +478,12 @@
     "colMemory": "Memory",
     "colDisk": "Disk",
     "colLayers": "Image layers",
+    "colImage": "Image",
+    "colVersion": "Version",
+    "colPort": "Port",
+    "colDocker": "Docker",
+    "noContainers": "No managed containers",
+    "capacity": "Capacity",
     "yes": "Yes"
   },
   "settings": {

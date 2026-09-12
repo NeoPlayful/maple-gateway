@@ -18,6 +18,7 @@ type Proxier interface {
 	MgmtNodes(ctx context.Context) (json.RawMessage, error)
 	MgmtMetrics(ctx context.Context) (json.RawMessage, error)
 	MgmtErrors(ctx context.Context) (json.RawMessage, error)
+	MgmtContainers(ctx context.Context) (json.RawMessage, error)
 	RestartInstance(ctx context.Context, instanceID string) error
 	StopInstance(ctx context.Context, instanceID string) error
 	StartInstance(ctx context.Context, instanceID string) error
@@ -77,6 +78,18 @@ func (h *Handler) Metrics(c fiber.Ctx) error {
 	out, err := h.cm.MgmtMetrics(c.Context())
 	if err != nil {
 		return pkg.Err(c, pkg.ErrSystem("拉取节点指标失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// Containers GET /api/admin/cm/containers
+func (h *Handler) Containers(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	out, err := h.cm.MgmtContainers(c.Context())
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("拉取受管容器清单失败: "+err.Error()))
 	}
 	return raw(c, out)
 }

@@ -29,6 +29,7 @@ type Observer struct {
 	nodeUpCt    int                          // 可用节点数
 	snapshot    map[string]ObservedContainer // instance_id → 观测到的容器（最近一轮）
 	metrics     map[string]NodeMetric        // 节点名 → 最近采集的资源指标
+	info        map[string]gwclient.NodeInfo // 节点名 → 最近采集的节点容量（核数/内存/Docker 版本）
 	errors      []RuntimeError               // 最近一轮观测到的运行时错误（崩溃/退出）
 }
 
@@ -65,6 +66,7 @@ func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval 
 		logger:   logger,
 		snapshot: map[string]ObservedContainer{},
 		metrics:  map[string]NodeMetric{},
+		info:     map[string]gwclient.NodeInfo{},
 	}
 }
 
@@ -91,12 +93,16 @@ func (o *Observer) tick(ctx context.Context) {
 	var firstErr error
 	snap := make(map[string]ObservedContainer)
 	metrics := make(map[string]NodeMetric, len(nodes))
+	infos := make(map[string]gwclient.NodeInfo, len(nodes))
 	var runtimeErrs []RuntimeError
 	// 本轮成功观测的节点集合：仅对这些节点做"消失即注销"，避免节点瞬时不可达误删其余实例。
 	observedNodes := map[string]bool{}
 	for _, n := range nodes {
 		// 节点指标独立于容器观测：即使容器列表失败也尝试采集，供运维视图展示。
 		metrics[n.Name] = o.collectMetrics(ctx, n)
+		if info, err := n.Agent.Info(ctx); err == nil {
+			infos[n.Name] = info
+		}
 		containers, err := o.observeNode(ctx, n)
 		if err != nil {
 			if firstErr == nil {
@@ -129,6 +135,7 @@ func (o *Observer) tick(ctx context.Context) {
 	o.containerCt = ct
 	o.snapshot = snap
 	o.metrics = metrics
+	o.info = infos
 	o.errors = runtimeErrs
 	if firstErr == nil {
 		o.lastReport = time.Now()
@@ -175,6 +182,17 @@ func (o *Observer) Metrics() map[string]NodeMetric {
 	defer o.mu.Unlock()
 	out := make(map[string]NodeMetric, len(o.metrics))
 	for k, v := range o.metrics {
+		out[k] = v
+	}
+	return out
+}
+
+// Infos 返回各节点最近一轮采集到的容量信息（核数/内存/Docker 版本）。
+func (o *Observer) Infos() map[string]gwclient.NodeInfo {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make(map[string]gwclient.NodeInfo, len(o.info))
+	for k, v := range o.info {
 		out[k] = v
 	}
 	return out

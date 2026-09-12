@@ -31,6 +31,7 @@ import (
 type DesiredReader interface {
 	All() []desired.State
 	PausedCount() map[string]int // 人工置为维护的实例数（version_id → 数量）
+	SetPhase(deploymentID uuid.UUID, phase desired.Phase)
 }
 
 // ActualReader 提供实际态容器快照（由 observer.Observer 实现）。
@@ -49,10 +50,11 @@ type Reconciler struct {
 	logger   *zap.Logger
 
 	// instance 记录：instance_id → 其归属部署/版本（CM 生成 instance_id 时登记）。
-	mu         sync.Mutex
-	instanceOf map[string]string     // instance_id → version_id
-	pending    map[string]pendingRpl // 已创建但观测尚未确认的副本（instance_id → 元数据）
-	failures   map[string]int        // instance_id → 连续失败次数（退避/告警）
+	mu            sync.Mutex
+	instanceOf    map[string]string     // instance_id → version_id
+	pending       map[string]pendingRpl // 已创建但观测尚未确认的副本（instance_id → 元数据）
+	failures      map[string]int        // instance_id → 连续失败次数（退避/告警）
+	failedDeploys map[string]bool       // deployment_id → 是否已因连续失败标记为 failed
 }
 
 // pendingRpl 是一次"已下发创建、尚待观测确认"的副本。
@@ -67,16 +69,17 @@ const pendingTTL = 60 * time.Second
 // New 构造。
 func New(d DesiredReader, a ActualReader, registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval time.Duration, logger *zap.Logger) *Reconciler {
 	return &Reconciler{
-		desired:    d,
-		actual:     a,
-		registry:   registry,
-		gw:         gw,
-		sched:      scheduler.New(registry),
-		interval:   interval,
-		logger:     logger,
-		instanceOf: map[string]string{},
-		pending:    map[string]pendingRpl{},
-		failures:   map[string]int{},
+		desired:       d,
+		actual:        a,
+		registry:      registry,
+		gw:            gw,
+		sched:         scheduler.New(registry),
+		interval:      interval,
+		logger:        logger,
+		instanceOf:    map[string]string{},
+		pending:       map[string]pendingRpl{},
+		failures:      map[string]int{},
+		failedDeploys: map[string]bool{},
 	}
 }
 
@@ -150,6 +153,56 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 			r.drain(ctx, cur, op.Count)
 		}
 	}
+
+	// 结算编排进度：把本轮结果聚合为各部署的 phase，供管理端展示。
+	r.settlePhases(states, runningCount)
+}
+
+// settlePhases 依据本轮收敛情况回写各部署的编排阶段：
+//
+//	任一版本存在连续失败 → failed
+//	所有版本实际数（含 in-flight 与人工维护）== 期望数 → ready
+//	仍有差异（本轮已下发增删，待下轮观测确认） → reconciling
+func (r *Reconciler) settlePhases(states []desired.State, runningCount map[string]int) {
+	// 按部署聚合其版本目标与实际，判定该部署整体是否收敛。
+	type agg struct {
+		target, actual int
+		failed         bool
+	}
+	byDeploy := map[uuid.UUID]*agg{}
+	for _, st := range states {
+		a := byDeploy[st.DeploymentID]
+		if a == nil {
+			a = &agg{}
+			byDeploy[st.DeploymentID] = a
+		}
+		target := st.Replicas
+		if target < 0 {
+			target = 0
+		}
+		a.target += target
+		a.actual += runningCount[st.VersionID.String()]
+	}
+
+	r.mu.Lock()
+	failed := make(map[string]bool, len(r.failedDeploys))
+	for k, v := range r.failedDeploys {
+		failed[k] = v
+	}
+	r.mu.Unlock()
+
+	for did, a := range byDeploy {
+		var phase desired.Phase
+		switch {
+		case failed[did.String()]:
+			phase = desired.Phase{Status: "failed", Message: "副本创建连续失败"}
+		case a.target == a.actual:
+			phase = desired.Phase{Status: "ready"}
+		default:
+			phase = desired.Phase{Status: "reconciling"}
+		}
+		r.desired.SetPhase(did, phase)
+	}
 }
 
 // surge 对某版本扩容 Count 个副本，按已放置分布打散落点。
@@ -200,7 +253,7 @@ func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *
 	}
 	res, err := node.Agent.Create(ctx, spec)
 	if err != nil {
-		r.noteFailure(instanceID, fmt.Sprintf("create on node %s: %v", node.Name, err))
+		r.noteFailure(st.DeploymentID.String(), instanceID, fmt.Sprintf("create on node %s: %v", node.Name, err))
 		return
 	}
 	r.mu.Lock()
@@ -208,6 +261,8 @@ func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *
 	// 登记为 in-flight：观测确认前计入实际数，避免窗口内重复创建。
 	r.pending[instanceID] = pendingRpl{versionID: st.VersionID.String(), createdAt: time.Now()}
 	delete(r.failures, instanceID)
+	// 本部署有副本成功创建：清除先前标记的失败态，交回收敛判定。
+	delete(r.failedDeploys, st.DeploymentID.String())
 	r.mu.Unlock()
 	r.logger.Info("replica created",
 		zap.String("deployment_id", st.DeploymentID.String()),
@@ -257,13 +312,18 @@ func (r *Reconciler) placementByNode(actual map[string]observer.ObservedContaine
 }
 
 // noteFailure 记录一次失败并达上限时告警（有界重试，不无限重试）。
-func (r *Reconciler) noteFailure(instanceID, msg string) {
+// deploymentID 用于把达上限的失败聚合为部署级 failed 阶段。
+func (r *Reconciler) noteFailure(deploymentID, instanceID, msg string) {
 	r.mu.Lock()
 	r.failures[instanceID]++
 	n := r.failures[instanceID]
+	if n >= maxFailures {
+		r.failedDeploys[deploymentID] = true
+	}
 	r.mu.Unlock()
 	if n >= maxFailures {
 		r.logger.Error("replica create repeatedly failed",
+			zap.String("deployment_id", deploymentID),
 			zap.String("instance_id", instanceID), zap.Int("attempts", n), zap.String("err", msg))
 	} else {
 		r.logger.Warn("replica create failed",

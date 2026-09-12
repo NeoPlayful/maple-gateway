@@ -207,6 +207,7 @@ func New(d Deps) *fiber.App {
 		cg.Get("/nodes", cmH.Nodes)
 		cg.Get("/metrics", cmH.Metrics)
 		cg.Get("/errors", cmH.Errors)
+		cg.Get("/containers", cmH.Containers)
 		cg.Post("/instances/:id/restart", cmH.RestartInstance)
 		cg.Post("/instances/:id/stop", cmH.StopInstance)
 		cg.Post("/instances/:id/start", cmH.StartInstance)

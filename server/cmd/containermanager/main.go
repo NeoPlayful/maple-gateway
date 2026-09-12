@@ -72,12 +72,19 @@ func run(configPath string) error {
 		Phases:  store.AllPhases,
 		Nodes: func() []api.NodeStatus {
 			nodes := registry.All()
+			infos := obs.Infos()
 			out := make([]api.NodeStatus, 0, len(nodes))
 			for _, n := range nodes {
-				out = append(out, api.NodeStatus{
+				st := api.NodeStatus{
 					Name: n.Name, Host: n.Host, Region: n.Region, Labels: n.Labels,
 					Healthy: n.Healthy, GatewayID: n.GatewayID, LastSeenMs: n.LastSeenMs,
-				})
+				}
+				if info, ok := infos[n.Name]; ok {
+					st.CPUs = info.CPUs
+					st.MemoryBytes = info.MemoryBytes
+					st.DockerVersion = info.DockerVersion
+				}
+				out = append(out, st)
 			}
 			return out
 		},
@@ -85,6 +92,28 @@ func run(configPath string) error {
 		Stop:    func(id string) error { return ctrl.Stop(ctx, id) },
 		Start:   func(id string) error { return ctrl.Start(ctx, id) },
 		Logs:    func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
+		Containers: func() []api.ContainerStatus {
+			snap := obs.Snapshot()
+			out := make([]api.ContainerStatus, 0, len(snap))
+			for _, oc := range snap {
+				c := oc.Container
+				out = append(out, api.ContainerStatus{
+					InstanceID:  c.InstanceID,
+					ContainerID: c.ID,
+					Name:        c.Name,
+					Image:       c.Image,
+					State:       c.State,
+					Status:      c.Status,
+					Labels:      c.Labels,
+					NodeName:    oc.NodeName,
+					HostPort:    c.HostPort,
+					ExitCode:    c.ExitCode,
+					OOMKilled:   c.OOMKilled,
+					FinishedAt:  c.FinishedAt,
+				})
+			}
+			return out
+		},
 	}
 	app := api.New(cfg, logger, store, obs, mgmt)
 

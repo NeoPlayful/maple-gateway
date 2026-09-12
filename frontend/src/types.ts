@@ -214,6 +214,10 @@ export interface CMNodeStatus {
   healthy: boolean;
   gateway_id?: string;
   last_seen_ms: number;
+  // 节点容量与 Agent 元信息（来自 Agent /node/info）。
+  cpus?: number;
+  memory_bytes?: number;
+  docker_version?: string;
 }
 
 export interface CMStats {
@@ -241,4 +245,20 @@ export interface CMOverview {
   stats?: CMStats;
   deployments?: Record<string, CMPhase>;
   nodes?: CMNodeStatus[];
+}
+
+// 受管容器（CM 观测快照经 /api/admin/cm/containers 透出）。
+export interface CMContainer {
+  instance_id: string;
+  container_id: string;
+  name: string;
+  image: string;
+  state: string; // running / exited / created / dead …
+  status: string; // 人类可读状态
+  labels?: Record<string, string>;
+  node_name: string;
+  host_port: number;
+  exit_code: number;
+  oom_killed: boolean;
+  finished_at?: string;
 }
