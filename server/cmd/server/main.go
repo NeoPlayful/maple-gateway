@@ -18,6 +18,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/acme"
+	"github.com/NeoPlayful/maple-gateway/server/internal/cmclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
@@ -199,6 +200,14 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			LeaseTTL:   cfg.HA.LeaseTTL,
 		})
 		go coord.Run(ctx)
+	}
+
+	// Gateway → CM 下发通道：配置了 CM 地址才启用；未配置时下发为 no-op，
+	// Gateway 行为与未接入 CM 时完全一致。多实例时仅 Leader 下发，避免重复。
+	cmClient := cmclient.New(cfg.CM.BaseURL, cfg.CM.Token)
+	isLeader := func() bool { return coord == nil || !cfg.HA.Enabled || coord.IsLeader() }
+	if cmClient.Enabled() {
+		logger.Info("container manager channel enabled", zap.String("cm_base_url", cfg.CM.BaseURL))
 	}
 
 	// Phase 5 Direct TLS：证书管理 Service（需 DB + MAPLE_CERT_ENC_KEY）。
@@ -440,7 +449,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series,
-			HA: ha.NewHandler(ha.NewRepository(entClient), coord), Certificates: certH, UIDir: uiDir})
+			HA: ha.NewHandler(ha.NewRepository(entClient), coord), Certificates: certH, UIDir: uiDir,
+			CMClient: cmClient, IsLeader: isLeader})
 	} else {
 		mgmtApp = api.New(api.Deps{Ent: nil, Metrics: metricReg, AccessLog: accessLog, ErrLog: errLog, Series: series, UIDir: uiDir})
 	}

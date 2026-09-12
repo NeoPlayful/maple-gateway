@@ -75,6 +75,7 @@
     "certificates": "证书",
     "services": "服务",
     "deployments": "发布",
+    "versions": "版本",
     "instances": "实例",
     "nodes": "节点",
     "traffic": "流量策略",
@@ -133,7 +134,13 @@
     "issuedAt": "签发时间",
     "renewAttempts": "续期失败次数",
     "lastError": "最近错误",
-    "verifiedAt": "验证时间"
+    "verifiedAt": "验证时间",
+    "image": "镜像",
+    "replicas": "副本数",
+    "containerPort": "容器端口",
+    "healthPath": "健康检查路径",
+    "env": "环境变量",
+    "nodeSelector": "调度约束"
   },
   "tenants": {
     "title": "租户管理",
@@ -223,6 +230,20 @@
   "deployments": {
     "title": "部署与版本",
     "namePh": "如 prod"
+  },
+  "versions": {
+    "title": "版本与规格",
+    "newVersion": "新建版本",
+    "none": "请选择部署以查看其版本",
+    "createTitle": "新建版本",
+    "editTitle": "编辑版本",
+    "setDefault": "设为默认",
+    "deleteTitle": "删除版本",
+    "deleteConfirm": "确定删除该版本？Container Manager 将移除该版本的容器。",
+    "createHint": "版本已创建，规格已下发给 Container Manager。",
+    "updateHint": "版本已更新，规格已下发给 Container Manager。",
+    "defaultHint": "已设为默认版本。",
+    "deleteHint": "版本已删除。"
   },
   "nodes": {
     "title": "节点管理",

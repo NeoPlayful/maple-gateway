@@ -12,6 +12,7 @@ import DomainsPage from './pages/admin/DomainsPage';
 import CertificatesPage from './pages/admin/CertificatesPage';
 import ServicesPage from './pages/admin/ServicesPage';
 import DeploymentsPage from './pages/admin/DeploymentsPage';
+import VersionsPage from './pages/admin/VersionsPage';
 import InstancesPage from './pages/admin/InstancesPage';
 import NodesPage from './pages/admin/NodesPage';
 import TrafficPage from './pages/admin/TrafficPage';
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="certificates" element={<CertificatesPage />} />
           <Route path="services" element={<ServicesPage />} />
           <Route path="deployments" element={<DeploymentsPage />} />
+          <Route path="versions" element={<VersionsPage />} />
           <Route path="instances" element={<InstancesPage />} />
           <Route path="nodes" element={<NodesPage />} />
           <Route path="traffic" element={<TrafficPage />} />

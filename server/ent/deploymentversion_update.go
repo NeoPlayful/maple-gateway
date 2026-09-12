@@ -4,12 +4,14 @@ package ent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
@@ -113,6 +115,116 @@ func (dvu *DeploymentVersionUpdate) SetNillableStatus(s *string) *DeploymentVers
 	return dvu
 }
 
+// SetReplicas sets the "replicas" field.
+func (dvu *DeploymentVersionUpdate) SetReplicas(i int) *DeploymentVersionUpdate {
+	dvu.mutation.ResetReplicas()
+	dvu.mutation.SetReplicas(i)
+	return dvu
+}
+
+// SetNillableReplicas sets the "replicas" field if the given value is not nil.
+func (dvu *DeploymentVersionUpdate) SetNillableReplicas(i *int) *DeploymentVersionUpdate {
+	if i != nil {
+		dvu.SetReplicas(*i)
+	}
+	return dvu
+}
+
+// AddReplicas adds i to the "replicas" field.
+func (dvu *DeploymentVersionUpdate) AddReplicas(i int) *DeploymentVersionUpdate {
+	dvu.mutation.AddReplicas(i)
+	return dvu
+}
+
+// SetPort sets the "port" field.
+func (dvu *DeploymentVersionUpdate) SetPort(i int) *DeploymentVersionUpdate {
+	dvu.mutation.ResetPort()
+	dvu.mutation.SetPort(i)
+	return dvu
+}
+
+// SetNillablePort sets the "port" field if the given value is not nil.
+func (dvu *DeploymentVersionUpdate) SetNillablePort(i *int) *DeploymentVersionUpdate {
+	if i != nil {
+		dvu.SetPort(*i)
+	}
+	return dvu
+}
+
+// AddPort adds i to the "port" field.
+func (dvu *DeploymentVersionUpdate) AddPort(i int) *DeploymentVersionUpdate {
+	dvu.mutation.AddPort(i)
+	return dvu
+}
+
+// ClearPort clears the value of the "port" field.
+func (dvu *DeploymentVersionUpdate) ClearPort() *DeploymentVersionUpdate {
+	dvu.mutation.ClearPort()
+	return dvu
+}
+
+// SetEnv sets the "env" field.
+func (dvu *DeploymentVersionUpdate) SetEnv(m map[string]string) *DeploymentVersionUpdate {
+	dvu.mutation.SetEnv(m)
+	return dvu
+}
+
+// ClearEnv clears the value of the "env" field.
+func (dvu *DeploymentVersionUpdate) ClearEnv() *DeploymentVersionUpdate {
+	dvu.mutation.ClearEnv()
+	return dvu
+}
+
+// SetResources sets the "resources" field.
+func (dvu *DeploymentVersionUpdate) SetResources(jm json.RawMessage) *DeploymentVersionUpdate {
+	dvu.mutation.SetResources(jm)
+	return dvu
+}
+
+// AppendResources appends jm to the "resources" field.
+func (dvu *DeploymentVersionUpdate) AppendResources(jm json.RawMessage) *DeploymentVersionUpdate {
+	dvu.mutation.AppendResources(jm)
+	return dvu
+}
+
+// ClearResources clears the value of the "resources" field.
+func (dvu *DeploymentVersionUpdate) ClearResources() *DeploymentVersionUpdate {
+	dvu.mutation.ClearResources()
+	return dvu
+}
+
+// SetHealthPath sets the "health_path" field.
+func (dvu *DeploymentVersionUpdate) SetHealthPath(s string) *DeploymentVersionUpdate {
+	dvu.mutation.SetHealthPath(s)
+	return dvu
+}
+
+// SetNillableHealthPath sets the "health_path" field if the given value is not nil.
+func (dvu *DeploymentVersionUpdate) SetNillableHealthPath(s *string) *DeploymentVersionUpdate {
+	if s != nil {
+		dvu.SetHealthPath(*s)
+	}
+	return dvu
+}
+
+// ClearHealthPath clears the value of the "health_path" field.
+func (dvu *DeploymentVersionUpdate) ClearHealthPath() *DeploymentVersionUpdate {
+	dvu.mutation.ClearHealthPath()
+	return dvu
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (dvu *DeploymentVersionUpdate) SetNodeSelector(m map[string]string) *DeploymentVersionUpdate {
+	dvu.mutation.SetNodeSelector(m)
+	return dvu
+}
+
+// ClearNodeSelector clears the value of the "node_selector" field.
+func (dvu *DeploymentVersionUpdate) ClearNodeSelector() *DeploymentVersionUpdate {
+	dvu.mutation.ClearNodeSelector()
+	return dvu
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (dvu *DeploymentVersionUpdate) SetUpdatedAt(t time.Time) *DeploymentVersionUpdate {
 	dvu.mutation.SetUpdatedAt(t)
@@ -212,6 +324,50 @@ func (dvu *DeploymentVersionUpdate) sqlSave(ctx context.Context) (n int, err err
 	}
 	if value, ok := dvu.mutation.Status(); ok {
 		_spec.SetField(deploymentversion.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := dvu.mutation.Replicas(); ok {
+		_spec.SetField(deploymentversion.FieldReplicas, field.TypeInt, value)
+	}
+	if value, ok := dvu.mutation.AddedReplicas(); ok {
+		_spec.AddField(deploymentversion.FieldReplicas, field.TypeInt, value)
+	}
+	if value, ok := dvu.mutation.Port(); ok {
+		_spec.SetField(deploymentversion.FieldPort, field.TypeInt, value)
+	}
+	if value, ok := dvu.mutation.AddedPort(); ok {
+		_spec.AddField(deploymentversion.FieldPort, field.TypeInt, value)
+	}
+	if dvu.mutation.PortCleared() {
+		_spec.ClearField(deploymentversion.FieldPort, field.TypeInt)
+	}
+	if value, ok := dvu.mutation.Env(); ok {
+		_spec.SetField(deploymentversion.FieldEnv, field.TypeJSON, value)
+	}
+	if dvu.mutation.EnvCleared() {
+		_spec.ClearField(deploymentversion.FieldEnv, field.TypeJSON)
+	}
+	if value, ok := dvu.mutation.Resources(); ok {
+		_spec.SetField(deploymentversion.FieldResources, field.TypeJSON, value)
+	}
+	if value, ok := dvu.mutation.AppendedResources(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, deploymentversion.FieldResources, value)
+		})
+	}
+	if dvu.mutation.ResourcesCleared() {
+		_spec.ClearField(deploymentversion.FieldResources, field.TypeJSON)
+	}
+	if value, ok := dvu.mutation.HealthPath(); ok {
+		_spec.SetField(deploymentversion.FieldHealthPath, field.TypeString, value)
+	}
+	if dvu.mutation.HealthPathCleared() {
+		_spec.ClearField(deploymentversion.FieldHealthPath, field.TypeString)
+	}
+	if value, ok := dvu.mutation.NodeSelector(); ok {
+		_spec.SetField(deploymentversion.FieldNodeSelector, field.TypeJSON, value)
+	}
+	if dvu.mutation.NodeSelectorCleared() {
+		_spec.ClearField(deploymentversion.FieldNodeSelector, field.TypeJSON)
 	}
 	if value, ok := dvu.mutation.UpdatedAt(); ok {
 		_spec.SetField(deploymentversion.FieldUpdatedAt, field.TypeTime, value)
@@ -348,6 +504,116 @@ func (dvuo *DeploymentVersionUpdateOne) SetNillableStatus(s *string) *Deployment
 	return dvuo
 }
 
+// SetReplicas sets the "replicas" field.
+func (dvuo *DeploymentVersionUpdateOne) SetReplicas(i int) *DeploymentVersionUpdateOne {
+	dvuo.mutation.ResetReplicas()
+	dvuo.mutation.SetReplicas(i)
+	return dvuo
+}
+
+// SetNillableReplicas sets the "replicas" field if the given value is not nil.
+func (dvuo *DeploymentVersionUpdateOne) SetNillableReplicas(i *int) *DeploymentVersionUpdateOne {
+	if i != nil {
+		dvuo.SetReplicas(*i)
+	}
+	return dvuo
+}
+
+// AddReplicas adds i to the "replicas" field.
+func (dvuo *DeploymentVersionUpdateOne) AddReplicas(i int) *DeploymentVersionUpdateOne {
+	dvuo.mutation.AddReplicas(i)
+	return dvuo
+}
+
+// SetPort sets the "port" field.
+func (dvuo *DeploymentVersionUpdateOne) SetPort(i int) *DeploymentVersionUpdateOne {
+	dvuo.mutation.ResetPort()
+	dvuo.mutation.SetPort(i)
+	return dvuo
+}
+
+// SetNillablePort sets the "port" field if the given value is not nil.
+func (dvuo *DeploymentVersionUpdateOne) SetNillablePort(i *int) *DeploymentVersionUpdateOne {
+	if i != nil {
+		dvuo.SetPort(*i)
+	}
+	return dvuo
+}
+
+// AddPort adds i to the "port" field.
+func (dvuo *DeploymentVersionUpdateOne) AddPort(i int) *DeploymentVersionUpdateOne {
+	dvuo.mutation.AddPort(i)
+	return dvuo
+}
+
+// ClearPort clears the value of the "port" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearPort() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearPort()
+	return dvuo
+}
+
+// SetEnv sets the "env" field.
+func (dvuo *DeploymentVersionUpdateOne) SetEnv(m map[string]string) *DeploymentVersionUpdateOne {
+	dvuo.mutation.SetEnv(m)
+	return dvuo
+}
+
+// ClearEnv clears the value of the "env" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearEnv() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearEnv()
+	return dvuo
+}
+
+// SetResources sets the "resources" field.
+func (dvuo *DeploymentVersionUpdateOne) SetResources(jm json.RawMessage) *DeploymentVersionUpdateOne {
+	dvuo.mutation.SetResources(jm)
+	return dvuo
+}
+
+// AppendResources appends jm to the "resources" field.
+func (dvuo *DeploymentVersionUpdateOne) AppendResources(jm json.RawMessage) *DeploymentVersionUpdateOne {
+	dvuo.mutation.AppendResources(jm)
+	return dvuo
+}
+
+// ClearResources clears the value of the "resources" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearResources() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearResources()
+	return dvuo
+}
+
+// SetHealthPath sets the "health_path" field.
+func (dvuo *DeploymentVersionUpdateOne) SetHealthPath(s string) *DeploymentVersionUpdateOne {
+	dvuo.mutation.SetHealthPath(s)
+	return dvuo
+}
+
+// SetNillableHealthPath sets the "health_path" field if the given value is not nil.
+func (dvuo *DeploymentVersionUpdateOne) SetNillableHealthPath(s *string) *DeploymentVersionUpdateOne {
+	if s != nil {
+		dvuo.SetHealthPath(*s)
+	}
+	return dvuo
+}
+
+// ClearHealthPath clears the value of the "health_path" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearHealthPath() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearHealthPath()
+	return dvuo
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (dvuo *DeploymentVersionUpdateOne) SetNodeSelector(m map[string]string) *DeploymentVersionUpdateOne {
+	dvuo.mutation.SetNodeSelector(m)
+	return dvuo
+}
+
+// ClearNodeSelector clears the value of the "node_selector" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearNodeSelector() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearNodeSelector()
+	return dvuo
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (dvuo *DeploymentVersionUpdateOne) SetUpdatedAt(t time.Time) *DeploymentVersionUpdateOne {
 	dvuo.mutation.SetUpdatedAt(t)
@@ -477,6 +743,50 @@ func (dvuo *DeploymentVersionUpdateOne) sqlSave(ctx context.Context) (_node *Dep
 	}
 	if value, ok := dvuo.mutation.Status(); ok {
 		_spec.SetField(deploymentversion.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := dvuo.mutation.Replicas(); ok {
+		_spec.SetField(deploymentversion.FieldReplicas, field.TypeInt, value)
+	}
+	if value, ok := dvuo.mutation.AddedReplicas(); ok {
+		_spec.AddField(deploymentversion.FieldReplicas, field.TypeInt, value)
+	}
+	if value, ok := dvuo.mutation.Port(); ok {
+		_spec.SetField(deploymentversion.FieldPort, field.TypeInt, value)
+	}
+	if value, ok := dvuo.mutation.AddedPort(); ok {
+		_spec.AddField(deploymentversion.FieldPort, field.TypeInt, value)
+	}
+	if dvuo.mutation.PortCleared() {
+		_spec.ClearField(deploymentversion.FieldPort, field.TypeInt)
+	}
+	if value, ok := dvuo.mutation.Env(); ok {
+		_spec.SetField(deploymentversion.FieldEnv, field.TypeJSON, value)
+	}
+	if dvuo.mutation.EnvCleared() {
+		_spec.ClearField(deploymentversion.FieldEnv, field.TypeJSON)
+	}
+	if value, ok := dvuo.mutation.Resources(); ok {
+		_spec.SetField(deploymentversion.FieldResources, field.TypeJSON, value)
+	}
+	if value, ok := dvuo.mutation.AppendedResources(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, deploymentversion.FieldResources, value)
+		})
+	}
+	if dvuo.mutation.ResourcesCleared() {
+		_spec.ClearField(deploymentversion.FieldResources, field.TypeJSON)
+	}
+	if value, ok := dvuo.mutation.HealthPath(); ok {
+		_spec.SetField(deploymentversion.FieldHealthPath, field.TypeString, value)
+	}
+	if dvuo.mutation.HealthPathCleared() {
+		_spec.ClearField(deploymentversion.FieldHealthPath, field.TypeString)
+	}
+	if value, ok := dvuo.mutation.NodeSelector(); ok {
+		_spec.SetField(deploymentversion.FieldNodeSelector, field.TypeJSON, value)
+	}
+	if dvuo.mutation.NodeSelectorCleared() {
+		_spec.ClearField(deploymentversion.FieldNodeSelector, field.TypeJSON)
 	}
 	if value, ok := dvuo.mutation.UpdatedAt(); ok {
 		_spec.SetField(deploymentversion.FieldUpdatedAt, field.TypeTime, value)

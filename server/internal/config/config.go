@@ -32,6 +32,15 @@ type Config struct {
 	Trace      TraceConfig      `yaml:"trace"`
 	TLS        TLSConfig        `yaml:"tls"`
 	ACME       ACMEConfig       `yaml:"acme"`
+	CM         CMClientConfig   `yaml:"cm"`
+}
+
+// CMClientConfig 是 Gateway 面向 Container Manager 的下发通道配置。
+type CMClientConfig struct {
+	// BaseURL CM 内部 API 基址（如 http://cm:8100）；空则未接入 CM，下发为 no-op。
+	BaseURL string `yaml:"base_url"`
+	// Token 访问 CM 所用令牌（= CM 的 MAPLE_CM_TOKEN）。
+	Token string `yaml:"token"`
 }
 
 // ListenConfig 全局监听网卡配置：所有监听口共用同一 host，各自只配端口。
@@ -371,6 +380,12 @@ func (c *Config) applyEnv() {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.ACME.MaxRenewAttempts = n
 		}
+	}
+	if v := os.Getenv("MAPLE_CM_BASE_URL"); v != "" {
+		c.CM.BaseURL = v
+	}
+	if v := os.Getenv("MAPLE_CM_TOKEN"); v != "" {
+		c.CM.Token = v
 	}
 }
 

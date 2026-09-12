@@ -92,3 +92,8 @@ acme:
   renew_check_interval: 1h           # 续期扫描节奏
   max_renew_attempts: 5              # 连续失败上限，超过转手动告警并停止自动重试
   rate_limit_backoff: 6h             # 触发 CA 限流后的最小重试间隔
+
+# ---- Container Manager 下发通道（控制下行，Gateway → CM） ----
+cm:
+  base_url: ""                       # CM 内部 API 基址（如 http://cm:8100）；空则未接入 CM，下发为 no-op
+  token: ""                          # 访问 CM 所用令牌（= CM 的 MAPLE_CM_TOKEN）；建议 MAPLE_CM_TOKEN 注入

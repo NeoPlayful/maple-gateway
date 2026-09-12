@@ -7861,6 +7861,15 @@ type DeploymentVersionMutation struct {
 	weight            *int
 	addweight         *int
 	status            *string
+	replicas          *int
+	addreplicas       *int
+	port              *int
+	addport           *int
+	env               *map[string]string
+	resources         *json.RawMessage
+	appendresources   json.RawMessage
+	health_path       *string
+	node_selector     *map[string]string
 	created_at        *time.Time
 	updated_at        *time.Time
 	clearedFields     map[string]struct{}
@@ -8188,6 +8197,344 @@ func (m *DeploymentVersionMutation) ResetStatus() {
 	m.status = nil
 }
 
+// SetReplicas sets the "replicas" field.
+func (m *DeploymentVersionMutation) SetReplicas(i int) {
+	m.replicas = &i
+	m.addreplicas = nil
+}
+
+// Replicas returns the value of the "replicas" field in the mutation.
+func (m *DeploymentVersionMutation) Replicas() (r int, exists bool) {
+	v := m.replicas
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReplicas returns the old "replicas" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldReplicas(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReplicas is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReplicas requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReplicas: %w", err)
+	}
+	return oldValue.Replicas, nil
+}
+
+// AddReplicas adds i to the "replicas" field.
+func (m *DeploymentVersionMutation) AddReplicas(i int) {
+	if m.addreplicas != nil {
+		*m.addreplicas += i
+	} else {
+		m.addreplicas = &i
+	}
+}
+
+// AddedReplicas returns the value that was added to the "replicas" field in this mutation.
+func (m *DeploymentVersionMutation) AddedReplicas() (r int, exists bool) {
+	v := m.addreplicas
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetReplicas resets all changes to the "replicas" field.
+func (m *DeploymentVersionMutation) ResetReplicas() {
+	m.replicas = nil
+	m.addreplicas = nil
+}
+
+// SetPort sets the "port" field.
+func (m *DeploymentVersionMutation) SetPort(i int) {
+	m.port = &i
+	m.addport = nil
+}
+
+// Port returns the value of the "port" field in the mutation.
+func (m *DeploymentVersionMutation) Port() (r int, exists bool) {
+	v := m.port
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPort returns the old "port" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldPort(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPort is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPort requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPort: %w", err)
+	}
+	return oldValue.Port, nil
+}
+
+// AddPort adds i to the "port" field.
+func (m *DeploymentVersionMutation) AddPort(i int) {
+	if m.addport != nil {
+		*m.addport += i
+	} else {
+		m.addport = &i
+	}
+}
+
+// AddedPort returns the value that was added to the "port" field in this mutation.
+func (m *DeploymentVersionMutation) AddedPort() (r int, exists bool) {
+	v := m.addport
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPort clears the value of the "port" field.
+func (m *DeploymentVersionMutation) ClearPort() {
+	m.port = nil
+	m.addport = nil
+	m.clearedFields[deploymentversion.FieldPort] = struct{}{}
+}
+
+// PortCleared returns if the "port" field was cleared in this mutation.
+func (m *DeploymentVersionMutation) PortCleared() bool {
+	_, ok := m.clearedFields[deploymentversion.FieldPort]
+	return ok
+}
+
+// ResetPort resets all changes to the "port" field.
+func (m *DeploymentVersionMutation) ResetPort() {
+	m.port = nil
+	m.addport = nil
+	delete(m.clearedFields, deploymentversion.FieldPort)
+}
+
+// SetEnv sets the "env" field.
+func (m *DeploymentVersionMutation) SetEnv(value map[string]string) {
+	m.env = &value
+}
+
+// Env returns the value of the "env" field in the mutation.
+func (m *DeploymentVersionMutation) Env() (r map[string]string, exists bool) {
+	v := m.env
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnv returns the old "env" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldEnv(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnv is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnv requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnv: %w", err)
+	}
+	return oldValue.Env, nil
+}
+
+// ClearEnv clears the value of the "env" field.
+func (m *DeploymentVersionMutation) ClearEnv() {
+	m.env = nil
+	m.clearedFields[deploymentversion.FieldEnv] = struct{}{}
+}
+
+// EnvCleared returns if the "env" field was cleared in this mutation.
+func (m *DeploymentVersionMutation) EnvCleared() bool {
+	_, ok := m.clearedFields[deploymentversion.FieldEnv]
+	return ok
+}
+
+// ResetEnv resets all changes to the "env" field.
+func (m *DeploymentVersionMutation) ResetEnv() {
+	m.env = nil
+	delete(m.clearedFields, deploymentversion.FieldEnv)
+}
+
+// SetResources sets the "resources" field.
+func (m *DeploymentVersionMutation) SetResources(jm json.RawMessage) {
+	m.resources = &jm
+	m.appendresources = nil
+}
+
+// Resources returns the value of the "resources" field in the mutation.
+func (m *DeploymentVersionMutation) Resources() (r json.RawMessage, exists bool) {
+	v := m.resources
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResources returns the old "resources" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldResources(ctx context.Context) (v json.RawMessage, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResources is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResources requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResources: %w", err)
+	}
+	return oldValue.Resources, nil
+}
+
+// AppendResources adds jm to the "resources" field.
+func (m *DeploymentVersionMutation) AppendResources(jm json.RawMessage) {
+	m.appendresources = append(m.appendresources, jm...)
+}
+
+// AppendedResources returns the list of values that were appended to the "resources" field in this mutation.
+func (m *DeploymentVersionMutation) AppendedResources() (json.RawMessage, bool) {
+	if len(m.appendresources) == 0 {
+		return nil, false
+	}
+	return m.appendresources, true
+}
+
+// ClearResources clears the value of the "resources" field.
+func (m *DeploymentVersionMutation) ClearResources() {
+	m.resources = nil
+	m.appendresources = nil
+	m.clearedFields[deploymentversion.FieldResources] = struct{}{}
+}
+
+// ResourcesCleared returns if the "resources" field was cleared in this mutation.
+func (m *DeploymentVersionMutation) ResourcesCleared() bool {
+	_, ok := m.clearedFields[deploymentversion.FieldResources]
+	return ok
+}
+
+// ResetResources resets all changes to the "resources" field.
+func (m *DeploymentVersionMutation) ResetResources() {
+	m.resources = nil
+	m.appendresources = nil
+	delete(m.clearedFields, deploymentversion.FieldResources)
+}
+
+// SetHealthPath sets the "health_path" field.
+func (m *DeploymentVersionMutation) SetHealthPath(s string) {
+	m.health_path = &s
+}
+
+// HealthPath returns the value of the "health_path" field in the mutation.
+func (m *DeploymentVersionMutation) HealthPath() (r string, exists bool) {
+	v := m.health_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHealthPath returns the old "health_path" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldHealthPath(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHealthPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHealthPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHealthPath: %w", err)
+	}
+	return oldValue.HealthPath, nil
+}
+
+// ClearHealthPath clears the value of the "health_path" field.
+func (m *DeploymentVersionMutation) ClearHealthPath() {
+	m.health_path = nil
+	m.clearedFields[deploymentversion.FieldHealthPath] = struct{}{}
+}
+
+// HealthPathCleared returns if the "health_path" field was cleared in this mutation.
+func (m *DeploymentVersionMutation) HealthPathCleared() bool {
+	_, ok := m.clearedFields[deploymentversion.FieldHealthPath]
+	return ok
+}
+
+// ResetHealthPath resets all changes to the "health_path" field.
+func (m *DeploymentVersionMutation) ResetHealthPath() {
+	m.health_path = nil
+	delete(m.clearedFields, deploymentversion.FieldHealthPath)
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (m *DeploymentVersionMutation) SetNodeSelector(value map[string]string) {
+	m.node_selector = &value
+}
+
+// NodeSelector returns the value of the "node_selector" field in the mutation.
+func (m *DeploymentVersionMutation) NodeSelector() (r map[string]string, exists bool) {
+	v := m.node_selector
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNodeSelector returns the old "node_selector" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldNodeSelector(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNodeSelector is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNodeSelector requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNodeSelector: %w", err)
+	}
+	return oldValue.NodeSelector, nil
+}
+
+// ClearNodeSelector clears the value of the "node_selector" field.
+func (m *DeploymentVersionMutation) ClearNodeSelector() {
+	m.node_selector = nil
+	m.clearedFields[deploymentversion.FieldNodeSelector] = struct{}{}
+}
+
+// NodeSelectorCleared returns if the "node_selector" field was cleared in this mutation.
+func (m *DeploymentVersionMutation) NodeSelectorCleared() bool {
+	_, ok := m.clearedFields[deploymentversion.FieldNodeSelector]
+	return ok
+}
+
+// ResetNodeSelector resets all changes to the "node_selector" field.
+func (m *DeploymentVersionMutation) ResetNodeSelector() {
+	m.node_selector = nil
+	delete(m.clearedFields, deploymentversion.FieldNodeSelector)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *DeploymentVersionMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -8321,7 +8668,7 @@ func (m *DeploymentVersionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeploymentVersionMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 13)
 	if m.deployment != nil {
 		fields = append(fields, deploymentversion.FieldDeploymentID)
 	}
@@ -8336,6 +8683,24 @@ func (m *DeploymentVersionMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, deploymentversion.FieldStatus)
+	}
+	if m.replicas != nil {
+		fields = append(fields, deploymentversion.FieldReplicas)
+	}
+	if m.port != nil {
+		fields = append(fields, deploymentversion.FieldPort)
+	}
+	if m.env != nil {
+		fields = append(fields, deploymentversion.FieldEnv)
+	}
+	if m.resources != nil {
+		fields = append(fields, deploymentversion.FieldResources)
+	}
+	if m.health_path != nil {
+		fields = append(fields, deploymentversion.FieldHealthPath)
+	}
+	if m.node_selector != nil {
+		fields = append(fields, deploymentversion.FieldNodeSelector)
 	}
 	if m.created_at != nil {
 		fields = append(fields, deploymentversion.FieldCreatedAt)
@@ -8361,6 +8726,18 @@ func (m *DeploymentVersionMutation) Field(name string) (ent.Value, bool) {
 		return m.Weight()
 	case deploymentversion.FieldStatus:
 		return m.Status()
+	case deploymentversion.FieldReplicas:
+		return m.Replicas()
+	case deploymentversion.FieldPort:
+		return m.Port()
+	case deploymentversion.FieldEnv:
+		return m.Env()
+	case deploymentversion.FieldResources:
+		return m.Resources()
+	case deploymentversion.FieldHealthPath:
+		return m.HealthPath()
+	case deploymentversion.FieldNodeSelector:
+		return m.NodeSelector()
 	case deploymentversion.FieldCreatedAt:
 		return m.CreatedAt()
 	case deploymentversion.FieldUpdatedAt:
@@ -8384,6 +8761,18 @@ func (m *DeploymentVersionMutation) OldField(ctx context.Context, name string) (
 		return m.OldWeight(ctx)
 	case deploymentversion.FieldStatus:
 		return m.OldStatus(ctx)
+	case deploymentversion.FieldReplicas:
+		return m.OldReplicas(ctx)
+	case deploymentversion.FieldPort:
+		return m.OldPort(ctx)
+	case deploymentversion.FieldEnv:
+		return m.OldEnv(ctx)
+	case deploymentversion.FieldResources:
+		return m.OldResources(ctx)
+	case deploymentversion.FieldHealthPath:
+		return m.OldHealthPath(ctx)
+	case deploymentversion.FieldNodeSelector:
+		return m.OldNodeSelector(ctx)
 	case deploymentversion.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case deploymentversion.FieldUpdatedAt:
@@ -8432,6 +8821,48 @@ func (m *DeploymentVersionMutation) SetField(name string, value ent.Value) error
 		}
 		m.SetStatus(v)
 		return nil
+	case deploymentversion.FieldReplicas:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReplicas(v)
+		return nil
+	case deploymentversion.FieldPort:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPort(v)
+		return nil
+	case deploymentversion.FieldEnv:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnv(v)
+		return nil
+	case deploymentversion.FieldResources:
+		v, ok := value.(json.RawMessage)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResources(v)
+		return nil
+	case deploymentversion.FieldHealthPath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHealthPath(v)
+		return nil
+	case deploymentversion.FieldNodeSelector:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNodeSelector(v)
+		return nil
 	case deploymentversion.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -8457,6 +8888,12 @@ func (m *DeploymentVersionMutation) AddedFields() []string {
 	if m.addweight != nil {
 		fields = append(fields, deploymentversion.FieldWeight)
 	}
+	if m.addreplicas != nil {
+		fields = append(fields, deploymentversion.FieldReplicas)
+	}
+	if m.addport != nil {
+		fields = append(fields, deploymentversion.FieldPort)
+	}
 	return fields
 }
 
@@ -8467,6 +8904,10 @@ func (m *DeploymentVersionMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case deploymentversion.FieldWeight:
 		return m.AddedWeight()
+	case deploymentversion.FieldReplicas:
+		return m.AddedReplicas()
+	case deploymentversion.FieldPort:
+		return m.AddedPort()
 	}
 	return nil, false
 }
@@ -8483,6 +8924,20 @@ func (m *DeploymentVersionMutation) AddField(name string, value ent.Value) error
 		}
 		m.AddWeight(v)
 		return nil
+	case deploymentversion.FieldReplicas:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddReplicas(v)
+		return nil
+	case deploymentversion.FieldPort:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPort(v)
+		return nil
 	}
 	return fmt.Errorf("unknown DeploymentVersion numeric field %s", name)
 }
@@ -8493,6 +8948,21 @@ func (m *DeploymentVersionMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(deploymentversion.FieldImage) {
 		fields = append(fields, deploymentversion.FieldImage)
+	}
+	if m.FieldCleared(deploymentversion.FieldPort) {
+		fields = append(fields, deploymentversion.FieldPort)
+	}
+	if m.FieldCleared(deploymentversion.FieldEnv) {
+		fields = append(fields, deploymentversion.FieldEnv)
+	}
+	if m.FieldCleared(deploymentversion.FieldResources) {
+		fields = append(fields, deploymentversion.FieldResources)
+	}
+	if m.FieldCleared(deploymentversion.FieldHealthPath) {
+		fields = append(fields, deploymentversion.FieldHealthPath)
+	}
+	if m.FieldCleared(deploymentversion.FieldNodeSelector) {
+		fields = append(fields, deploymentversion.FieldNodeSelector)
 	}
 	return fields
 }
@@ -8510,6 +8980,21 @@ func (m *DeploymentVersionMutation) ClearField(name string) error {
 	switch name {
 	case deploymentversion.FieldImage:
 		m.ClearImage()
+		return nil
+	case deploymentversion.FieldPort:
+		m.ClearPort()
+		return nil
+	case deploymentversion.FieldEnv:
+		m.ClearEnv()
+		return nil
+	case deploymentversion.FieldResources:
+		m.ClearResources()
+		return nil
+	case deploymentversion.FieldHealthPath:
+		m.ClearHealthPath()
+		return nil
+	case deploymentversion.FieldNodeSelector:
+		m.ClearNodeSelector()
 		return nil
 	}
 	return fmt.Errorf("unknown DeploymentVersion nullable field %s", name)
@@ -8533,6 +9018,24 @@ func (m *DeploymentVersionMutation) ResetField(name string) error {
 		return nil
 	case deploymentversion.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case deploymentversion.FieldReplicas:
+		m.ResetReplicas()
+		return nil
+	case deploymentversion.FieldPort:
+		m.ResetPort()
+		return nil
+	case deploymentversion.FieldEnv:
+		m.ResetEnv()
+		return nil
+	case deploymentversion.FieldResources:
+		m.ResetResources()
+		return nil
+	case deploymentversion.FieldHealthPath:
+		m.ResetHealthPath()
+		return nil
+	case deploymentversion.FieldNodeSelector:
+		m.ResetNodeSelector()
 		return nil
 	case deploymentversion.FieldCreatedAt:
 		m.ResetCreatedAt()

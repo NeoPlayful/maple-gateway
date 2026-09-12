@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -76,6 +77,66 @@ func (dvc *DeploymentVersionCreate) SetNillableStatus(s *string) *DeploymentVers
 	if s != nil {
 		dvc.SetStatus(*s)
 	}
+	return dvc
+}
+
+// SetReplicas sets the "replicas" field.
+func (dvc *DeploymentVersionCreate) SetReplicas(i int) *DeploymentVersionCreate {
+	dvc.mutation.SetReplicas(i)
+	return dvc
+}
+
+// SetNillableReplicas sets the "replicas" field if the given value is not nil.
+func (dvc *DeploymentVersionCreate) SetNillableReplicas(i *int) *DeploymentVersionCreate {
+	if i != nil {
+		dvc.SetReplicas(*i)
+	}
+	return dvc
+}
+
+// SetPort sets the "port" field.
+func (dvc *DeploymentVersionCreate) SetPort(i int) *DeploymentVersionCreate {
+	dvc.mutation.SetPort(i)
+	return dvc
+}
+
+// SetNillablePort sets the "port" field if the given value is not nil.
+func (dvc *DeploymentVersionCreate) SetNillablePort(i *int) *DeploymentVersionCreate {
+	if i != nil {
+		dvc.SetPort(*i)
+	}
+	return dvc
+}
+
+// SetEnv sets the "env" field.
+func (dvc *DeploymentVersionCreate) SetEnv(m map[string]string) *DeploymentVersionCreate {
+	dvc.mutation.SetEnv(m)
+	return dvc
+}
+
+// SetResources sets the "resources" field.
+func (dvc *DeploymentVersionCreate) SetResources(jm json.RawMessage) *DeploymentVersionCreate {
+	dvc.mutation.SetResources(jm)
+	return dvc
+}
+
+// SetHealthPath sets the "health_path" field.
+func (dvc *DeploymentVersionCreate) SetHealthPath(s string) *DeploymentVersionCreate {
+	dvc.mutation.SetHealthPath(s)
+	return dvc
+}
+
+// SetNillableHealthPath sets the "health_path" field if the given value is not nil.
+func (dvc *DeploymentVersionCreate) SetNillableHealthPath(s *string) *DeploymentVersionCreate {
+	if s != nil {
+		dvc.SetHealthPath(*s)
+	}
+	return dvc
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (dvc *DeploymentVersionCreate) SetNodeSelector(m map[string]string) *DeploymentVersionCreate {
+	dvc.mutation.SetNodeSelector(m)
 	return dvc
 }
 
@@ -157,6 +218,18 @@ func (dvc *DeploymentVersionCreate) defaults() {
 		v := deploymentversion.DefaultStatus
 		dvc.mutation.SetStatus(v)
 	}
+	if _, ok := dvc.mutation.Replicas(); !ok {
+		v := deploymentversion.DefaultReplicas
+		dvc.mutation.SetReplicas(v)
+	}
+	if _, ok := dvc.mutation.Port(); !ok {
+		v := deploymentversion.DefaultPort
+		dvc.mutation.SetPort(v)
+	}
+	if _, ok := dvc.mutation.HealthPath(); !ok {
+		v := deploymentversion.DefaultHealthPath
+		dvc.mutation.SetHealthPath(v)
+	}
 	if _, ok := dvc.mutation.ID(); !ok {
 		v := deploymentversion.DefaultID()
 		dvc.mutation.SetID(v)
@@ -181,6 +254,9 @@ func (dvc *DeploymentVersionCreate) check() error {
 	}
 	if _, ok := dvc.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "DeploymentVersion.status"`)}
+	}
+	if _, ok := dvc.mutation.Replicas(); !ok {
+		return &ValidationError{Name: "replicas", err: errors.New(`ent: missing required field "DeploymentVersion.replicas"`)}
 	}
 	if _, ok := dvc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "DeploymentVersion.created_at"`)}
@@ -242,6 +318,30 @@ func (dvc *DeploymentVersionCreate) createSpec() (*DeploymentVersion, *sqlgraph.
 	if value, ok := dvc.mutation.Status(); ok {
 		_spec.SetField(deploymentversion.FieldStatus, field.TypeString, value)
 		_node.Status = value
+	}
+	if value, ok := dvc.mutation.Replicas(); ok {
+		_spec.SetField(deploymentversion.FieldReplicas, field.TypeInt, value)
+		_node.Replicas = value
+	}
+	if value, ok := dvc.mutation.Port(); ok {
+		_spec.SetField(deploymentversion.FieldPort, field.TypeInt, value)
+		_node.Port = value
+	}
+	if value, ok := dvc.mutation.Env(); ok {
+		_spec.SetField(deploymentversion.FieldEnv, field.TypeJSON, value)
+		_node.Env = value
+	}
+	if value, ok := dvc.mutation.Resources(); ok {
+		_spec.SetField(deploymentversion.FieldResources, field.TypeJSON, value)
+		_node.Resources = value
+	}
+	if value, ok := dvc.mutation.HealthPath(); ok {
+		_spec.SetField(deploymentversion.FieldHealthPath, field.TypeString, value)
+		_node.HealthPath = value
+	}
+	if value, ok := dvc.mutation.NodeSelector(); ok {
+		_spec.SetField(deploymentversion.FieldNodeSelector, field.TypeJSON, value)
+		_node.NodeSelector = value
 	}
 	if value, ok := dvc.mutation.CreatedAt(); ok {
 		_spec.SetField(deploymentversion.FieldCreatedAt, field.TypeTime, value)
@@ -392,6 +492,120 @@ func (u *DeploymentVersionUpsert) UpdateStatus() *DeploymentVersionUpsert {
 	return u
 }
 
+// SetReplicas sets the "replicas" field.
+func (u *DeploymentVersionUpsert) SetReplicas(v int) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldReplicas, v)
+	return u
+}
+
+// UpdateReplicas sets the "replicas" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateReplicas() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldReplicas)
+	return u
+}
+
+// AddReplicas adds v to the "replicas" field.
+func (u *DeploymentVersionUpsert) AddReplicas(v int) *DeploymentVersionUpsert {
+	u.Add(deploymentversion.FieldReplicas, v)
+	return u
+}
+
+// SetPort sets the "port" field.
+func (u *DeploymentVersionUpsert) SetPort(v int) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldPort, v)
+	return u
+}
+
+// UpdatePort sets the "port" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdatePort() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldPort)
+	return u
+}
+
+// AddPort adds v to the "port" field.
+func (u *DeploymentVersionUpsert) AddPort(v int) *DeploymentVersionUpsert {
+	u.Add(deploymentversion.FieldPort, v)
+	return u
+}
+
+// ClearPort clears the value of the "port" field.
+func (u *DeploymentVersionUpsert) ClearPort() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldPort)
+	return u
+}
+
+// SetEnv sets the "env" field.
+func (u *DeploymentVersionUpsert) SetEnv(v map[string]string) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldEnv, v)
+	return u
+}
+
+// UpdateEnv sets the "env" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateEnv() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldEnv)
+	return u
+}
+
+// ClearEnv clears the value of the "env" field.
+func (u *DeploymentVersionUpsert) ClearEnv() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldEnv)
+	return u
+}
+
+// SetResources sets the "resources" field.
+func (u *DeploymentVersionUpsert) SetResources(v json.RawMessage) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldResources, v)
+	return u
+}
+
+// UpdateResources sets the "resources" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateResources() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldResources)
+	return u
+}
+
+// ClearResources clears the value of the "resources" field.
+func (u *DeploymentVersionUpsert) ClearResources() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldResources)
+	return u
+}
+
+// SetHealthPath sets the "health_path" field.
+func (u *DeploymentVersionUpsert) SetHealthPath(v string) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldHealthPath, v)
+	return u
+}
+
+// UpdateHealthPath sets the "health_path" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateHealthPath() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldHealthPath)
+	return u
+}
+
+// ClearHealthPath clears the value of the "health_path" field.
+func (u *DeploymentVersionUpsert) ClearHealthPath() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldHealthPath)
+	return u
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (u *DeploymentVersionUpsert) SetNodeSelector(v map[string]string) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldNodeSelector, v)
+	return u
+}
+
+// UpdateNodeSelector sets the "node_selector" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateNodeSelector() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldNodeSelector)
+	return u
+}
+
+// ClearNodeSelector clears the value of the "node_selector" field.
+func (u *DeploymentVersionUpsert) ClearNodeSelector() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldNodeSelector)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *DeploymentVersionUpsert) SetUpdatedAt(v time.Time) *DeploymentVersionUpsert {
 	u.Set(deploymentversion.FieldUpdatedAt, v)
@@ -536,6 +750,139 @@ func (u *DeploymentVersionUpsertOne) SetStatus(v string) *DeploymentVersionUpser
 func (u *DeploymentVersionUpsertOne) UpdateStatus() *DeploymentVersionUpsertOne {
 	return u.Update(func(s *DeploymentVersionUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetReplicas sets the "replicas" field.
+func (u *DeploymentVersionUpsertOne) SetReplicas(v int) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetReplicas(v)
+	})
+}
+
+// AddReplicas adds v to the "replicas" field.
+func (u *DeploymentVersionUpsertOne) AddReplicas(v int) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.AddReplicas(v)
+	})
+}
+
+// UpdateReplicas sets the "replicas" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateReplicas() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateReplicas()
+	})
+}
+
+// SetPort sets the "port" field.
+func (u *DeploymentVersionUpsertOne) SetPort(v int) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetPort(v)
+	})
+}
+
+// AddPort adds v to the "port" field.
+func (u *DeploymentVersionUpsertOne) AddPort(v int) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.AddPort(v)
+	})
+}
+
+// UpdatePort sets the "port" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdatePort() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdatePort()
+	})
+}
+
+// ClearPort clears the value of the "port" field.
+func (u *DeploymentVersionUpsertOne) ClearPort() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearPort()
+	})
+}
+
+// SetEnv sets the "env" field.
+func (u *DeploymentVersionUpsertOne) SetEnv(v map[string]string) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetEnv(v)
+	})
+}
+
+// UpdateEnv sets the "env" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateEnv() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateEnv()
+	})
+}
+
+// ClearEnv clears the value of the "env" field.
+func (u *DeploymentVersionUpsertOne) ClearEnv() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearEnv()
+	})
+}
+
+// SetResources sets the "resources" field.
+func (u *DeploymentVersionUpsertOne) SetResources(v json.RawMessage) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetResources(v)
+	})
+}
+
+// UpdateResources sets the "resources" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateResources() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateResources()
+	})
+}
+
+// ClearResources clears the value of the "resources" field.
+func (u *DeploymentVersionUpsertOne) ClearResources() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearResources()
+	})
+}
+
+// SetHealthPath sets the "health_path" field.
+func (u *DeploymentVersionUpsertOne) SetHealthPath(v string) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetHealthPath(v)
+	})
+}
+
+// UpdateHealthPath sets the "health_path" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateHealthPath() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateHealthPath()
+	})
+}
+
+// ClearHealthPath clears the value of the "health_path" field.
+func (u *DeploymentVersionUpsertOne) ClearHealthPath() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearHealthPath()
+	})
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (u *DeploymentVersionUpsertOne) SetNodeSelector(v map[string]string) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetNodeSelector(v)
+	})
+}
+
+// UpdateNodeSelector sets the "node_selector" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateNodeSelector() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateNodeSelector()
+	})
+}
+
+// ClearNodeSelector clears the value of the "node_selector" field.
+func (u *DeploymentVersionUpsertOne) ClearNodeSelector() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearNodeSelector()
 	})
 }
 
@@ -852,6 +1199,139 @@ func (u *DeploymentVersionUpsertBulk) SetStatus(v string) *DeploymentVersionUpse
 func (u *DeploymentVersionUpsertBulk) UpdateStatus() *DeploymentVersionUpsertBulk {
 	return u.Update(func(s *DeploymentVersionUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetReplicas sets the "replicas" field.
+func (u *DeploymentVersionUpsertBulk) SetReplicas(v int) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetReplicas(v)
+	})
+}
+
+// AddReplicas adds v to the "replicas" field.
+func (u *DeploymentVersionUpsertBulk) AddReplicas(v int) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.AddReplicas(v)
+	})
+}
+
+// UpdateReplicas sets the "replicas" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateReplicas() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateReplicas()
+	})
+}
+
+// SetPort sets the "port" field.
+func (u *DeploymentVersionUpsertBulk) SetPort(v int) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetPort(v)
+	})
+}
+
+// AddPort adds v to the "port" field.
+func (u *DeploymentVersionUpsertBulk) AddPort(v int) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.AddPort(v)
+	})
+}
+
+// UpdatePort sets the "port" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdatePort() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdatePort()
+	})
+}
+
+// ClearPort clears the value of the "port" field.
+func (u *DeploymentVersionUpsertBulk) ClearPort() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearPort()
+	})
+}
+
+// SetEnv sets the "env" field.
+func (u *DeploymentVersionUpsertBulk) SetEnv(v map[string]string) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetEnv(v)
+	})
+}
+
+// UpdateEnv sets the "env" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateEnv() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateEnv()
+	})
+}
+
+// ClearEnv clears the value of the "env" field.
+func (u *DeploymentVersionUpsertBulk) ClearEnv() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearEnv()
+	})
+}
+
+// SetResources sets the "resources" field.
+func (u *DeploymentVersionUpsertBulk) SetResources(v json.RawMessage) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetResources(v)
+	})
+}
+
+// UpdateResources sets the "resources" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateResources() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateResources()
+	})
+}
+
+// ClearResources clears the value of the "resources" field.
+func (u *DeploymentVersionUpsertBulk) ClearResources() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearResources()
+	})
+}
+
+// SetHealthPath sets the "health_path" field.
+func (u *DeploymentVersionUpsertBulk) SetHealthPath(v string) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetHealthPath(v)
+	})
+}
+
+// UpdateHealthPath sets the "health_path" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateHealthPath() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateHealthPath()
+	})
+}
+
+// ClearHealthPath clears the value of the "health_path" field.
+func (u *DeploymentVersionUpsertBulk) ClearHealthPath() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearHealthPath()
+	})
+}
+
+// SetNodeSelector sets the "node_selector" field.
+func (u *DeploymentVersionUpsertBulk) SetNodeSelector(v map[string]string) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetNodeSelector(v)
+	})
+}
+
+// UpdateNodeSelector sets the "node_selector" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateNodeSelector() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateNodeSelector()
+	})
+}
+
+// ClearNodeSelector clears the value of the "node_selector" field.
+func (u *DeploymentVersionUpsertBulk) ClearNodeSelector() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearNodeSelector()
 	})
 }
 

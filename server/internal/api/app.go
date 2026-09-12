@@ -13,6 +13,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
+	"github.com/NeoPlayful/maple-gateway/server/internal/cmclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/dashboard"
 	"github.com/NeoPlayful/maple-gateway/server/internal/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
@@ -46,6 +47,8 @@ type Deps struct {
 	Series       dashboard.SeriesReader      // 可空；提供 Dashboard 趋势时序数据
 	HA           *ha.Handler                 // 可空；提供 Gateway 自身实例（HA）查看
 	Certificates *certificate.Handler        // 可空；提供 Direct TLS 证书管理（需 MAPLE_CERT_ENC_KEY）
+	CMClient     *cmclient.Client            // 可空；接入 CM 后由 Leader 下发部署意图
+	IsLeader     func() bool                 // 可空；下发前判定本进程是否 Leader（nil 视为单实例）
 	UIDir        string                      // 可空；管理后台前端产物目录（dist），空则不托管 UI
 }
 
@@ -105,15 +108,23 @@ func New(d Deps) *fiber.App {
 	us.Patch("/:id/status", usersH.ToggleStatus)
 
 	// Internal API：Container Manager / Node Agent 状态上报，独立 MAPLE_INTERNAL_TOKEN 认证。
+	// 规范路径定稿 /api/internal/*；/api/internal/discovery/* 作为旧路径保留一个版本过渡（deprecated）。
 	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent))
-	internal := app.Group("/api/internal/discovery", discovery.Middleware())
-	internal.Post("/nodes/register", disc.RegisterNode)
-	internal.Post("/nodes/:id/heartbeat", disc.HeartbeatNode)
-	internal.Post("/instances/register", disc.RegisterInstance)
-	internal.Patch("/instances/:id", disc.UpdateInstance)
-	internal.Delete("/instances/:id", disc.DeleteInstance)
-	internal.Post("/instances/:id/health", disc.ReportHealth)
-	internal.Post("/sync", disc.Sync)
+	registerInternal := func(g fiber.Router) {
+		g.Post("/nodes/register", disc.RegisterNode)
+		g.Patch("/nodes/:id", disc.UpdateNode)
+		g.Delete("/nodes/:id", disc.DeleteNode)
+		g.Post("/nodes/:id/heartbeat", disc.HeartbeatNode)
+		g.Post("/instances/register", disc.RegisterInstance)
+		g.Patch("/instances/:id", disc.UpdateInstance)
+		g.Delete("/instances/:id", disc.DeleteInstance)
+		g.Post("/instances/:id/heartbeat", disc.HeartbeatInstance)
+		g.Post("/instances/:id/health", disc.ReportHealth)
+		g.Post("/instances/:id/drain", disc.DrainInstance)
+		g.Post("/sync", disc.Sync)
+	}
+	registerInternal(app.Group("/api/internal", discovery.Middleware()))
+	registerInternal(app.Group("/api/internal/discovery", discovery.Middleware()))
 
 	// 业务模块 CRUD。
 	tenantH := tenant.NewHandler(tenant.NewRepository(d.Ent))
@@ -182,6 +193,9 @@ func New(d Deps) *fiber.App {
 	}
 
 	deployH := deployment.NewHandler(deployment.NewRepository(d.Ent))
+	if d.CMClient != nil && d.CMClient.Enabled() {
+		deployH = deployH.WithPusher(d.CMClient, d.IsLeader)
+	}
 	dpl := admin.Group("/deployments")
 	dpl.Get("/", deployH.ListDeployments)
 	dpl.Post("/", deployH.CreateDeployment)

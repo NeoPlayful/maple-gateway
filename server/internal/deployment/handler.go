@@ -1,21 +1,74 @@
 package deployment
 
 import (
+	"context"
 	"strconv"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/cmclient"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
+// DeployPusher 是 Gateway 面向 Container Manager 的下发接口（由 cmclient.Client 实现）。
+// 为 nil 时不下发（未接入 CM）。
+type DeployPusher interface {
+	PushDeploy(ctx context.Context, in cmclient.DesiredState) error
+	StopDeploy(ctx context.Context, deploymentID uuid.UUID) error
+}
+
 // Handler 暴露 Deployment / Version 的 Management API。
 type Handler struct {
-	repo *Repository
+	repo   *Repository
+	pusher DeployPusher // 可空；接入 CM 后由 Leader 下发部署意图
+	leader func() bool  // 可空；nil 视为单实例（始终为 leader）
 }
 
 // NewHandler 构造。
 func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// WithPusher 注入 CM 下发通道与 Leader 判定。pusher 为 nil 表示未接入 CM。
+func (h *Handler) WithPusher(pusher DeployPusher, leader func() bool) *Handler {
+	h.pusher = pusher
+	h.leader = leader
+	return h
+}
+
+// isLeader 报告本进程是否应执行下发；未注入判定时视为单实例 leader。
+func (h *Handler) isLeader() bool {
+	return h.leader == nil || h.leader()
+}
+
+// pushVersion 在版本规格可下发时（有 image）由 Leader 推送期望态给 CM。
+// 下发失败仅记日志、不回滚版本变更：配置已落库，CM 侧对账会收敛。
+func (h *Handler) pushVersion(c fiber.Ctx, v *Version, strategy string) {
+	if h.pusher == nil || v == nil || v.Image == "" || !h.isLeader() {
+		return
+	}
+	dep, err := h.repo.GetDeployment(c.Context(), v.DeploymentID)
+	if err != nil {
+		return
+	}
+	in := cmclient.DesiredState{
+		DeploymentID: v.DeploymentID,
+		ServiceID:    dep.ServiceID,
+		VersionID:    v.ID,
+		Version:      v.Version,
+		Status:       string(v.Status),
+		Image:        v.Image,
+		Replicas:     v.Replicas,
+		Port:         v.Port,
+		Env:          v.Env,
+		Resources:    v.Resources,
+		HealthPath:   v.HealthPath,
+		NodeSelector: v.NodeSelector,
+		Strategy:     strategy,
+	}
+	if err := h.pusher.PushDeploy(c.Context(), in); err != nil {
+		pkg.Log().Warn("push deployment intent to cm failed: " + err.Error())
+	}
 }
 
 func parseID(c fiber.Ctx, name string) (uuid.UUID, error) {
@@ -131,6 +184,12 @@ func (h *Handler) setDeploymentStatus(c fiber.Ctx, s Status) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
+	// 停止部署：通知 CM 摘除该部署下的容器（仅 Leader 下发）。
+	if s == StatusStopped && h.pusher != nil && h.isLeader() {
+		if err := h.pusher.StopDeploy(c.Context(), id); err != nil {
+			pkg.Log().Warn("stop deployment intent to cm failed: " + err.Error())
+		}
+	}
 	return pkg.OK(c, d)
 }
 
@@ -166,6 +225,7 @@ func (h *Handler) CreateVersion(c fiber.Ctx) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
+	h.pushVersion(c, v, "")
 	return pkg.OK(c, v)
 }
 
@@ -196,6 +256,7 @@ func (h *Handler) UpdateVersion(c fiber.Ctx) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
+	h.pushVersion(c, v, "")
 	return pkg.OK(c, v)
 }
 

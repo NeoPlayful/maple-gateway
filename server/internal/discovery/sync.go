@@ -138,7 +138,11 @@ func (h *Handler) syncInstances(c fiber.Ctx, nodeID uuid.UUID, items []SyncInsta
 	for _, it := range items {
 		key := fmt.Sprintf("%s:%d", it.Address, it.Port)
 		if e, ok := seen[it.ServiceID][key]; ok {
-			// 已存在：仅当上报归属不同 node 时挂载该节点（幂等刷新），不重复建。
+			// 已存在：先刷新"最后被 CM 看见"时间（上报即心跳）。
+			if _, err := h.instances.Heartbeat(ctx, e.ID); err != nil {
+				return pkg.Err(c, err)
+			}
+			// 仅当上报归属不同 node 时挂载该节点（幂等刷新），不重复建。
 			if e.NodeID == nil || *e.NodeID != nodeID {
 				_, err := h.instances.Mount(ctx, e.ID, instance.Mount{NodeID: &nodeID})
 				if err != nil {

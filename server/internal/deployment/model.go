@@ -2,6 +2,7 @@
 package deployment
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -64,27 +65,45 @@ const (
 
 // Version 是分流的最小单元。
 type Version struct {
-	ID           uuid.UUID     `json:"id"`
-	DeploymentID uuid.UUID     `json:"deployment_id"`
-	Version      string        `json:"version"`
-	Image        string        `json:"image,omitempty"`
-	Weight       int           `json:"weight"`
-	Status       VersionStatus `json:"status"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID           uuid.UUID       `json:"id"`
+	DeploymentID uuid.UUID       `json:"deployment_id"`
+	Version      string          `json:"version"`
+	Image        string          `json:"image,omitempty"`
+	Weight       int             `json:"weight"`
+	Status       VersionStatus   `json:"status"`
+	Replicas     int             `json:"replicas"`
+	Port         int             `json:"port,omitempty"`
+	Env          map[string]string `json:"env,omitempty"`
+	Resources    json.RawMessage `json:"resources,omitempty"`
+	HealthPath   string          `json:"health_path,omitempty"`
+	NodeSelector map[string]string `json:"node_selector,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 // NewVersion 创建版本输入。
 type NewVersion struct {
-	Version string        `json:"version" validate:"required,min=1,max=64"`
-	Image   string        `json:"image" validate:"max=255"`
-	Weight  int           `json:"weight" validate:"min=0,max=1000"`
-	Status  VersionStatus `json:"status" validate:"omitempty,oneof=stable standby canary inactive"`
+	Version      string            `json:"version" validate:"required,min=1,max=64"`
+	Image        string            `json:"image" validate:"max=255"`
+	Weight       int               `json:"weight" validate:"min=0,max=1000"`
+	Status       VersionStatus     `json:"status" validate:"omitempty,oneof=stable standby canary inactive"`
+	Replicas     int               `json:"replicas" validate:"min=0,max=1000"`
+	Port         int               `json:"port" validate:"min=0,max=65535"`
+	Env          map[string]string `json:"env"`
+	Resources    json.RawMessage   `json:"resources"`
+	HealthPath   string            `json:"health_path" validate:"max=255"`
+	NodeSelector map[string]string `json:"node_selector"`
 }
 
 // UpdateVersion 可修改字段。
 type UpdateVersion struct {
-	Image  *string        `json:"image"`
-	Weight *int           `json:"weight"`
-	Status *VersionStatus `json:"status"`
+	Image        *string           `json:"image"`
+	Weight       *int              `json:"weight"`
+	Status       *VersionStatus    `json:"status"`
+	Replicas     *int              `json:"replicas"`
+	Port         *int              `json:"port"`
+	Env          map[string]string `json:"env"`
+	Resources    json.RawMessage   `json:"resources"`
+	HealthPath   *string           `json:"health_path"`
+	NodeSelector map[string]string `json:"node_selector"`
 }

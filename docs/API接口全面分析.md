@@ -223,23 +223,31 @@ Maple Gateway 保存流量路由需要的 Node 状态。
 
 # 十、Service Discovery
 
-用于 Container Manager 与 Maple Gateway 同步运行状态。
+用于 Container Manager 与 Maple Gateway 同步运行状态（状态上行）。
+
+规范路径定稿为 `/api/internal/*`；旧 `/api/internal/discovery/*` 保留一个版本过渡（deprecated）。
+认证：`Authorization: Bearer <MAPLE_INTERNAL_TOKEN>`。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/internal/discovery/nodes/register` | 注册 Node |
-| POST | `/api/internal/discovery/nodes/:id/heartbeat` | Node 心跳 |
-| POST | `/api/internal/discovery/instances/register` | 注册 Instance |
-| PATCH | `/api/internal/discovery/instances/:id` | 更新 Instance |
-| DELETE | `/api/internal/discovery/instances/:id` | 注销 Instance |
-| POST | `/api/internal/discovery/instances/:id/heartbeat` | Instance 心跳 |
-| POST | `/api/internal/discovery/sync` | Container Manager 全量状态同步 |
+| POST | `/api/internal/nodes/register` | 注册 Node |
+| PATCH | `/api/internal/nodes/:id` | 更新 Node |
+| DELETE | `/api/internal/nodes/:id` | 注销 Node（清空其上实例 node_id 引用） |
+| POST | `/api/internal/nodes/:id/heartbeat` | Node 心跳 |
+| POST | `/api/internal/instances/register` | 注册 Instance（可带 `id` 显式指定，对齐容器标签） |
+| PATCH | `/api/internal/instances/:id` | 更新 Instance |
+| DELETE | `/api/internal/instances/:id` | 注销 Instance |
+| POST | `/api/internal/instances/:id/heartbeat` | Instance 心跳（刷新 `last_seen_at`） |
+| POST | `/api/internal/instances/:id/health` | 上报 Instance 健康 |
+| POST | `/api/internal/instances/:id/drain` | 通知 Instance 进入 draining |
+| POST | `/api/internal/sync` | Container Manager 全量状态同步 |
 
 `/api/internal/*`：
 
 -   不对公网开放
--   使用内部认证
+-   使用内部认证（与 RBAC 正交）
 -   仅供 Container Manager / Node Agent / Maple Gateway 内部组件使用
+-   `last_seen_at` 语义 = "最后被 Container Manager 看见"，仅由上述上报路径刷新，健康检查不写
 
 ------------------------------------------------------------------------
 

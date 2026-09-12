@@ -64,7 +64,7 @@ func (r *Repository) Create(ctx context.Context, in New) (*Instance, error) {
 		return nil, err
 	}
 	now := time.Now()
-	e, err := r.ent.Instance.Create().
+	create := r.ent.Instance.Create().
 		SetServiceID(in.ServiceID).
 		SetNillableDeploymentID(in.DeploymentID).
 		SetNillableVersionID(in.VersionID).
@@ -76,10 +76,18 @@ func (r *Repository) Create(ctx context.Context, in New) (*Instance, error) {
 		SetWeight(weight).
 		SetStatus(string(StatusEnabled)).
 		SetHealth(string(HealthUnknown)).
+		SetLastSeenAt(now). // 注册即视为被 CM 看见
 		SetCreatedAt(now).
-		SetUpdatedAt(now).
-		Save(ctx)
+		SetUpdatedAt(now)
+	// 显式 ID：CM 上报时用容器 maple.instance_id 标签，保证与实例 ID 一一对应。
+	if in.ID != nil {
+		create = create.SetID(*in.ID)
+	}
+	e, err := create.Save(ctx)
 	if err != nil {
+		if pkg.IsUniqueViolation(err) {
+			return nil, pkg.ErrConflict("实例 ID 已存在")
+		}
 		return nil, fmt.Errorf("insert instance: %w", err)
 	}
 	return toModel(e), nil
@@ -231,11 +239,25 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Inst
 	return toModel(e), nil
 }
 
-// SetHealth 更新健康状态并刷新 last_seen。
+// SetHealth 更新健康状态。
 func (r *Repository) SetHealth(ctx context.Context, id uuid.UUID, h Health) (*Instance, error) {
-	now := time.Now()
 	e, err := r.ent.Instance.UpdateOneID(id).
 		SetHealth(string(h)).
+		SetUpdatedAt(time.Now()).
+		Save(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("实例不存在")
+		}
+		return nil, fmt.Errorf("set instance health: %w", err)
+	}
+	return toModel(e), nil
+}
+
+// Heartbeat 刷新实例"最后被 CM 看见"时间（last_seen_at），不改变状态与健康。
+func (r *Repository) Heartbeat(ctx context.Context, id uuid.UUID) (*Instance, error) {
+	now := time.Now()
+	e, err := r.ent.Instance.UpdateOneID(id).
 		SetLastSeenAt(now).
 		SetUpdatedAt(now).
 		Save(ctx)
@@ -243,7 +265,22 @@ func (r *Repository) SetHealth(ctx context.Context, id uuid.UUID, h Health) (*In
 		if ent.IsNotFound(err) {
 			return nil, pkg.ErrNotFound("实例不存在")
 		}
-		return nil, fmt.Errorf("set instance health: %w", err)
+		return nil, fmt.Errorf("instance heartbeat: %w", err)
+	}
+	return toModel(e), nil
+}
+
+// Drain 把实例置为 draining（停止接收新流量），保留现有健康与 last_seen。
+func (r *Repository) Drain(ctx context.Context, id uuid.UUID) (*Instance, error) {
+	e, err := r.ent.Instance.UpdateOneID(id).
+		SetStatus(string(StatusDraining)).
+		SetUpdatedAt(time.Now()).
+		Save(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrNotFound("实例不存在")
+		}
+		return nil, fmt.Errorf("drain instance: %w", err)
 	}
 	return toModel(e), nil
 }

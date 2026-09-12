@@ -44,6 +44,13 @@ export interface Version {
   image?: string;
   weight: number;
   status: string;
+  // 容器执行规格：Container Manager 据此创建容器（下发期望态）。
+  replicas: number;
+  port?: number;
+  env?: Record<string, string>;
+  resources?: unknown;
+  health_path?: string;
+  node_selector?: Record<string, string>;
   created_at: string;
 }
 
