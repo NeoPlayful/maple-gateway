@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { list, create, statusAction } from '../../lib/modules';
-import type { Service, Deployment, Instance as Inst, Version, Node } from '../../types';
+import { api, ApiError } from '../../lib/client';
+import type { Service, Deployment, Instance as Inst, Version, Node, CMContainer } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
@@ -17,6 +18,9 @@ export default function InstancesPage() {
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  // 运行时容器：instance_id → 容器状态（CM 观测）。
+  const [containers, setContainers] = useState<Record<string, CMContainer>>({});
+  const [cmEnabled, setCmEnabled] = useState(true);
 
   // 创建表单
   const [serviceId, setServiceId] = useState('');
@@ -51,10 +55,24 @@ export default function InstancesPage() {
     }
   }, []);
 
+  // 加载 CM 受管容器清单，建立 instance_id → 容器映射。
+  const loadContainers = useCallback(async () => {
+    try {
+      const ct = await api.get<CMContainer[]>('/api/admin/cm/containers');
+      const m: Record<string, CMContainer> = {};
+      (ct ?? []).forEach((c) => (m[c.instance_id] = c));
+      setContainers(m);
+      setCmEnabled(true);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 503) setCmEnabled(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
     loadMeta();
-  }, [load, loadMeta]);
+    loadContainers();
+  }, [load, loadMeta, loadContainers]);
 
   const loadVersions = async (deploymentId: string) => {
     setDepId(deploymentId);
@@ -80,6 +98,7 @@ export default function InstancesPage() {
       await statusAction('/api/admin/instances', id, a);
       setMsg(t('common.operateSuccess'));
       await load();
+      await loadContainers();
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
@@ -193,16 +212,19 @@ export default function InstancesPage() {
               <th className="px-4 py-2">{t('fields.node')}</th>
               <th className="px-4 py-2">{t('fields.health')}</th>
               <th className="px-4 py-2">{t('fields.status')}</th>
+              <th className="px-4 py-2">{t('instances.container')}</th>
               <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
               </tr>
             )}
-            {rows.map((r) => (
+            {rows.map((r) => {
+              const ct = containers[r.id];
+              return (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2">
                   {svcName(r.service_id)}
@@ -213,6 +235,11 @@ export default function InstancesPage() {
                 <td className="px-4 py-2"><StatusBadge value={r.health} /></td>
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">
+                  {cmEnabled && ct
+                    ? <StatusBadge value={ct.state} raw />
+                    : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                </td>
+                <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
                     {r.status !== 'enabled' && <ActionBtn onClick={() => act(r.id, 'enable')}>{t('common.enable')}</ActionBtn>}
                     {r.status === 'enabled' && <ActionBtn onClick={() => act(r.id, 'disable')}>{t('common.disable')}</ActionBtn>}
@@ -221,7 +248,8 @@ export default function InstancesPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

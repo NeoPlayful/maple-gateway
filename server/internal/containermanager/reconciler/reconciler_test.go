@@ -21,6 +21,7 @@ import (
 type fakeDesired struct {
 	states []desired.State
 	paused map[string]int
+	phases map[uuid.UUID]desired.Phase
 }
 
 func (f *fakeDesired) All() []desired.State { return f.states }
@@ -30,6 +31,13 @@ func (f *fakeDesired) PausedCount() map[string]int {
 		return map[string]int{}
 	}
 	return f.paused
+}
+
+func (f *fakeDesired) SetPhase(deploymentID uuid.UUID, phase desired.Phase) {
+	if f.phases == nil {
+		f.phases = map[uuid.UUID]desired.Phase{}
+	}
+	f.phases[deploymentID] = phase
 }
 
 // fakeActual 是可控的实际态读取器。

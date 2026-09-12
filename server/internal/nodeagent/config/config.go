@@ -17,11 +17,15 @@ type Config struct {
 
 // AgentConfig 是 Agent 的业务配置。
 type AgentConfig struct {
-	// Listen 对外监听地址（供 CM 调用容器操作），应仅绑内网。
+	// Listen 对外监听地址（供 CM 调用容器操作），应仅绑内网；
+	// 容器内或被远程 CM 调用时需绑 0.0.0.0 并配合防火墙/allowlist。
 	Listen string `yaml:"listen"`
 	// Token 校验 CM 访问本 Agent 的令牌。
 	Token string `yaml:"token"`
-	// DockerHost Docker Engine 地址；空则用 SDK 默认（/var/run/docker.sock）。
+	// DockerHost Docker Engine 地址；空则用 SDK 平台默认端点：
+	//   Linux  : unix:///var/run/docker.sock
+	//   Windows: npipe:////./pipe/docker_engine
+	// 容器内运行时通常留空并挂载 docker.sock，或显式设为 tcp://<host>:2375。
 	DockerHost string `yaml:"docker_host"`
 	// AllowedCIDRs 允许访问本 Agent 的来源网段；空则不限制来源（仅令牌）。
 	AllowedCIDRs []string `yaml:"allowed_cidrs"`

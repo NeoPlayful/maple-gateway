@@ -105,6 +105,11 @@ func (c *Client) MgmtErrors(ctx context.Context) (json.RawMessage, error) {
 	return c.mgmtGet(ctx, "/api/internal/mgmt/errors")
 }
 
+// MgmtContainers 拉取受管容器清单：GET {cm}/api/internal/mgmt/containers。
+func (c *Client) MgmtContainers(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/internal/mgmt/containers")
+}
+
 // mgmtGet 发起一次管理读请求，未接入 CM 时返回空对象。
 func (c *Client) mgmtGet(ctx context.Context, path string) (json.RawMessage, error) {
 	if !c.Enabled() {

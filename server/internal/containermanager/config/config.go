@@ -48,7 +48,10 @@ type NodeConfig struct {
 	Region string `yaml:"region"`
 	// Labels 节点标签（调度约束 node_selector 匹配）。
 	Labels map[string]string `yaml:"labels"`
-	// AgentAddr 本节点 Node Agent 的基址（如 http://10.0.0.11:9092）。
+	// AgentAddr 本节点 Node Agent 的基址，须为 CM 所在处可达的地址：
+	//   Linux 主机      : http://10.0.0.11:9092
+	//   同宿主机容器    : http://nodeagent:9092（compose 服务名）或宿主 IP
+	//   Windows 主机    : http://<windows-lan-ip>:9092（Agent 原生运行，监听可达网卡）
 	AgentAddr string `yaml:"agent_addr"`
 	// AgentToken 访问该 Agent 的令牌（= Agent 的 MAPLE_AGENT_TOKEN）。
 	AgentToken string `yaml:"agent_token"`

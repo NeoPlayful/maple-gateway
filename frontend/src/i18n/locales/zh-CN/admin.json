@@ -244,7 +244,10 @@
     "stop": "停止",
     "start": "启动",
     "logTitle": "容器日志",
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "phase_pending": "待下发",
+    "phase_reconciling": "收敛中",
+    "phase_ready": "已就绪"
   },
   "versions": {
     "title": "版本与规格",
@@ -264,7 +267,9 @@
     "title": "节点管理",
     "namePh": "如 node-01",
     "hostPh": "如 192.168.1.10",
-    "maintenance": "维护"
+    "maintenance": "维护",
+    "agent": "Agent",
+    "errFill": "请填写节点名与主机地址"
   },
   "crud": {
     "requiredField": "请填写{{field}}",
@@ -365,7 +370,8 @@
     "undrain": "取消排空",
     "errFill": "请填写服务与地址",
     "registerSuccess": "注册成功",
-    "registerFailed": "注册失败"
+    "registerFailed": "注册失败",
+    "container": "容器"
   },
   "logs": {
     "title": "日志查询",
@@ -472,6 +478,12 @@
     "colMemory": "内存",
     "colDisk": "磁盘",
     "colLayers": "镜像层大小",
+    "colImage": "镜像",
+    "colVersion": "版本",
+    "colPort": "端口",
+    "colDocker": "Docker",
+    "noContainers": "暂无受管容器",
+    "capacity": "容量",
     "yes": "是"
   },
   "settings": {

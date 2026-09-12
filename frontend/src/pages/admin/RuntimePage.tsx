@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { api, ApiError } from '../../lib/client';
-import type { CMOverview, CMNodeStatus, NodeMetric, CMRuntimeError } from '../../types';
+import { list } from '../../lib/modules';
+import type { CMOverview, CMNodeStatus, NodeMetric, CMRuntimeError, CMContainer, Instance } from '../../types';
 import { PageHeader } from '../../themes';
+import { ActionBtn } from '../../components/admin/ActionBtn';
+import { StatusBadge } from '../../components/admin/StatusBadge';
+import { Modal } from '../../components/admin/Modal';
 
 // 把字节数格式化为易读单位。
 function fmtBytes(n: number): string {
@@ -43,20 +48,28 @@ export default function RuntimePage() {
   const [overview, setOverview] = useState<CMOverview | null>(null);
   const [metrics, setMetrics] = useState<Record<string, NodeMetric>>({});
   const [errors, setErrors] = useState<CMRuntimeError[]>([]);
+  const [containers, setContainers] = useState<CMContainer[]>([]);
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [err, setErr] = useState('');
   const [last, setLast] = useState('');
+  const [log, setLog] = useState<{ id: string; text: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [ov, mt, er] = await Promise.all([
+      const [ov, mt, er, ct, ins] = await Promise.all([
         api.get<CMOverview>('/api/admin/cm/overview'),
         api.get<Record<string, NodeMetric>>('/api/admin/cm/metrics'),
         api.get<CMRuntimeError[]>('/api/admin/cm/errors'),
+        api.get<CMContainer[]>('/api/admin/cm/containers'),
+        list<Instance>('/api/admin/instances').catch(() => [] as Instance[]),
       ]);
       setOverview(ov);
       setMetrics(mt ?? {});
       setErrors(er ?? []);
+      setContainers(ct ?? []);
+      // Gateway 实例列表：用 instance_id 关联出 服务/版本，补全容器行。
+      setInstances(ins ?? []);
       setEnabled(true);
       setErr('');
       setLast(new Date().toLocaleTimeString());
@@ -70,6 +83,27 @@ export default function RuntimePage() {
     }
   }, [t]);
 
+  // 容器操作：启/停/重启，复用 CM 人工控制端点。
+  const act = async (id: string, a: string) => {
+    try {
+      await api.post(`/api/admin/cm/instances/${id}/${a}`);
+      toast.success(t('common.operateSuccess'));
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('common.operateFailed'));
+    }
+  };
+
+  const openLogs = async (id: string) => {
+    setLog({ id, text: t('deployments.loading') });
+    try {
+      const res = await api.get<{ logs: string }>(`/api/admin/cm/instances/${id}/logs?tail=200`);
+      setLog({ id, text: res.logs || '' });
+    } catch (e) {
+      setLog({ id, text: e instanceof Error ? e.message : t('common.loadFailed') });
+    }
+  };
+
   useEffect(() => {
     load();
     const timer = setInterval(load, 10000);
@@ -82,6 +116,13 @@ export default function RuntimePage() {
     Object.values(metrics).forEach((v) => m.set(v.node_name, v));
     return m;
   }, [metrics]);
+
+  // instance_id → Gateway 实例：补全容器的 服务/版本。
+  const instanceById = useMemo(() => {
+    const m = new Map<string, Instance>();
+    instances.forEach((i) => m.set(i.id, i));
+    return m;
+  }, [instances]);
 
   const stats = overview?.stats;
   const lastReport = stats?.last_report_at ? new Date(stats.last_report_at).toLocaleString() : '-';
@@ -184,6 +225,57 @@ export default function RuntimePage() {
         })}
       </div>
 
+      {/* 受管容器清单 */}
+      <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.containers')}</h2>
+      <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <table className="w-full text-sm">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-2">{t('runtime.colInstance')}</th>
+              <th className="px-4 py-2">{t('runtime.colName')}</th>
+              <th className="px-4 py-2">{t('runtime.colImage')}</th>
+              <th className="px-4 py-2">{t('runtime.colVersion')}</th>
+              <th className="px-4 py-2">{t('runtime.colState')}</th>
+              <th className="px-4 py-2">{t('runtime.colNode')}</th>
+              <th className="px-4 py-2">{t('runtime.colPort')}</th>
+              <th className="px-4 py-2">{t('common.action')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {containers.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
+              </tr>
+            )}
+            {containers.map((ct) => {
+              const inst = instanceById.get(ct.instance_id);
+              const version = inst?.version ?? '';
+              const running = ct.state === 'running';
+              return (
+                <tr key={ct.container_id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
+                  <td className="px-4 py-2 font-mono text-xs">{ct.instance_id.slice(0, 8)}</td>
+                  <td className="px-4 py-2">{ct.name || ct.container_id.slice(0, 12)}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{ct.image}</td>
+                  <td className="px-4 py-2">{version || '-'}</td>
+                  <td className="px-4 py-2"><StatusBadge value={ct.state} raw /></td>
+                  <td className="px-4 py-2">{ct.node_name}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{ct.host_port || '-'}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      <ActionBtn onClick={() => openLogs(ct.instance_id)}>{t('deployments.logs')}</ActionBtn>
+                      <ActionBtn onClick={() => act(ct.instance_id, 'restart')}>{t('deployments.restart')}</ActionBtn>
+                      {running
+                        ? <ActionBtn onClick={() => act(ct.instance_id, 'stop')}>{t('deployments.stop')}</ActionBtn>
+                        : <ActionBtn onClick={() => act(ct.instance_id, 'start')}>{t('deployments.start')}</ActionBtn>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
       {/* 运行时错误 */}
       <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.errors')}</h2>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -217,6 +309,17 @@ export default function RuntimePage() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={log !== null}
+        title={`${t('deployments.logTitle')} · ${log?.id.slice(0, 8) ?? ''}`}
+        onClose={() => setLog(null)}
+        maxWidth="max-w-4xl"
+      >
+        <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-100">
+          {log?.text || t('deployments.noInstances')}
+        </pre>
+      </Modal>
     </div>
   );
 }

@@ -88,6 +88,13 @@ func (s *Store) Phase(deploymentID uuid.UUID) Phase {
 	return Phase{Status: "unknown"}
 }
 
+// SetPhase 回写某部署的编排阶段（对账器每轮结算后调用）。
+func (s *Store) SetPhase(deploymentID uuid.UUID, phase Phase) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.phases[deploymentID] = phase
+}
+
 // All 返回全部期望态（对账器读取用）。
 func (s *Store) All() []State {
 	s.mu.RLock()

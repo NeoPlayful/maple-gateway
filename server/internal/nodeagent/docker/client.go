@@ -44,7 +44,8 @@ type Client struct {
 	managedLabel string
 }
 
-// New 构造。managedLabel 为受管标签键；host 为空则用 SDK 默认（/var/run/docker.sock）。
+// New 构造。managedLabel 为受管标签键；host 为空则用 SDK 平台默认端点
+// （Linux: unix socket；Windows: npipe）。
 func New(host, managedLabel string) (*Client, error) {
 	opts := []client.Opt{client.WithAPIVersionNegotiation()}
 	if host != "" {
