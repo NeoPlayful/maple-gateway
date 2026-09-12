@@ -28,8 +28,8 @@ export interface NavItem {
 
 export const nav: NavItem[] = [
   { to: '/admin', label: 'nav.dashboard', end: true, icon: Squares2X2Icon },
-  { to: '/admin/tenants', label: 'nav.tenants', icon: BuildingOffice2Icon },
   { to: '/admin/users', label: 'nav.users', icon: UsersIcon },
+  { to: '/admin/tenants', label: 'nav.tenants', icon: BuildingOffice2Icon },
   { to: '/admin/domains', label: 'nav.domains', icon: GlobeAltIcon },
   { to: '/admin/certificates', label: 'nav.certificates', icon: ShieldCheckIcon },
   { to: '/admin/services', label: 'nav.services', icon: ServerStackIcon },
