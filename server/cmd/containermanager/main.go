@@ -13,15 +13,21 @@ import (
 	"os/signal"
 	"sort"
 	"syscall"
+	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentconn"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/control"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/enrollment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodestate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/reconciler"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -60,9 +66,36 @@ func run(configPath string) error {
 	rec := reconciler.New(store, obs, registry, gw, cfg.CM.ReconcileInterval, logger)
 	go obs.Run(ctx)
 	go rec.Run(ctx)
+
+	// Agent 反连接入：会话注册表 + 准入 + 在线状态机 + 任务系统。
+	// 节点主动连 CM，CM 不向节点发起入站；命令经这条连接下行。
+	hub := agentconn.NewHub()
+	enroll := enrollment.NewManager(cfg.CM.EnrollmentRequired)
+	states := nodestate.New(0, 0)
+	tasks := tasksys.New(hub, cfg.CM.TaskTimeout, logger)
+	agentSrv := agentconn.NewServer(cfg.CM.AgentListen, enroll, hub, agentconn.Callbacks{
+		OnSessionStart: func(nodeID string) { states.Touch(nodeID) },
+		OnSessionEnd:   func(nodeID string, kicked bool) { states.Disconnect(nodeID) },
+		OnHeartbeat:    func(nodeID string, _ agentprotocol.HeartbeatPayload) { states.Touch(nodeID) },
+		OnTaskAck:      func(nodeID string, p agentprotocol.TaskAckPayload) { tasks.OnAck(nodeID, p.TaskID) },
+		OnTaskProgress: func(nodeID string, p agentprotocol.TaskProgressPayload) {
+			tasks.OnProgress(nodeID, p.TaskID, p.Percent, p.Message)
+		},
+		OnTaskResult: func(nodeID string, p agentprotocol.TaskResultPayload) {
+			tasks.OnResult(nodeID, p.TaskID, p.Status, p.Error, p.Result)
+		},
+	}, logger)
+	go func() {
+		if err := agentSrv.Serve(ctx); err != nil {
+			logger.Error("agent websocket server stopped", zap.Error(err))
+		}
+	}()
+	go tasks.RunSweeper(ctx.Done(), 15*time.Second)
+
 	logger.Info("container manager observing nodes",
 		zap.Int("nodes", len(registry.All())),
-		zap.Bool("gateway_report_enabled", gw.Enabled()))
+		zap.Bool("gateway_report_enabled", gw.Enabled()),
+		zap.String("agent_listen", cfg.CM.AgentListen))
 
 	// 人工控制通道：管理端经 Gateway 下发的实例操作（与对账器自动决策区分）。
 	ctrl := control.New(registry, obs, store, logger)

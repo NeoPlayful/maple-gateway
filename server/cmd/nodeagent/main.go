@@ -16,7 +16,9 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/docker"
+	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/exec"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/runtime"
+	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/wsclient"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -59,6 +61,11 @@ func run(configPath string) error {
 	rt := runtime.New(dcli, cfg.Agent.AllowedImages)
 	app := api.New(cfg, logger, rt)
 
+	// 反向连接：配置了 server_url 即主动连 CM，命令经此连接下行。
+	if cfg.Agent.ServerURL != "" {
+		startReverseClient(ctx, cfg, rt, logger)
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
 		logger.Info("node agent listening", zap.String("addr", cfg.Agent.Listen))
@@ -74,4 +81,26 @@ func run(configPath string) error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+// startReverseClient 装配并启动反连客户端：从配置/磁盘取得注册资料，
+// 把 CM 下发的 Action 映射到本机 runtime 执行。
+func startReverseClient(ctx context.Context, cfg *config.Config, rt *runtime.Runtime, logger *zap.Logger) {
+	credPath := cfg.Agent.CredentialPath
+	cred, err := wsclient.LoadCredential(credPath)
+	if err != nil {
+		logger.Warn("load credential failed", zap.Error(err))
+	}
+	enrollee := wsclient.NewStaticEnrollee(
+		cfg.Agent.ServerURL, cfg.Agent.EnrollmentToken, cfg.Agent.NodeName, cred,
+		func(c *wsclient.Credential) error {
+			if credPath == "" {
+				return nil
+			}
+			return wsclient.SaveCredential(credPath, c)
+		},
+	)
+	client := wsclient.New(enrollee, exec.New(rt), wsclient.NewWSDialer(), logger)
+	go client.Run(ctx)
+	logger.Info("agent reverse client started", zap.String("server_url", cfg.Agent.ServerURL))
 }
