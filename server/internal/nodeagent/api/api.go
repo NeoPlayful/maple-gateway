@@ -6,10 +6,12 @@ package api
 
 import (
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/docker"
+	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/hostmetrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/runtime"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -28,10 +30,13 @@ func New(cfg *config.Config, logger *zap.Logger, rt *runtime.Runtime) *fiber.App
 	h := &handler{rt: rt, logger: logger}
 	g := app.Group("/api/internal", authMiddleware(cfg.Agent.Token, cfg.Agent.AllowedCIDRs))
 	g.Get("/node/info", h.nodeInfo)
+	g.Get("/node/metrics", h.nodeMetrics)
 	g.Get("/containers", h.listContainers)
 	g.Post("/containers", h.createContainer)
 	g.Post("/containers/:id/start", h.startContainer)
 	g.Post("/containers/:id/stop", h.stopContainer)
+	g.Post("/containers/:id/restart", h.restartContainer)
+	g.Get("/containers/:id/logs", h.containerLogs)
 	g.Delete("/containers/:id", h.removeContainer)
 	g.Post("/images/pull", h.pullImage)
 
@@ -88,6 +93,17 @@ func (h *handler) nodeInfo(c fiber.Ctx) error {
 	return c.JSON(info)
 }
 
+// nodeMetrics GET /api/internal/node/metrics —— 主机 CPU/内存/磁盘使用率 + Docker 空间占用。
+func (h *handler) nodeMetrics(c fiber.Ctx) error {
+	host, err := hostmetrics.Collect()
+	if err != nil {
+		// 采集失败不致命：返回不可用，其余字段留空。
+		host = hostmetrics.Metrics{Available: false}
+	}
+	du, _ := h.rt.DiskUsage(c.Context())
+	return c.JSON(fiber.Map{"host": host, "docker": du})
+}
+
 // listContainers GET /api/internal/containers
 func (h *handler) listContainers(c fiber.Ctx) error {
 	items, err := h.rt.List(c.Context())
@@ -128,6 +144,24 @@ func (h *handler) stopContainer(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(fiber.Map{"stopped": true})
+}
+
+// restartContainer POST /api/internal/containers/:id/restart
+func (h *handler) restartContainer(c fiber.Ctx) error {
+	if err := h.rt.Restart(c.Context(), c.Params("id")); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"restarted": true})
+}
+
+// containerLogs GET /api/internal/containers/:id/logs?tail=200
+func (h *handler) containerLogs(c fiber.Ctx) error {
+	tail, _ := strconv.Atoi(c.Query("tail", "200"))
+	logs, err := h.rt.Logs(c.Context(), c.Params("id"), tail)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(fiber.Map{"logs": logs})
 }
 
 // removeContainer DELETE /api/internal/containers/:id?force=true

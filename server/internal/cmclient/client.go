@@ -19,10 +19,10 @@ import (
 
 // DesiredState 是下发给 CM 的部署期望态（一个 deployment_versions 版本对应一份）。
 type DesiredState struct {
-	DeploymentID uuid.UUID         `json:"deployment_id"`
-	ServiceID    uuid.UUID         `json:"service_id"`
-	VersionID    uuid.UUID         `json:"version_id"`
-	Version      string            `json:"version"`
+	DeploymentID uuid.UUID `json:"deployment_id"`
+	ServiceID    uuid.UUID `json:"service_id"`
+	VersionID    uuid.UUID `json:"version_id"`
+	Version      string    `json:"version"`
 	// Status 版本角色（stable/active/canary/standby/draining/inactive）：
 	// CM 据此区分"目标版本"与"待退役版本"，按发布形态决定增减序。
 	Status       string            `json:"status,omitempty"`
@@ -83,6 +83,75 @@ func (c *Client) Status(ctx context.Context, deploymentID uuid.UUID) (json.RawMe
 		return nil, err
 	}
 	return out, nil
+}
+
+// Overview 拉取 CM 管理总览（观测统计 + 部署进度 + 节点状态）：GET {cm}/api/internal/mgmt/overview。
+func (c *Client) Overview(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/internal/mgmt/overview")
+}
+
+// MgmtNodes 拉取节点与 Agent 连接态：GET {cm}/api/internal/mgmt/nodes。
+func (c *Client) MgmtNodes(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/internal/mgmt/nodes")
+}
+
+// MgmtMetrics 拉取各节点资源指标：GET {cm}/api/internal/mgmt/metrics。
+func (c *Client) MgmtMetrics(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/internal/mgmt/metrics")
+}
+
+// MgmtErrors 拉取运行时错误列表：GET {cm}/api/internal/mgmt/errors。
+func (c *Client) MgmtErrors(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/internal/mgmt/errors")
+}
+
+// mgmtGet 发起一次管理读请求，未接入 CM 时返回空对象。
+func (c *Client) mgmtGet(ctx context.Context, path string) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return json.RawMessage(`{}`), nil
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RestartInstance 人工重启实例容器：POST {cm}/api/internal/mgmt/instances/{id}/restart。
+func (c *Client) RestartInstance(ctx context.Context, instanceID string) error {
+	return c.instanceAction(ctx, instanceID, "restart")
+}
+
+// StopInstance 人工停止实例容器：POST {cm}/api/internal/mgmt/instances/{id}/stop。
+func (c *Client) StopInstance(ctx context.Context, instanceID string) error {
+	return c.instanceAction(ctx, instanceID, "stop")
+}
+
+// StartInstance 人工启动实例容器：POST {cm}/api/internal/mgmt/instances/{id}/start。
+func (c *Client) StartInstance(ctx context.Context, instanceID string) error {
+	return c.instanceAction(ctx, instanceID, "start")
+}
+
+// InstanceLogs 读取实例容器日志：GET {cm}/api/internal/mgmt/instances/{id}/logs?tail=n。
+func (c *Client) InstanceLogs(ctx context.Context, instanceID string, tail int) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return json.RawMessage(`{"logs":""}`), nil
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/api/internal/mgmt/instances/%s/logs?tail=%d", instanceID, tail), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// instanceAction 发起一次人工实例操作。
+func (c *Client) instanceAction(ctx context.Context, instanceID, action string) error {
+	if !c.Enabled() {
+		return fmt.Errorf("container manager 未接入")
+	}
+	return c.do(ctx, http.MethodPost,
+		fmt.Sprintf("/api/internal/mgmt/instances/%s/%s", instanceID, action), nil, nil)
 }
 
 // do 发送一次请求；body 非空则 JSON 编码，out 非空则解码响应体。

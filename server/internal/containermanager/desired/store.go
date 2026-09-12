@@ -40,6 +40,9 @@ type Store struct {
 	mu     sync.RWMutex
 	states map[uuid.UUID]State // key: deployment_id
 	phases map[uuid.UUID]Phase // key: deployment_id
+	// paused 是人工置为维护（手动 stop）的实例：instance_id → version_id。
+	// 对账器把它计入实际副本数，避免管理员手动停掉的实例被立即重建。
+	paused map[string]string
 }
 
 // NewStore 构造空存储。
@@ -47,6 +50,7 @@ func NewStore() *Store {
 	return &Store{
 		states: map[uuid.UUID]State{},
 		phases: map[uuid.UUID]Phase{},
+		paused: map[string]string{},
 	}
 }
 
@@ -91,6 +95,42 @@ func (s *Store) All() []State {
 	out := make([]State, 0, len(s.states))
 	for _, st := range s.states {
 		out = append(out, st)
+	}
+	return out
+}
+
+// AllPhases 返回全部部署的编排进度（管理读接口用）。
+func (s *Store) AllPhases() map[uuid.UUID]Phase {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[uuid.UUID]Phase, len(s.phases))
+	for k, v := range s.phases {
+		out[k] = v
+	}
+	return out
+}
+
+// Pause 把实例标记为人工维护（手动 stop 后登记），避免被对账器立即重建。
+func (s *Store) Pause(instanceID, versionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.paused[instanceID] = versionID
+}
+
+// Resume 清除实例的人工维护标记（手动 start 后恢复由对账器接管）。
+func (s *Store) Resume(instanceID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.paused, instanceID)
+}
+
+// PausedCount 返回各版本被人工置为维护的实例数（instance 计入实际副本数用）。
+func (s *Store) PausedCount() map[string]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]int, len(s.paused))
+	for _, vid := range s.paused {
+		out[vid]++
 	}
 	return out
 }

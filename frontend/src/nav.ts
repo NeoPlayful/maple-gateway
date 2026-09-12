@@ -18,6 +18,7 @@ import {
   DocumentTextIcon,
   Cog6ToothIcon,
   ShieldCheckIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
 
 export interface NavItem {
@@ -43,6 +44,7 @@ export const nav: NavItem[] = [
   { to: '/admin/blue-green', label: 'nav.blueGreen', icon: ArrowPathIcon },
   { to: '/admin/rate-limits', label: 'nav.rateLimits', icon: BoltIcon },
   { to: '/admin/health', label: 'nav.health', icon: HeartIcon },
+  { to: '/admin/runtime', label: 'nav.runtime', icon: WrenchScrewdriverIcon },
   { to: '/admin/logs', label: 'nav.logs', icon: DocumentTextIcon },
   { to: '/admin/settings', label: 'nav.settings', icon: Cog6ToothIcon },
 ];

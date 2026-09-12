@@ -23,11 +23,30 @@ type Observer struct {
 	logger   *zap.Logger
 
 	mu          sync.Mutex
-	lastReport  time.Time                            // 上次成功上报时间
-	lastErr     error                                // 上次上报错误
-	containerCt int                                  // 纳管容器数
-	nodeUpCt    int                                  // 可用节点数
-	snapshot    map[string]ObservedContainer         // instance_id → 观测到的容器（最近一轮）
+	lastReport  time.Time                    // 上次成功上报时间
+	lastErr     error                        // 上次上报错误
+	containerCt int                          // 纳管容器数
+	nodeUpCt    int                          // 可用节点数
+	snapshot    map[string]ObservedContainer // instance_id → 观测到的容器（最近一轮）
+	metrics     map[string]NodeMetric        // 节点名 → 最近采集的资源指标
+	errors      []RuntimeError               // 最近一轮观测到的运行时错误（崩溃/退出）
+}
+
+// NodeMetric 是某节点最近一次采集到的资源指标。
+type NodeMetric struct {
+	NodeName string               `json:"node_name"`
+	Metrics  gwclient.NodeMetrics `json:"metrics"`
+	Error    string               `json:"error,omitempty"` // 采集失败原因
+}
+
+// RuntimeError 是一次运行时异常（容器非正常退出）记录。
+type RuntimeError struct {
+	NodeName   string `json:"node_name"`
+	InstanceID string `json:"instance_id"`
+	State      string `json:"state"`
+	ExitCode   int    `json:"exit_code"`
+	OOMKilled  bool   `json:"oom_killed"`
+	At         int64  `json:"at"` // Unix 秒
 }
 
 // ObservedContainer 是最近一轮观测到的受管容器（含其所在节点）。
@@ -45,6 +64,7 @@ func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval 
 		interval: interval,
 		logger:   logger,
 		snapshot: map[string]ObservedContainer{},
+		metrics:  map[string]NodeMetric{},
 	}
 }
 
@@ -70,9 +90,13 @@ func (o *Observer) tick(ctx context.Context) {
 	upCt, ct := 0, 0
 	var firstErr error
 	snap := make(map[string]ObservedContainer)
+	metrics := make(map[string]NodeMetric, len(nodes))
+	var runtimeErrs []RuntimeError
 	// 本轮成功观测的节点集合：仅对这些节点做"消失即注销"，避免节点瞬时不可达误删其余实例。
 	observedNodes := map[string]bool{}
 	for _, n := range nodes {
+		// 节点指标独立于容器观测：即使容器列表失败也尝试采集，供运维视图展示。
+		metrics[n.Name] = o.collectMetrics(ctx, n)
 		containers, err := o.observeNode(ctx, n)
 		if err != nil {
 			if firstErr == nil {
@@ -88,6 +112,13 @@ func (o *Observer) tick(ctx context.Context) {
 			if c.InstanceID != "" {
 				snap[c.InstanceID] = ObservedContainer{NodeName: n.Name, InstanceID: c.InstanceID, Container: c}
 			}
+			// 非 running 的受管容器（exited/dead）→ 记为运行时错误，供运维视图展示。
+			if c.InstanceID != "" && c.State != "running" {
+				runtimeErrs = append(runtimeErrs, RuntimeError{
+					NodeName: n.Name, InstanceID: c.InstanceID, State: c.State,
+					ExitCode: c.ExitCode, OOMKilled: c.OOMKilled, At: time.Now().Unix(),
+				})
+			}
 		}
 		o.reportNode(ctx, n, containers)
 	}
@@ -97,6 +128,8 @@ func (o *Observer) tick(ctx context.Context) {
 	o.nodeUpCt = upCt
 	o.containerCt = ct
 	o.snapshot = snap
+	o.metrics = metrics
+	o.errors = runtimeErrs
 	if firstErr == nil {
 		o.lastReport = time.Now()
 		o.lastErr = nil
@@ -136,6 +169,35 @@ func (o *Observer) Snapshot() map[string]ObservedContainer {
 	return out
 }
 
+// Metrics 返回各节点最近一轮采集到的资源指标。
+func (o *Observer) Metrics() map[string]NodeMetric {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make(map[string]NodeMetric, len(o.metrics))
+	for k, v := range o.metrics {
+		out[k] = v
+	}
+	return out
+}
+
+// RuntimeErrors 返回最近一轮观测到的运行时错误（容器非正常退出）。
+func (o *Observer) RuntimeErrors() []RuntimeError {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make([]RuntimeError, len(o.errors))
+	copy(out, o.errors)
+	return out
+}
+
+// collectMetrics 采集单节点资源指标；失败时记录错误原因但不影响观测主流程。
+func (o *Observer) collectMetrics(ctx context.Context, n *agentregistry.Node) NodeMetric {
+	m, err := n.Agent.Metrics(ctx)
+	if err != nil {
+		return NodeMetric{NodeName: n.Name, Error: err.Error()}
+	}
+	return NodeMetric{NodeName: n.Name, Metrics: m}
+}
+
 // observeNode 探测节点并采集容器列表；同时更新注册表健康状态。
 func (o *Observer) observeNode(ctx context.Context, n *agentregistry.Node) ([]gwclient.Container, error) {
 	if err := n.Agent.Health(ctx); err != nil {
@@ -170,13 +232,45 @@ func (o *Observer) reportNode(ctx context.Context, n *agentregistry.Node, contai
 		o.logger.Warn("node heartbeat to gateway failed", zap.String("node", n.Name), zap.Error(err))
 	}
 
-	// 容器 → 实例上报：仅上报 running 状态、且带 instance_id 标签的受管容器。
+	// 容器 → 实例上报：仅处理带 instance_id 标签的受管容器。
+	// running → 心跳/注册（正常态）；非 running → 上报 unhealthy（崩溃可见，而非消失）。
 	sort.Slice(containers, func(i, j int) bool { return containers[i].InstanceID < containers[j].InstanceID })
 	for _, ct := range containers {
-		if ct.InstanceID == "" || ct.State != "running" {
+		if ct.InstanceID == "" {
+			continue
+		}
+		if ct.State != "running" {
+			o.reportUnhealthy(ctx, n, nodeID, ct)
 			continue
 		}
 		o.reportInstance(ctx, n, nodeID, ct)
+	}
+}
+
+// reportUnhealthy 上报非运行容器为 unhealthy：让崩溃实例在 Gateway 侧以不健康形态可见。
+// 已注册的实例直接改健康态；尚未注册的先注册再标记（保证崩溃也留下痕迹）。
+func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, nodeID string, ct gwclient.Container) {
+	if err := o.gw.ReportHealth(ctx, ct.InstanceID, "unhealthy"); err == nil {
+		return
+	}
+	rep := gwclient.InstanceReport{
+		ID:           ct.InstanceID,
+		ServiceID:    ct.Labels["maple.service_id"],
+		DeploymentID: ct.Labels["maple.deployment_id"],
+		VersionID:    ct.Labels["maple.version_id"],
+		NodeID:       nodeID,
+		Address:      n.Host,
+		Port:         ct.HostPort,
+		Protocol:     "http",
+	}
+	if _, err := o.gw.RegisterInstance(ctx, rep); err != nil {
+		o.logger.Warn("register crashed instance to gateway failed",
+			zap.String("node", n.Name), zap.String("instance_id", ct.InstanceID), zap.Error(err))
+		return
+	}
+	if err := o.gw.ReportHealth(ctx, ct.InstanceID, "unhealthy"); err != nil {
+		o.logger.Warn("mark crashed instance unhealthy failed",
+			zap.String("instance_id", ct.InstanceID), zap.Error(err))
 	}
 }
 

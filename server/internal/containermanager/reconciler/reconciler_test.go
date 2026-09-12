@@ -18,12 +18,24 @@ import (
 )
 
 // fakeDesired 是可控的期望态读取器。
-type fakeDesired struct{ states []desired.State }
+type fakeDesired struct {
+	states []desired.State
+	paused map[string]int
+}
 
 func (f *fakeDesired) All() []desired.State { return f.states }
 
+func (f *fakeDesired) PausedCount() map[string]int {
+	if f.paused == nil {
+		return map[string]int{}
+	}
+	return f.paused
+}
+
 // fakeActual 是可控的实际态读取器。
-type fakeActual struct{ snap map[string]observer.ObservedContainer }
+type fakeActual struct {
+	snap map[string]observer.ObservedContainer
+}
 
 func (f *fakeActual) Snapshot() map[string]observer.ObservedContainer { return f.snap }
 
@@ -101,6 +113,46 @@ func TestReconcileNoOverProvisionOnObserveLag(t *testing.T) {
 	defer mu.Unlock()
 	if created != 2 {
 		t.Errorf("created = %d, want 2 (in-flight should suppress over-provisioning)", created)
+	}
+}
+
+// 人工维护场景：管理员手动停掉的实例被登记为 paused，对账器应计入实际数、不再补回。
+func TestReconcileRespectsOperatorPaused(t *testing.T) {
+	var mu sync.Mutex
+	created := 0
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/internal/containers" {
+			mu.Lock()
+			created++
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"id":"c","instance_id":"x","host_port":9001}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer agent.Close()
+
+	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
+	reg.SetHealth("n1", true, "gw-1", time.Now().UnixMilli())
+
+	verID := uuid.New()
+	// 目标 2 副本，但已有 1 个被人工置为维护：只需再补 1 个。
+	fd := &fakeDesired{
+		states: []desired.State{{
+			DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: verID,
+			Image: "nginx:alpine", Port: 80, Replicas: 2,
+		}},
+		paused: map[string]int{verID.String(): 1},
+	}
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+	r.Reconcile(context.Background())
+
+	mu.Lock()
+	defer mu.Unlock()
+	if created != 1 {
+		t.Errorf("created = %d, want 1 (paused instance counts toward replicas)", created)
 	}
 }
 

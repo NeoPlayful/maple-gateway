@@ -36,6 +36,7 @@ var operatorWritable = []string{
 	"/api/admin/blue-green",
 	"/api/admin/rate-limits",
 	"/api/admin/traffic",
+	"/api/admin/cm", // CM 运行时运维代理：实例 start/stop/restart
 }
 
 // selfWritePaths 是任何已登录管理员都可执行的写操作（作用于自身账号）。
