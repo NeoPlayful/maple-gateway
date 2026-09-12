@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '../../lib/client';
@@ -31,14 +31,12 @@ function usageColor(pct: number): string {
 
 function UsageBar({ label, pct }: { label: string; pct: number }) {
   return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-        <span>{label}</span>
-        <span className="font-mono">{pct.toFixed(1)}%</span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+    <div className="flex items-center gap-2">
+      {label && <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{label}</span>}
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
         <div className={`h-full rounded-full ${usageColor(pct)}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
+      <span className="w-12 shrink-0 text-right font-mono text-xs text-slate-500 dark:text-slate-400">{pct.toFixed(1)}%</span>
     </div>
   );
 }
@@ -54,6 +52,15 @@ export default function RuntimePage() {
   const [err, setErr] = useState('');
   const [last, setLast] = useState('');
   const [log, setLog] = useState<{ id: string; text: string } | null>(null);
+  // 展开的节点名集合：独立于轮询数据，10s 刷新不会收起已展开的详情。
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleNode = (name: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
   const load = useCallback(async () => {
     try {
@@ -186,58 +193,89 @@ export default function RuntimePage() {
 
       {/* 节点与 Agent 状态 */}
       <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.nodes')}</h2>
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        {nodes.length === 0 && (
-          <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">{t('runtime.noMetrics')}</p>
-        )}
-        {nodes.map((n) => {
-          const mt = metricByName.get(n.name);
-          const host = mt?.metrics?.host;
-          const docker = mt?.metrics?.docker;
-          return (
-            <div key={n.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{n.name}</p>
-                  <p className="font-mono text-xs text-slate-400">{n.host}{n.region ? ` · ${n.region}` : ''}</p>
-                </div>
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                  n.healthy
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
-                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'
-                }`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${n.healthy ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                  {n.healthy ? t('runtime.agentOnline') : t('runtime.agentOffline')}
-                </span>
-              </div>
-
-              {host?.available ? (
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <UsageBar label={t('runtime.cpu')} pct={host.cpu_percent} />
-                  <UsageBar label={t('runtime.memory')} pct={host.mem_percent} />
-                  <UsageBar label={t('runtime.disk')} pct={host.disk_percent} />
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">{mt?.error ?? t('runtime.metricsUnavailable')}</p>
-              )}
-
-              {host?.available && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                  <span>{t('runtime.memory')}: {fmtBytes(host.mem_used)} / {fmtBytes(host.mem_total)}</span>
-                  <span>{t('runtime.disk')}: {fmtBytes(host.disk_used)} / {fmtBytes(host.disk_total)}</span>
-                  <span>{t('runtime.dockerUsage')}: {fmtBytes(docker?.layers_size ?? 0)}</span>
-                </div>
-              )}
-              <div className="mt-2 text-xs text-slate-400">
-                {t('runtime.lastSeen')}: {n.last_seen_ms ? new Date(n.last_seen_ms).toLocaleString() : '-'}
-              </div>
-            </div>
-          );
-        })}
+      <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <table className="w-full text-sm">
+          <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-2">{t('runtime.colNode')}</th>
+              <th className="px-4 py-2">{t('runtime.colStatus')}</th>
+              <th className="px-4 py-2">{t('runtime.colCpu')}</th>
+              <th className="px-4 py-2">{t('runtime.colMemory')}</th>
+              <th className="px-4 py-2">{t('runtime.colDisk')}</th>
+              <th className="px-4 py-2">{t('runtime.lastSeen')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nodes.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noMetrics')}</td>
+              </tr>
+            )}
+            {nodes.map((n) => {
+              const mt = metricByName.get(n.name);
+              const host = mt?.metrics?.host;
+              const docker = mt?.metrics?.docker;
+              const open = expanded.has(n.name);
+              return (
+                <Fragment key={n.name}>
+                  <tr
+                    onClick={() => toggleNode(n.name)}
+                    className="cursor-pointer border-b border-slate-200 last:border-b-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
+                  >
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">{open ? '▾' : '▸'}</span>
+                        <div>
+                          <p className="font-semibold text-slate-700 dark:text-slate-200">{n.name}</p>
+                          <p className="font-mono text-xs text-slate-400">{n.host}{n.region ? ` · ${n.region}` : ''}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                        n.healthy
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'
+                      }`}>
+                        {n.healthy ? t('runtime.agentOnline') : t('runtime.agentOffline')}
+                      </span>
+                    </td>
+                    {host?.available ? (
+                      <>
+                        <td className="px-4 py-2"><div className="w-40"><UsageBar label="" pct={host.cpu_percent} /></div></td>
+                        <td className="px-4 py-2"><div className="w-40"><UsageBar label="" pct={host.mem_percent} /></div></td>
+                        <td className="px-4 py-2"><div className="w-40"><UsageBar label="" pct={host.disk_percent} /></div></td>
+                      </>
+                    ) : (
+                      <td colSpan={3} className="px-4 py-2 text-xs text-slate-400">{mt?.error ?? t('runtime.metricsUnavailable')}</td>
+                    )}
+                    <td className="px-4 py-2 text-xs text-slate-400">{n.last_seen_ms ? new Date(n.last_seen_ms).toLocaleString() : '-'}</td>
+                  </tr>
+                  {open && (
+                    <tr className="border-b border-slate-200 last:border-b-0 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/30">
+                      <td colSpan={6} className="px-4 py-3">
+                        {host?.available ? (
+                          <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+                            <span>{t('runtime.memory')}: {fmtBytes(host.mem_used)} / {fmtBytes(host.mem_total)}</span>
+                            <span>{t('runtime.disk')}: {fmtBytes(host.disk_used)} / {fmtBytes(host.disk_total)}</span>
+                            <span>{t('runtime.dockerUsage')}: {fmtBytes(docker?.layers_size ?? 0)}</span>
+                            <span>{t('runtime.gatewayId')}: {n.gateway_id || '-'}</span>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">{mt?.error ?? t('runtime.metricsUnavailable')}</p>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* 受管容器清单 */}
-      <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.containers')}</h2>
+      <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.containerList')}</h2>
       <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
