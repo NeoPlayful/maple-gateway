@@ -35,6 +35,13 @@ type AgentConfig struct {
 	ManagedLabel string `yaml:"managed_label"`
 	// NodeName 本节点标识（上报给 CM）。
 	NodeName string `yaml:"node_name"`
+	// ServerURL CM 的反连地址（ws://cm-host:9093/agent/ws 或 wss://...）。
+	// 配置后 Agent 主动连 CM，无需对外暴露本机管理端口。
+	ServerURL string `yaml:"server_url"`
+	// EnrollmentToken 首注册令牌（一次性）；注册成功后由 CM 下发凭证并落盘。
+	EnrollmentToken string `yaml:"enrollment_token"`
+	// CredentialPath 节点凭证（node_id + secret）落盘路径。
+	CredentialPath string `yaml:"credential_path"`
 }
 
 // LoggingConfig 日志配置。
@@ -86,6 +93,15 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_AGENT_NODE_NAME"); v != "" {
 		c.Agent.NodeName = v
+	}
+	if v := os.Getenv("MAPLE_AGENT_SERVER_URL"); v != "" {
+		c.Agent.ServerURL = v
+	}
+	if v := os.Getenv("MAPLE_AGENT_ENROLLMENT_TOKEN"); v != "" {
+		c.Agent.EnrollmentToken = v
+	}
+	if v := os.Getenv("MAPLE_AGENT_CREDENTIAL_PATH"); v != "" {
+		c.Agent.CredentialPath = v
 	}
 	if v := os.Getenv("MAPLE_AGENT_ALLOWED_CIDRS"); v != "" {
 		c.Agent.AllowedCIDRs = splitComma(v)

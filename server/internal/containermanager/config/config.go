@@ -33,6 +33,12 @@ type CMConfig struct {
 	ObserveInterval time.Duration `yaml:"observe_interval"`
 	// DefaultReplicas 期望态未指定副本数时的缺省值。
 	DefaultReplicas int `yaml:"default_replicas"`
+	// AgentListen 接收 Agent 反连的 WebSocket 监听地址（独立于面向 Gateway 的端口）。
+	AgentListen string `yaml:"agent_listen"`
+	// EnrollmentRequired 首注册是否强制校验 Enrollment Token（生产应为 true）。
+	EnrollmentRequired bool `yaml:"enrollment_required"`
+	// TaskTimeout 单条下发任务的执行时限。
+	TaskTimeout time.Duration `yaml:"task_timeout"`
 	// Nodes 静态登记的节点清单：CM 据此探测 Agent 并采集容器状态。
 	// 生产可由 Agent 自注册扩展；本期以配置登记为主。
 	Nodes []NodeConfig `yaml:"nodes"`
@@ -67,10 +73,13 @@ type LoggingConfig struct {
 func Default() *Config {
 	return &Config{
 		CM: CMConfig{
-			Listen:            ":9091",
-			ReconcileInterval: 5 * time.Second,
-			ObserveInterval:   10 * time.Second,
-			DefaultReplicas:   1,
+			Listen:             ":9091",
+			AgentListen:        ":9093",
+			ReconcileInterval:  5 * time.Second,
+			ObserveInterval:    10 * time.Second,
+			DefaultReplicas:    1,
+			TaskTimeout:        5 * time.Minute,
+			EnrollmentRequired: false,
 		},
 		Logging: LoggingConfig{Level: "info"},
 	}
@@ -119,6 +128,17 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_CM_DEFAULT_REPLICAS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.CM.DefaultReplicas = n
+		}
+	}
+	if v := os.Getenv("MAPLE_CM_AGENT_LISTEN"); v != "" {
+		c.CM.AgentListen = v
+	}
+	if v := os.Getenv("MAPLE_CM_ENROLLMENT_REQUIRED"); v != "" {
+		c.CM.EnrollmentRequired = parseBool(v, c.CM.EnrollmentRequired)
+	}
+	if v := os.Getenv("MAPLE_CM_TASK_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.CM.TaskTimeout = d
 		}
 	}
 	if v := os.Getenv("MAPLE_LOG_LEVEL"); v != "" {
