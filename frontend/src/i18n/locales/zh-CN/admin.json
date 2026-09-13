@@ -384,7 +384,8 @@
     "errFill": "请填写服务与地址",
     "registerSuccess": "注册成功",
     "registerFailed": "注册失败",
-    "container": "容器"
+    "container": "容器",
+    "containerId": "容器 ID"
   },
   "logs": {
     "title": "日志查询",
@@ -484,6 +485,7 @@
     "noEvents": "暂无容器事件",
     "colEventAction": "事件",
     "colInstance": "实例",
+    "colContainerId": "容器 ID",
     "colNode": "节点",
     "colState": "状态",
     "colExitCode": "退出码",

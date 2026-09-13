@@ -591,6 +591,7 @@ export default function RuntimePage() {
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">{t('runtime.colInstance')}</th>
+              <th className="px-4 py-2">{t('runtime.colContainerId')}</th>
               <th className="px-4 py-2">{t('runtime.colName')}</th>
               <th className="px-4 py-2">{t('runtime.colImage')}</th>
               <th className="px-4 py-2">{t('runtime.colVersion')}</th>
@@ -603,7 +604,7 @@ export default function RuntimePage() {
           <tbody>
             {sortedContainers.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
+                <td colSpan={9} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
               </tr>
             )}
             {sortedContainers.map((ct) => {
@@ -613,6 +614,7 @@ export default function RuntimePage() {
               return (
                 <tr key={ct.container_id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                   <td className="px-4 py-2 font-mono text-xs">{ct.instance_id.slice(0, 8)}</td>
+                  <td className="px-4 py-2 font-mono text-xs" title={ct.container_id}>{ct.container_id.slice(0, 12)}</td>
                   <td className="px-4 py-2">{ct.name || ct.container_id.slice(0, 12)}</td>
                   <td className="px-4 py-2 font-mono text-xs">{ct.image}</td>
                   <td className="px-4 py-2">{version || '-'}</td>
