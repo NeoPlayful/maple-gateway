@@ -1,4 +1,4 @@
-// Package wsclient 实现 Node Agent 反向 WebSocket 客户端：
+// Package wsclient 实现 Node Agent 的 WebSocket 客户端：
 // Agent 主动连接 Container Manager，经一条持久连接完成握手、心跳、
 // 状态上报与任务接收执行。节点无需对外暴露管理端口。
 package wsclient

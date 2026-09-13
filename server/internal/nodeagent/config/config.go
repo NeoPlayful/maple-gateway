@@ -20,7 +20,7 @@ type AgentConfig struct {
 	// Listen 对外监听地址（供 CM 调用容器操作），应仅绑内网；
 	// 容器内或被远程 CM 调用时需绑 0.0.0.0 并配合防火墙/allowlist。
 	Listen string `yaml:"listen"`
-	// DisableHTTP 关闭面向 CM 的 HTTP 管理端口。配置了 server_url（反连）后应置 true：
+	// DisableHTTP 关闭面向 CM 的 HTTP 管理端口。配置了 server_url（Agent 主动连接）后应置 true：
 	// 命令全部经 WebSocket 下行，节点不再暴露任何入站管理端口。
 	DisableHTTP bool `yaml:"disable_http"`
 	// Token 校验 CM 访问本 Agent 的令牌。
@@ -38,7 +38,7 @@ type AgentConfig struct {
 	ManagedLabel string `yaml:"managed_label"`
 	// NodeName 本节点标识（上报给 CM）。
 	NodeName string `yaml:"node_name"`
-	// ServerURL CM 的反连地址（ws://cm-host:9093/agent/ws 或 wss://...）。
+	// ServerURL CM 的 WebSocket 接入地址（ws://cm-host:9093/agent/ws 或 wss://...）。
 	// 配置后 Agent 主动连 CM，无需对外暴露本机管理端口。
 	ServerURL string `yaml:"server_url"`
 	// EnrollmentToken 首注册令牌（一次性）；注册成功后由 CM 下发凭证并落盘。

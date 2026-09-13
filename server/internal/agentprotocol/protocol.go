@@ -1,7 +1,7 @@
 // Package agentprotocol 定义 Container Manager 与 Container Agent 之间
 // 单条持久 WebSocket 上的统一消息契约，供双方共用。
 //
-// 方向约定：Agent 主动连 CM（反连），节点不开放入站端口。连接建立后，
+// 方向约定：Agent 主动连接 CM，节点不开放入站端口。连接建立后，
 // 命令下行与状态上行复用同一条连接：
 //
 //	连接类  agent.hello → agent.ready → heartbeat（周期）

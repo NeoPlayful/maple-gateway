@@ -28,7 +28,7 @@ type Callbacks struct {
 	OnLogsData     func(nodeID string, p agentprotocol.LogsDataPayload)
 }
 
-// Server 是 Agent WebSocket 接入端，监听独立地址接收 Agent 反连。
+// Server 是 Agent WebSocket 接入端，监听独立地址接收 Agent 主动连接。
 type Server struct {
 	listen string
 	auth   Authenticator
@@ -40,7 +40,7 @@ type Server struct {
 	upgrader websocket.Upgrader
 }
 
-// NewServer 构造接入端。listen 为反连监听地址（如 ":9093"）。
+// NewServer 构造接入端。listen 为 WebSocket 监听地址（如 ":9093"）。
 func NewServer(listen string, auth Authenticator, hub *Hub, cb Callbacks, logger *zap.Logger) *Server {
 	return &Server{
 		listen: listen,
@@ -168,7 +168,7 @@ func (s *Server) handshake(ctx context.Context, conn *websocket.Conn, remote str
 	return res, true
 }
 
-// remoteHost 取反连连接的对端主机（不含端口）。
+// remoteHost 取连接的对端主机（不含端口）。
 func remoteHost(r *http.Request) string {
 	host := r.RemoteAddr
 	if h, _, err := net.SplitHostPort(host); err == nil {
