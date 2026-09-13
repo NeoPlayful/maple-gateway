@@ -110,6 +110,11 @@ func (c *Client) MgmtContainers(ctx context.Context) (json.RawMessage, error) {
 	return c.mgmtGet(ctx, "/api/mgmt/containers")
 }
 
+// MgmtEvents 拉取受管容器 Docker 事件：GET {cm}/api/mgmt/events。
+func (c *Client) MgmtEvents(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/events")
+}
+
 // mgmtGet 发起一次管理读请求，未接入 CM 时返回空对象。
 func (c *Client) mgmtGet(ctx context.Context, path string) (json.RawMessage, error) {
 	if !c.Enabled() {
@@ -145,6 +150,174 @@ func (c *Client) InstanceLogs(ctx context.Context, instanceID string, tail int) 
 	var out json.RawMessage
 	if err := c.do(ctx, http.MethodGet,
 		fmt.Sprintf("/api/mgmt/instances/%s/logs?tail=%d", instanceID, tail), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// FollowInstanceLogs 打开实例实时日志流：GET {cm}/api/mgmt/instances/{id}/logs/stream。
+// 返回的响应体交由调用方（Gateway 代理）分块转发给前端。
+func (c *Client) FollowInstanceLogs(ctx context.Context, instanceID string, tail int) (*http.Response, error) {
+	if !c.Enabled() {
+		return nil, fmt.Errorf("container manager 未接入")
+	}
+	url := fmt.Sprintf("%s/api/mgmt/instances/%s/logs/stream?tail=%d", c.baseURL, instanceID, tail)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build cm request: %w", err)
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	// 日志流为长连接，不走带超时的默认客户端。
+	streamClient := &http.Client{}
+	resp, err := streamClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call cm: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer func() { _ = resp.Body.Close() }()
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return nil, fmt.Errorf("cm returned %d: %s", resp.StatusCode, string(raw))
+	}
+	return resp, nil
+}
+
+// EnrollmentTokens 列出全部注册令牌：GET {cm}/api/mgmt/enrollment-tokens。
+func (c *Client) EnrollmentTokens(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/enrollment-tokens")
+}
+
+// IssueEnrollmentToken 签发注册令牌：POST {cm}/api/mgmt/enrollment-tokens。
+// body 为原始 JSON（note/ttl_seconds/created_by），原样透传。
+func (c *Client) IssueEnrollmentToken(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return nil, fmt.Errorf("container manager 未接入")
+	}
+	if len(body) == 0 {
+		body = json.RawMessage(`{}`)
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/enrollment-tokens", body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RevokeEnrollmentToken 撤销注册令牌：DELETE {cm}/api/mgmt/enrollment-tokens/{id}。
+func (c *Client) RevokeEnrollmentToken(ctx context.Context, id string) error {
+	if !c.Enabled() {
+		return fmt.Errorf("container manager 未接入")
+	}
+	return c.do(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/mgmt/enrollment-tokens/%s", id), nil, nil)
+}
+
+// MgmtTasks 列出全部下发任务：GET {cm}/api/mgmt/tasks。
+func (c *Client) MgmtTasks(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/tasks")
+}
+
+// TaskDetail 查看单个任务详情：GET {cm}/api/mgmt/tasks/{id}。
+func (c *Client) TaskDetail(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/tasks/"+id)
+}
+
+// RetryTask 重试一个终态任务：POST {cm}/api/mgmt/tasks/{id}/retry。
+func (c *Client) RetryTask(ctx context.Context, id string) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return nil, fmt.Errorf("container manager 未接入")
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/tasks/"+id+"/retry", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CancelTask 取消未结束的任务：POST {cm}/api/mgmt/tasks/{id}/cancel。
+func (c *Client) CancelTask(ctx context.Context, id string, body json.RawMessage) error {
+	if !c.Enabled() {
+		return fmt.Errorf("container manager 未接入")
+	}
+	if len(body) == 0 {
+		body = json.RawMessage(`{}`)
+	}
+	return c.do(ctx, http.MethodPost, "/api/mgmt/tasks/"+id+"/cancel", body, nil)
+}
+
+// Applications 列出全部 Compose 应用：GET {cm}/api/mgmt/applications。
+func (c *Client) Applications(ctx context.Context) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/applications")
+}
+
+// ApplicationDetail 查看单个应用：GET {cm}/api/mgmt/applications/{id}。
+func (c *Client) ApplicationDetail(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/applications/"+id)
+}
+
+// SaveApplication 新建/覆盖应用：POST {cm}/api/mgmt/applications。
+func (c *Client) SaveApplication(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return nil, fmt.Errorf("container manager 未接入")
+	}
+	if len(body) == 0 {
+		body = json.RawMessage(`{}`)
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/applications", body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// appAction 发起一次返回应用运行态的操作。
+func (c *Client) appAction(ctx context.Context, id, action string) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return nil, fmt.Errorf("container manager 未接入")
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/applications/"+id+"/"+action, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeployApplication 部署应用：POST {cm}/api/mgmt/applications/{id}/deploy。
+func (c *Client) DeployApplication(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.appAction(ctx, id, "deploy")
+}
+
+// StopApplication 停止应用：POST {cm}/api/mgmt/applications/{id}/stop。
+func (c *Client) StopApplication(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.appAction(ctx, id, "stop")
+}
+
+// RestartApplication 重启应用：POST {cm}/api/mgmt/applications/{id}/restart。
+func (c *Client) RestartApplication(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.appAction(ctx, id, "restart")
+}
+
+// RemoveApplication 移除应用：DELETE {cm}/api/mgmt/applications/{id}。
+func (c *Client) RemoveApplication(ctx context.Context, id string) error {
+	if !c.Enabled() {
+		return fmt.Errorf("container manager 未接入")
+	}
+	return c.do(ctx, http.MethodDelete, "/api/mgmt/applications/"+id, nil, nil)
+}
+
+// ApplicationPs 查询应用内服务运行态：GET {cm}/api/mgmt/applications/{id}/ps。
+func (c *Client) ApplicationPs(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/applications/"+id+"/ps")
+}
+
+// ValidateApplication 校验应用 Compose 规格：POST {cm}/api/mgmt/applications/{id}/validate。
+func (c *Client) ValidateApplication(ctx context.Context, id string) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return nil, fmt.Errorf("container manager 未接入")
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/applications/"+id+"/validate", nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil

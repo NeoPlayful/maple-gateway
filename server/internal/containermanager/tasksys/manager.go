@@ -28,6 +28,7 @@ type Manager struct {
 	router  Router
 	timeout time.Duration
 	logger  *zap.Logger
+	store   *Store
 
 	mu    sync.RWMutex
 	tasks map[string]*Task
@@ -46,9 +47,55 @@ func New(router Router, timeout time.Duration, logger *zap.Logger) *Manager {
 	}
 }
 
+// WithStore 挂载持久化存储（未配置数据库时可不调用）。
+func (m *Manager) WithStore(store *Store) *Manager {
+	m.store = store
+	return m
+}
+
+// Load 从数据库装载历史任务到内存（无数据库时为无操作）。
+// 已处于终态的历史任务只读回填；非终态任务在重启后不可能再收到 Agent 回执，
+// 统一收敛为 interrupted（failed），避免永久停留在 dispatching/running。
+func (m *Manager) Load(ctx context.Context) error {
+	if m.store == nil {
+		return nil
+	}
+	ts, err := m.store.load(ctx)
+	if err != nil {
+		return fmt.Errorf("load cm_tasks: %w", err)
+	}
+	m.mu.Lock()
+	for _, t := range ts {
+		if !t.Status.Terminal() {
+			t.Error = "interrupted by cm restart"
+			t.setStatus(StatusFailed)
+		}
+		m.tasks[t.ID] = t
+	}
+	m.mu.Unlock()
+	for _, t := range ts {
+		if t.Status == StatusFailed && t.Error == "interrupted by cm restart" {
+			m.persist(t)
+		}
+	}
+	return nil
+}
+
+// persist 把任务当前快照写穿到存储；store 为空时无操作。
+func (m *Manager) persist(t *Task) {
+	if m.store != nil {
+		m.store.Save(t)
+	}
+}
+
 // Dispatch 创建任务并立即下发，返回任务快照。
 // 下发失败时任务置 failed（无在线节点/投递失败），但记录仍保留可查。
 func (m *Manager) Dispatch(nodeID, action string, params any) (*Task, error) {
+	return m.DispatchBy(nodeID, action, params, "")
+}
+
+// DispatchBy 同 Dispatch，额外记录创建人（管理端触发的任务）。
+func (m *Manager) DispatchBy(nodeID, action string, params any, createdBy string) (*Task, error) {
 	if !agentprotocol.IsAllowedAction(action) {
 		return nil, fmt.Errorf("action %q not allowed", action)
 	}
@@ -71,23 +118,30 @@ func (m *Manager) Dispatch(nodeID, action string, params any) (*Task, error) {
 	t.Params = raw
 	t.Status = StatusPending
 	t.RequestID = id
+	t.CreatedBy = createdBy
 	t.CreatedMs = time.Now().UnixMilli()
 	t.DeadlineMs = time.Now().Add(m.timeout).UnixMilli()
 	m.mu.Lock()
 	m.tasks[id] = t
 	m.mu.Unlock()
+	m.persist(t)
+	return m.deliver(t, nodeID)
+}
 
+// deliver 向节点投递一个已创建的任务，并在投递结果上收敛状态。
+func (m *Manager) deliver(t *Task, nodeID string) (*Task, error) {
 	sender, ok := m.router.SenderFor(nodeID)
 	if !ok {
 		t.mu.Lock()
 		t.Error = "node offline"
 		t.setStatus(StatusFailed)
 		t.mu.Unlock()
+		m.persist(t)
 		return t.Snapshot(), fmt.Errorf("node %s offline", nodeID)
 	}
 
 	env, _ := agentprotocol.New(agentprotocol.TypeTaskExecute, t.RequestID, agentprotocol.TaskExecutePayload{
-		TaskID: t.ID, Action: action, Params: raw,
+		TaskID: t.ID, Action: t.Action, Params: t.Params,
 	})
 	t.mu.Lock()
 	t.Attempts++
@@ -97,12 +151,55 @@ func (m *Manager) Dispatch(nodeID, action string, params any) (*Task, error) {
 		t.Error = "send failed"
 		t.setStatus(StatusFailed)
 		t.mu.Unlock()
+		m.persist(t)
 		return t.Snapshot(), fmt.Errorf("send task to node %s failed", nodeID)
 	}
 	t.mu.Lock()
 	t.setStatus(StatusDispatching)
 	t.mu.Unlock()
+	m.persist(t)
 	return t.Snapshot(), nil
+}
+
+// Retry 基于一个已终态（失败/超时/取消）任务重新下发一次。
+// 新任务关联原任务的 action/params/node，并以 ParentID 记录谱系，Attempts 继承原值 +1。
+func (m *Manager) Retry(id string) (*Task, error) {
+	m.mu.RLock()
+	orig, ok := m.tasks[id]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, ErrUnknownTask
+	}
+	snap := orig.Snapshot()
+	if !snap.Status.Terminal() {
+		return nil, fmt.Errorf("task %s 尚未结束，无法重试", id)
+	}
+	newID, err := randomID("task_")
+	if err != nil {
+		return nil, err
+	}
+	t := newTask()
+	t.ID = newID
+	t.NodeID = snap.NodeID
+	t.Action = snap.Action
+	t.Params = snap.Params
+	t.Status = StatusPending
+	t.RequestID = newID
+	t.ParentID = snap.ID
+	t.CreatedBy = snap.CreatedBy
+	t.Attempts = snap.Attempts
+	t.CreatedMs = time.Now().UnixMilli()
+	t.DeadlineMs = time.Now().Add(m.timeout).UnixMilli()
+	m.mu.Lock()
+	m.tasks[newID] = t
+	m.mu.Unlock()
+	m.persist(t)
+	return m.deliver(t, snap.NodeID)
+}
+
+// SenderFor 实现 agentregistry.Commander：暴露向节点单向投递的通道（日志流等异步指令）。
+func (m *Manager) SenderFor(nodeID string) (Sender, bool) {
+	return m.router.SenderFor(nodeID)
 }
 
 // Get 取任务快照。
@@ -174,8 +271,8 @@ func (m *Manager) OnProgress(nodeID, taskID string, percent int, msg string) {
 		return
 	}
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.Status != StatusRunning && t.Status != StatusDispatching {
+		t.mu.Unlock()
 		return
 	}
 	if percent >= 0 {
@@ -184,6 +281,8 @@ func (m *Manager) OnProgress(nodeID, taskID string, percent int, msg string) {
 	if msg != "" {
 		t.Message = msg
 	}
+	t.mu.Unlock()
+	m.persist(t)
 }
 
 // OnResult 处理执行结果：非终态任务收敛到 success/failed。
@@ -193,8 +292,8 @@ func (m *Manager) OnResult(nodeID, taskID, status, errMsg string, result json.Ra
 		return
 	}
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.Status.Terminal() {
+		t.mu.Unlock()
 		return // 重复结果不覆盖终态
 	}
 	t.Result = result
@@ -205,6 +304,8 @@ func (m *Manager) OnResult(nodeID, taskID, status, errMsg string, result json.Ra
 	} else {
 		t.setStatus(StatusFailed)
 	}
+	t.mu.Unlock()
+	m.persist(t)
 }
 
 // Cancel 取消任务并向下发取消指令。仅非终态可取消。
@@ -221,6 +322,7 @@ func (m *Manager) Cancel(nodeID, taskID, reason string) error {
 	t.Error = reason
 	t.setStatus(StatusCancelled)
 	t.mu.Unlock()
+	m.persist(t)
 
 	if sender, ok := m.router.SenderFor(nodeID); ok {
 		env, _ := agentprotocol.New(agentprotocol.TypeTaskCancel, "", agentprotocol.TaskCancelPayload{
@@ -229,6 +331,17 @@ func (m *Manager) Cancel(nodeID, taskID, reason string) error {
 		sender.Send(env)
 	}
 	return nil
+}
+
+// AdminCancel 管理端取消：按任务 ID 取消，节点取自任务本身（无归属校验）。
+func (m *Manager) AdminCancel(taskID, reason string) error {
+	m.mu.RLock()
+	t, ok := m.tasks[taskID]
+	m.mu.RUnlock()
+	if !ok {
+		return ErrUnknownTask
+	}
+	return m.Cancel(t.NodeID, taskID, reason)
 }
 
 // Sweep 扫描超时任务：非终态且已过 deadline，置 timeout，并尽力向 Agent 下发
@@ -248,6 +361,7 @@ func (m *Manager) Sweep() int {
 		taskID := t.ID
 		t.mu.Unlock()
 		if expired {
+			m.persist(t)
 			if sender, ok := m.router.SenderFor(nodeID); ok {
 				env, _ := agentprotocol.New(agentprotocol.TypeTaskCancel, "", agentprotocol.TaskCancelPayload{
 					TaskID: taskID, Reason: "task timeout",
@@ -285,14 +399,16 @@ func (m *Manager) transition(nodeID, taskID string, from, to Status, errMsg stri
 		return
 	}
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.Status != from {
+		t.mu.Unlock()
 		return
 	}
 	if errMsg != "" {
 		t.Error = errMsg
 	}
 	t.setStatus(to)
+	t.mu.Unlock()
+	m.persist(t)
 }
 
 // lookup 按节点与任务 ID 取任务（校验归属，防止跨节点误操作）。

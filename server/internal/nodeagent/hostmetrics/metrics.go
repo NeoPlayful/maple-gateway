@@ -14,4 +14,6 @@ type Metrics struct {
 	DiskTotal   int64   `json:"disk_total"`   // 根文件系统总量（字节）
 	DiskUsed    int64   `json:"disk_used"`    // 已用磁盘（字节）
 	DiskPercent float64 `json:"disk_percent"` // 磁盘使用率 %
+	LoadAvg1    float64 `json:"load_avg_1"`   // 1 分钟平均负载（仅 Linux）
+	UptimeSec   int64   `json:"uptime_sec"`   // 主机运行时长（秒）
 }

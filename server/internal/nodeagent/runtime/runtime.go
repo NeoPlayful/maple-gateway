@@ -9,12 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/compose"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/docker"
 )
 
 // Runtime 是容器运行时操作入口。
 type Runtime struct {
 	docker        *docker.Client
+	compose       *compose.Driver
 	allowedImages []string
 	stopTimeout   time.Duration
 }
@@ -23,10 +25,14 @@ type Runtime struct {
 func New(d *docker.Client, allowedImages []string) *Runtime {
 	return &Runtime{
 		docker:        d,
+		compose:       compose.New(""),
 		allowedImages: allowedImages,
 		stopTimeout:   10 * time.Second,
 	}
 }
+
+// Compose 返回 Compose 驱动（供执行器驱动应用部署）。
+func (r *Runtime) Compose() *compose.Driver { return r.compose }
 
 // Info 返回节点资源与容量。
 func (r *Runtime) Info(ctx context.Context) (docker.NodeInfo, error) {
@@ -88,6 +94,15 @@ func (r *Runtime) Logs(ctx context.Context, id string, tail int) (string, error)
 	return r.docker.Logs(ctx, real, tail)
 }
 
+// FollowLogs 持续跟随容器日志，每读到一段即回调 emit（id 可为容器 ID 或 instance_id）。
+func (r *Runtime) FollowLogs(ctx context.Context, id string, tail int, emit func(chunk string) error) error {
+	real, err := r.resolve(ctx, id)
+	if err != nil {
+		return err
+	}
+	return r.docker.FollowLogs(ctx, real, tail, emit)
+}
+
 // DiskUsage 返回 Docker 引擎空间占用摘要。
 func (r *Runtime) DiskUsage(ctx context.Context) (docker.DiskUsage, error) {
 	return r.docker.DiskUsage(ctx)
@@ -96,6 +111,11 @@ func (r *Runtime) DiskUsage(ctx context.Context) (docker.DiskUsage, error) {
 // PullImage 拉取镜像（受允许清单约束）。
 func (r *Runtime) PullImage(ctx context.Context, ref string) error {
 	return r.docker.Pull(ctx, ref, r.allowedImages)
+}
+
+// WatchEvents 订阅本机受管容器的 Docker 事件并逐条回调 emit。
+func (r *Runtime) WatchEvents(ctx context.Context, emit func(docker.DockerEvent)) error {
+	return r.docker.WatchEvents(ctx, emit)
 }
 
 // resolve 把传入标识解析为真实容器 ID：优先按 instance_id 标签匹配受管容器，

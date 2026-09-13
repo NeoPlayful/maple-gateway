@@ -40,7 +40,43 @@ func Collect() (Metrics, error) {
 			m.DiskPercent = round1(float64(used) / float64(total) * 100)
 		}
 	}
+	if load, err := readLoadAvg(); err == nil {
+		m.LoadAvg1 = load
+	}
+	if up, err := readUptime(); err == nil {
+		m.UptimeSec = up
+	}
 	return m, nil
+}
+
+// readLoadAvg 读取 /proc/loadavg 首列的 1 分钟平均负载。
+func readLoadAvg() (float64, error) {
+	data, err := os.ReadFile("/proc/loadavg")
+	if err != nil {
+		return 0, err
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) < 1 {
+		return 0, nil
+	}
+	return strconv.ParseFloat(fields[0], 64)
+}
+
+// readUptime 读取 /proc/uptime 首列的系统运行秒数（取整）。
+func readUptime() (int64, error) {
+	data, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return 0, err
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) < 1 {
+		return 0, nil
+	}
+	secs, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(secs), nil
 }
 
 // cpuTimes 是一组累计 CPU 时间片（jiffies）。

@@ -11,6 +11,27 @@ type Executor interface {
 	Execute(ctx context.Context, action string, params json.RawMessage) (json.RawMessage, error)
 }
 
+// LogStreamer 打开一条容器日志流：随日志产出反复回调 emit（每片一段文本），
+// 直到流自然结束或 ctx 取消。上层（runtime）承担到 Docker 的映射。
+type LogStreamer interface {
+	FollowLogs(ctx context.Context, id string, tail int, emit func(chunk string) error) error
+}
+
+// DockerEvent 是一条受管容器事件（与 nodeagent/docker.DockerEvent 对齐）。
+type DockerEvent struct {
+	Action      string
+	ContainerID string
+	InstanceID  string
+	Image       string
+	ExitCode    int
+	Time        int64
+}
+
+// EventSource 订阅本机受管容器的 Docker 事件并逐条回调 emit，直到 ctx 取消。
+type EventSource interface {
+	WatchEvents(ctx context.Context, emit func(DockerEvent)) error
+}
+
 // ExecutorFunc 便于把闭包适配为 Executor。
 type ExecutorFunc func(ctx context.Context, action string, params json.RawMessage) (json.RawMessage, error)
 

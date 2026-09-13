@@ -46,14 +46,17 @@ type Task struct {
 	Error      string          `json:"error,omitempty"`
 	Result     json.RawMessage `json:"result,omitempty"`
 	RequestID  string          `json:"request_id,omitempty"`
-	CreatedMs  int64           `json:"created_at_ms"`
-	StartedMs  int64           `json:"started_at_ms,omitempty"`
-	FinishedMs int64           `json:"finished_at_ms,omitempty"`
-	DeadlineMs int64           `json:"deadline_ms,omitempty"`
-	Attempts   int             `json:"attempts"`
-	mu         *sync.Mutex     `json:"-"`
-	done       chan struct{}   `json:"-"` // 终态时关闭，供同步等待者唤醒
-	finished   bool            `json:"-"` // 是否已关闭 done（保证只关一次）
+	// ParentID 指向本任务重试前的上一任务（首个任务为空）。
+	ParentID   string `json:"parent_task_id,omitempty"`
+	CreatedBy  string `json:"created_by,omitempty"`
+	CreatedMs  int64  `json:"created_at_ms"`
+	StartedMs  int64  `json:"started_at_ms,omitempty"`
+	FinishedMs int64  `json:"finished_at_ms,omitempty"`
+	DeadlineMs int64  `json:"deadline_ms,omitempty"`
+	Attempts   int    `json:"attempts"`
+	mu         *sync.Mutex   `json:"-"`
+	done       chan struct{} `json:"-"` // 终态时关闭，供同步等待者唤醒
+	finished   bool          `json:"-"` // 是否已关闭 done（保证只关一次）
 }
 
 // newTask 构造任务并初始化其锁与终态信号。

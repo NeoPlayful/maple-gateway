@@ -16,6 +16,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -42,6 +43,9 @@ func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.R
 	}
 	return nil, nil
 }
+
+// SenderFor 实现 agentregistry.Commander：测试中不投递单向消息。
+func (f *fakeCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
 
 func (f *fakeCommander) count(action string) int {
 	f.mu.Lock()

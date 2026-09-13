@@ -193,6 +193,59 @@ type LogsReadResult struct {
 	Logs string `json:"logs"`
 }
 
+// ---- Application（Compose）类 ----
+
+// ApplicationSpec 是一份 Docker Compose 规格（原样 YAML 文本 + 项目名）。
+// project 决定 Compose 项目隔离范围与容器命名前缀；CM 侧从 application_versions
+// 取出后原样下发，Agent 落盘为临时 compose 文件再驱动 compose CLI。
+type ApplicationSpec struct {
+	ApplicationID string `json:"application_id"`
+	Version       string `json:"version"`
+	Project       string `json:"project"`
+	ComposeYAML   string `json:"compose_yaml"`
+}
+
+// ApplicationValidateResult 是 application.validate 的结果。
+type ApplicationValidateResult struct {
+	Valid  bool     `json:"valid"`
+	Output string   `json:"output,omitempty"` // compose config 的规范化输出或错误详情
+	Errors []string `json:"errors,omitempty"`
+}
+
+// ApplicationActionResult 是 deploy/stop/restart/remove 的结果。
+type ApplicationActionResult struct {
+	Project    string             `json:"project"`
+	State      string             `json:"state"` // running / stopped / removed
+	Services   []ApplicationService `json:"services,omitempty"`
+	Output     string             `json:"output,omitempty"`
+}
+
+// ApplicationService 是 Compose 项目中的一个服务运行态（来自 compose ps）。
+type ApplicationService struct {
+	Name        string `json:"name"`
+	Service     string `json:"service"`
+	State       string `json:"state"`
+	Status      string `json:"status,omitempty"`
+	Health      string `json:"health,omitempty"`
+	Image       string `json:"image,omitempty"`
+	ContainerID string `json:"container_id,omitempty"`
+	Publishers  []ApplicationPortPublisher `json:"publishers,omitempty"`
+}
+
+// ApplicationPortPublisher 是服务的一个发布端口。
+type ApplicationPortPublisher struct {
+	URL           string `json:"url,omitempty"`
+	TargetPort    int    `json:"target_port,omitempty"`
+	PublishedPort int    `json:"published_port,omitempty"`
+	Protocol      string `json:"protocol,omitempty"`
+}
+
+// ApplicationPsResult 是 application.ps 的结果。
+type ApplicationPsResult struct {
+	Project  string               `json:"project"`
+	Services []ApplicationService `json:"services"`
+}
+
 // ---- 日志类 ----
 
 // LogsOpenPayload 是请求打开某容器的日志流。

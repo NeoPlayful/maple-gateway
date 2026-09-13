@@ -191,6 +191,8 @@ export interface HostMetrics {
   disk_total: number;
   disk_used: number;
   disk_percent: number;
+  load_avg_1?: number;
+  uptime_sec?: number;
 }
 
 export interface DockerDisk {
@@ -218,6 +220,7 @@ export interface CMNodeStatus {
   cpus?: number;
   memory_bytes?: number;
   docker_version?: string;
+  docker_api_version?: string;
 }
 
 export interface CMStats {
@@ -247,6 +250,17 @@ export interface CMOverview {
   nodes?: CMNodeStatus[];
 }
 
+// 受管容器的 Docker 事件（CM 观测经 /api/admin/cm/events 透出）。
+export interface CMDockerEvent {
+  node_id: string;
+  action: string;
+  container_id?: string;
+  instance_id?: string;
+  image?: string;
+  exit_code?: number;
+  at: number;
+}
+
 // 受管容器（CM 观测快照经 /api/admin/cm/containers 透出）。
 export interface CMContainer {
   instance_id: string;
@@ -261,4 +275,53 @@ export interface CMContainer {
   exit_code: number;
   oom_killed: boolean;
   finished_at?: string;
+}
+
+// 一次下发给 Agent 的任务（CM 任务系统经 /api/admin/cm/tasks 透出）。
+export interface CMTask {
+  id: string;
+  node_id: string;
+  action: string;
+  params?: unknown;
+  status: string; // pending / dispatching / running / success / failed / cancelled / timeout
+  message?: string;
+  percent?: number;
+  error?: string;
+  result?: unknown;
+  request_id?: string;
+  parent_task_id?: string;
+  created_by?: string;
+  created_at_ms: number;
+  started_at_ms?: number;
+  finished_at_ms?: number;
+  deadline_ms?: number;
+  attempts: number;
+}
+
+// 一个 Compose 应用（CM 应用模型经 /api/admin/cm/applications 透出）。
+export interface CMApplication {
+  id: string;
+  tenant_id?: string;
+  name: string;
+  description?: string;
+  status: string; // created / running / stopped / removed / failed
+  node_id?: string;
+  service_id?: string;
+  version?: string;
+  spec?: string; // Compose 规格（YAML 原文）
+  target_weight?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Compose 应用内的一个服务运行态（compose ps）。
+export interface CMAppService {
+  name: string;
+  service: string;
+  state: string;
+  status?: string;
+  health?: string;
+  image?: string;
+  container_id?: string;
+  publishers?: { url?: string; target_port?: number; published_port?: number; protocol?: string }[];
 }

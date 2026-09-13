@@ -28,6 +28,7 @@ type NodeInfo struct {
 	MemoryBytes   int64  `json:"memory_bytes"`
 	Containers    int    `json:"containers"`
 	DockerVersion string `json:"docker_version"`
+	DockerAPIVer  string `json:"docker_api_version"`
 }
 
 // HostMetrics 是主机资源使用摘要（对应 Agent hostmetrics.Metrics）。
@@ -40,6 +41,8 @@ type HostMetrics struct {
 	DiskTotal   int64   `json:"disk_total"`
 	DiskUsed    int64   `json:"disk_used"`
 	DiskPercent float64 `json:"disk_percent"`
+	LoadAvg1    float64 `json:"load_avg_1"`
+	UptimeSec   int64   `json:"uptime_sec"`
 }
 
 // DockerDisk 是 Docker 引擎空间占用摘要。
@@ -63,6 +66,10 @@ type Observer struct {
 	interval time.Duration
 	logger   *zap.Logger
 
+	// kick 用于事件驱动的即时观测：docker 事件到达时触发一次 tick，
+	// 让容器/部署状态尽快收敛，而不必等待下一个轮询周期。
+	kick chan struct{}
+
 	mu          sync.Mutex
 	lastReport  time.Time
 	lastErr     error
@@ -72,6 +79,8 @@ type Observer struct {
 	metrics     map[string]NodeMetric
 	info        map[string]NodeInfo
 	errors      []RuntimeError
+	events      []DockerEvent
+	eventKeys   map[string]struct{} // 事件去重键集合
 }
 
 // NodeMetric 是某节点最近一次采集到的资源指标。
@@ -101,17 +110,19 @@ type ObservedContainer struct {
 // New 构造。
 func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval time.Duration, logger *zap.Logger) *Observer {
 	return &Observer{
-		registry: registry,
-		gw:       gw,
-		interval: interval,
-		logger:   logger,
-		snapshot: map[string]ObservedContainer{},
-		metrics:  map[string]NodeMetric{},
-		info:     map[string]NodeInfo{},
+		registry:  registry,
+		gw:        gw,
+		interval:  interval,
+		logger:    logger,
+		kick:      make(chan struct{}, 1),
+		snapshot:  map[string]ObservedContainer{},
+		metrics:   map[string]NodeMetric{},
+		info:      map[string]NodeInfo{},
+		eventKeys: map[string]struct{}{},
 	}
 }
 
-// Run 启动周期观测循环，直到 ctx 取消。
+// Run 启动周期观测循环，直到 ctx 取消。docker 事件到达时经 kick 触发即时观测。
 func (o *Observer) Run(ctx context.Context) {
 	o.tick(ctx)
 	ticker := time.NewTicker(o.interval)
@@ -122,8 +133,68 @@ func (o *Observer) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			o.tick(ctx)
+		case <-o.kick:
+			o.tick(ctx)
 		}
 	}
+}
+
+// maxEvents 是保留的事件条数上限（超出即丢弃最旧的）。
+const maxEvents = 500
+
+// OnDockerEvent 接收一条 Agent 上行的 Docker 事件：去重、入库并触发即时观测。
+func (o *Observer) OnDockerEvent(nodeID string, p agentprotocol.DockerEventPayload) {
+	key := eventKey(nodeID, p)
+	o.mu.Lock()
+	if _, dup := o.eventKeys[key]; dup {
+		o.mu.Unlock()
+		return
+	}
+	o.eventKeys[key] = struct{}{}
+	// 事件按时间单调递增，新事件追加即有序；超上限则丢弃最旧并清理其去重键。
+	o.events = append(o.events, DockerEvent{
+		NodeID:      nodeID,
+		Action:      p.Action,
+		ContainerID: p.ContainerID,
+		InstanceID:  p.InstanceID,
+		Image:       p.Image,
+		ExitCode:    p.ExitCode,
+		At:          p.Time,
+	})
+	if len(o.events) > maxEvents {
+		drop := o.events[0]
+		delete(o.eventKeys, eventKey(nodeID, agentprotocol.DockerEventPayload{
+			Action: drop.Action, ContainerID: drop.ContainerID,
+			InstanceID: drop.InstanceID, Time: drop.At,
+		}))
+		o.events = o.events[1:]
+	}
+	o.mu.Unlock()
+	o.kickObserve()
+}
+
+// kickObserve 非阻塞地请求一次即时观测。
+func (o *Observer) kickObserve() {
+	select {
+	case o.kick <- struct{}{}:
+	default:
+	}
+}
+
+// eventKey 生成事件去重键（节点 + 容器 + 动作 + 时间）。
+func eventKey(nodeID string, p agentprotocol.DockerEventPayload) string {
+	return nodeID + "|" + p.ContainerID + "|" + p.Action + "|" + time.Unix(p.Time, 0).Format(time.RFC3339Nano) + "|" + p.InstanceID
+}
+
+// DockerEvent 是 CM 记录的一条受管容器事件。
+type DockerEvent struct {
+	NodeID      string `json:"node_id"`
+	Action      string `json:"action"`
+	ContainerID string `json:"container_id,omitempty"`
+	InstanceID  string `json:"instance_id,omitempty"`
+	Image       string `json:"image,omitempty"`
+	ExitCode    int    `json:"exit_code,omitempty"`
+	At          int64  `json:"at"`
 }
 
 // tick 执行一轮观测与上报。
@@ -245,6 +316,15 @@ func (o *Observer) RuntimeErrors() []RuntimeError {
 	defer o.mu.Unlock()
 	out := make([]RuntimeError, len(o.errors))
 	copy(out, o.errors)
+	return out
+}
+
+// Events 返回最近记录的 Docker 事件（按时间倒序，最新在前）。
+func (o *Observer) Events() []DockerEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make([]DockerEvent, len(o.events))
+	copy(out, o.events)
 	return out
 }
 
