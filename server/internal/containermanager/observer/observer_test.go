@@ -50,6 +50,45 @@ func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.R
 // SenderFor 实现 agentregistry.Commander：测试中不投递单向消息。
 func (f *fakeCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
 
+// failingCommander 令 container.list 始终失败，用于验证观测退避。
+type failingCommander struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (f *failingCommander) Call(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+	if action == agentprotocol.ActionContainerList {
+		f.mu.Lock()
+		f.calls++
+		f.mu.Unlock()
+		return nil, context.DeadlineExceeded
+	}
+	return json.RawMessage(`{}`), nil
+}
+
+func (f *failingCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
+
+// 连续观测失败的节点应进入退避窗口，后续轮次跳过探测（不再打到节点）。
+func TestObserverBacksOffOnRepeatedFailure(t *testing.T) {
+	cmd := &failingCommander{}
+	reg := onlineRegistry(cmd)
+	obs := New(reg, gwclient.NewGatewayClient("", ""), time.Second, zap.NewNop())
+
+	obs.tick(context.Background()) // 第一轮：探测失败，进入退避
+	obs.tick(context.Background()) // 第二轮：处于退避窗口内，跳过探测
+	obs.tick(context.Background())
+
+	cmd.mu.Lock()
+	calls := cmd.calls
+	cmd.mu.Unlock()
+	if calls != 1 {
+		t.Errorf("container.list calls = %d, want 1 (subsequent ticks skipped by backoff)", calls)
+	}
+	if s := obs.Stats(); s.Degraded != 1 {
+		t.Errorf("stats.Degraded = %d, want 1", s.Degraded)
+	}
+}
+
 // onlineRegistry 构造一个含在线节点 node-uuid-1（名 node-01）的视图。
 func onlineRegistry(cmd agentregistry.Commander) *agentregistry.Registry {
 	st := nodes.New(nil, 0, 0)

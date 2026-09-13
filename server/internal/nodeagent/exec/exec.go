@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/compose"
@@ -17,6 +18,13 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/wsclient"
 )
 
+// 执行超时：CM 对单条只读命令的等待上限为 20s，只读探测须在此预算内回执，
+// 否则观测循环会整轮超时。
+const (
+	readActionTimeout   = 10 * time.Second
+	mutateActionTimeout = 60 * time.Second
+)
+
 // Executor 基于本机 runtime 执行任务。
 type Executor struct {
 	rt *runtime.Runtime
@@ -24,6 +32,33 @@ type Executor struct {
 
 // New 构造执行器。
 func New(rt *runtime.Runtime) *Executor { return &Executor{rt: rt} }
+
+// isReadAction 报告 action 是否为只读探测类（无副作用，须快速返回）。
+func isReadAction(action string) bool {
+	switch action {
+	case agentprotocol.ActionSystemInfo, agentprotocol.ActionDockerInfo,
+		agentprotocol.ActionNodeMetrics, agentprotocol.ActionContainerList,
+		agentprotocol.ActionContainerInspect, agentprotocol.ActionContainerStats,
+		agentprotocol.ActionImageList, agentprotocol.ActionImageInspect,
+		agentprotocol.ActionNetworkList, agentprotocol.ActionNetworkInspect,
+		agentprotocol.ActionVolumeList, agentprotocol.ActionVolumeInspect,
+		agentprotocol.ActionLogsRead:
+		return true
+	default:
+		return false
+	}
+}
+
+// isMutateAction 报告 action 是否为改变容器状态的短操作（给足时间但仍有上界）。
+func isMutateAction(action string) bool {
+	switch action {
+	case agentprotocol.ActionContainerStart, agentprotocol.ActionContainerStop,
+		agentprotocol.ActionContainerRestart, agentprotocol.ActionContainerRemove:
+		return true
+	default:
+		return false
+	}
+}
 
 // FollowLogs 实现 wsclient.LogStreamer：把一次日志跟随映射到本机 runtime。
 func (e *Executor) FollowLogs(ctx context.Context, id string, tail int, emit func(chunk string) error) error {
@@ -45,9 +80,22 @@ func (e *Executor) WatchEvents(ctx context.Context, emit func(wsclient.DockerEve
 }
 
 // Execute 按 action 分发到具体操作，返回结果载荷（JSON）。
+// 入口按动作类别加执行超时：Docker 引擎无响应时不无限挂起，保证 CM 侧必定收到回执。
 func (e *Executor) Execute(ctx context.Context, action string, params json.RawMessage) (json.RawMessage, error) {
 	if !agentprotocol.IsAllowedAction(action) {
 		return nil, fmt.Errorf("action %q not allowed", action)
+	}
+	// 只读探测须快速返回；变更类给足时间但仍有上界；创建/拉取/Compose 等长任务
+	// 不额外限时，交由 CM 的任务超时（task_timeout）约束。
+	switch {
+	case isReadAction(action):
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, readActionTimeout)
+		defer cancel()
+	case isMutateAction(action):
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, mutateActionTimeout)
+		defer cancel()
 	}
 	switch action {
 	case agentprotocol.ActionSystemInfo, agentprotocol.ActionDockerInfo:

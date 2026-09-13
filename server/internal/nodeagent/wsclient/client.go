@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -27,6 +28,12 @@ const (
 	maxBackoff = 60 * time.Second
 	// defaultHeartbeat 未收到 CM 指定周期时的缺省心跳间隔。
 	defaultHeartbeat = 15 * time.Second
+	// eventRetryInitial / eventRetryMax 是 Docker 事件流断开后的重连退避区间：
+	// Docker 引擎未就绪时避免紧密重连空转，引擎恢复后仍能自动续订。
+	eventRetryInitial = 1 * time.Second
+	eventRetryMax     = 30 * time.Second
+	// preflightTimeout 是连接建立后 Docker 存活探测的上限。
+	preflightTimeout = 5 * time.Second
 )
 
 // agentVersion 是 Agent 上报给 CM 的版本号（由入口在编译期/启动期可覆盖）。
@@ -71,6 +78,10 @@ type Client struct {
 	OnConnected func()
 	// OnDisconnected 在连接断开后回调（可空）。
 	OnDisconnected func()
+
+	// Preflight 在连接建立后探测本机 Docker 引擎是否可用（可空）。返回错误时
+	// 主动结束本次连接，让上层退避后重连，避免对引擎不可用的窗口持续下发无谓命令。
+	Preflight func(ctx context.Context) error
 
 	// HeartbeatData 返回一次心跳载荷（可空，缺省使用空载荷）。
 	HeartbeatData func() agentprotocol.HeartbeatPayload
@@ -156,6 +167,17 @@ func (c *Client) session(ctx context.Context) error {
 
 	if err := c.handshake(conn); err != nil {
 		return err
+	}
+	// 连接建立后先探测本机 Docker：引擎不可用时不留在此会话，
+	// 且不重置重连退避——Docker 长期不可用期间由退避逐步拉长重连间隔，
+	// 避免"连上→探测失败→立即重连"的空转。
+	if c.Preflight != nil {
+		pctx, pcancel := context.WithTimeout(ctx, preflightTimeout)
+		err := c.Preflight(pctx)
+		pcancel()
+		if err != nil {
+			return fmt.Errorf("docker preflight: %w", err)
+		}
 	}
 	c.resetBackoff()
 	c.logger.Info("agent connected to manager", zap.String("node_id", c.nodeID()))
@@ -429,27 +451,53 @@ func (c *Client) reportResult(conn Conn, taskID, status, errMsg string, res json
 	}
 }
 
-// eventLoop 订阅本机 Docker 事件并上行。写失败即结束连接以便重连。
+// eventLoop 订阅本机 Docker 事件并上行。
+//
+// 事件流会因 Docker 引擎重启/不可达而断开：此处带退避重连，引擎恢复后自动续订；
+// 上行写失败则关闭连接结束本会话（交由 Run 重连）。ctx 取消时退出。
 func (c *Client) eventLoop(ctx context.Context, conn Conn) {
-	err := c.events.WatchEvents(ctx, func(ev DockerEvent) {
-		env, eerr := agentprotocol.New(agentprotocol.TypeDockerEvent, "", agentprotocol.DockerEventPayload{
-			NodeID:      c.nodeID(),
-			Action:      ev.Action,
-			ContainerID: ev.ContainerID,
-			InstanceID:  ev.InstanceID,
-			Image:       ev.Image,
-			ExitCode:    ev.ExitCode,
-			Time:        ev.Time,
-		})
-		if eerr != nil {
+	backoff := eventRetryInitial
+	for {
+		if ctx.Err() != nil {
 			return
 		}
-		if werr := c.write(conn, env); werr != nil {
-			_ = conn.Close()
+		err := c.events.WatchEvents(ctx, func(ev DockerEvent) {
+			env, eerr := agentprotocol.New(agentprotocol.TypeDockerEvent, "", agentprotocol.DockerEventPayload{
+				NodeID:      c.nodeID(),
+				Action:      ev.Action,
+				ContainerID: ev.ContainerID,
+				InstanceID:  ev.InstanceID,
+				Image:       ev.Image,
+				ExitCode:    ev.ExitCode,
+				Time:        ev.Time,
+			})
+			if eerr != nil {
+				return
+			}
+			if werr := c.write(conn, env); werr != nil {
+				_ = conn.Close()
+			}
+		})
+		if ctx.Err() != nil {
+			return
 		}
-	})
-	if err != nil && ctx.Err() == nil {
-		c.logger.Warn("docker event watch ended", zap.Error(err))
+		if err == nil {
+			// WatchEvents 仅在 ctx 取消时无错返回，此处即会话结束。
+			return
+		}
+		c.logger.Warn("docker event watch ended, retrying",
+			zap.Error(err), zap.Duration("retry_in", backoff))
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff < eventRetryMax {
+			backoff *= 2
+			if backoff > eventRetryMax {
+				backoff = eventRetryMax
+			}
+		}
 	}
 }
 
