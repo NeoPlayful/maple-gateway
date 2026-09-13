@@ -114,6 +114,9 @@ func startWSClient(ctx context.Context, cfg *config.Config, rt *runtime.Runtime,
 		},
 	)
 	client := wsclient.New(enrollee, exec.New(rt), wsclient.NewWSDialer(), logger)
+	// 连接建立后先探测本机 Docker：引擎不可用时让会话快速结束并退避重连，
+	// 避免 CM 把只读命令打进一个注定超时的窗口。
+	client.Preflight = rt.Ping
 	go client.Run(ctx)
 	logger.Info("agent WebSocket client started", zap.String("server_url", cfg.Agent.ServerURL))
 }

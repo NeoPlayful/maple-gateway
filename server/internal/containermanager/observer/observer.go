@@ -81,6 +81,68 @@ type Observer struct {
 	errors      []RuntimeError
 	events      []DockerEvent
 	eventKeys   map[string]struct{} // 事件去重键集合
+
+	// observeHealth 记录各节点连续观测失败次数与退避窗口（由 mu 保护）。
+	observeHealth map[string]*nodeHealth
+}
+
+// nodeHealth 是单个节点的观测健康态：一旦失败即进入退避窗口，
+// 连续失败则窗口逐次拉长；窗口内跳过该节点的探测，避免坏节点
+// （如 Docker 引擎无响应）每轮空转并刷屏。
+type nodeHealth struct {
+	fails   int
+	retryAt time.Time
+}
+
+// 观测退避参数：连续失败 n 次的退避时长为 base<<(n-1)，上限 max。
+// 首个退避即超出轮询周期，坏节点很快从"每轮探测"降到"偶发重试"。
+const (
+	observeBackoffBase = 30 * time.Second
+	observeBackoffMax  = 5 * time.Minute
+)
+
+// noteObserveFailure 记录一次观测失败、推进退避窗口，并返回累计失败次数。
+func (o *Observer) noteObserveFailure(name string, now time.Time) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	h := o.observeHealth[name]
+	if h == nil {
+		h = &nodeHealth{}
+		o.observeHealth[name] = h
+	}
+	h.fails++
+	backoff := observeBackoffBase << (h.fails - 1)
+	if backoff <= 0 || backoff > observeBackoffMax {
+		backoff = observeBackoffMax
+	}
+	h.retryAt = now.Add(backoff)
+	return h.fails
+}
+
+// noteObserveSuccess 清除节点的失败计数与退避窗口。
+func (o *Observer) noteObserveSuccess(name string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	delete(o.observeHealth, name)
+}
+
+// inObserveBackoff 报告节点当前是否处于退避窗口内（应跳过本轮探测）。
+func (o *Observer) inObserveBackoff(name string, now time.Time) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	h := o.observeHealth[name]
+	return h != nil && now.Before(h.retryAt)
+}
+
+// degradedCountLocked 报告处于退避窗口内的节点数；调用方须持有 o.mu。
+func (o *Observer) degradedCountLocked(now time.Time) int {
+	n := 0
+	for _, h := range o.observeHealth {
+		if now.Before(h.retryAt) {
+			n++
+		}
+	}
+	return n
 }
 
 // NodeMetric 是某节点最近一次采集到的资源指标。
@@ -110,15 +172,16 @@ type ObservedContainer struct {
 // New 构造。
 func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval time.Duration, logger *zap.Logger) *Observer {
 	return &Observer{
-		registry:  registry,
-		gw:        gw,
-		interval:  interval,
-		logger:    logger,
-		kick:      make(chan struct{}, 1),
-		snapshot:  map[string]ObservedContainer{},
-		metrics:   map[string]NodeMetric{},
-		info:      map[string]NodeInfo{},
-		eventKeys: map[string]struct{}{},
+		registry:      registry,
+		gw:            gw,
+		interval:      interval,
+		logger:        logger,
+		kick:          make(chan struct{}, 1),
+		snapshot:      map[string]ObservedContainer{},
+		metrics:       map[string]NodeMetric{},
+		info:          map[string]NodeInfo{},
+		eventKeys:     map[string]struct{}{},
+		observeHealth: map[string]*nodeHealth{},
 	}
 }
 
@@ -207,23 +270,51 @@ func (o *Observer) tick(ctx context.Context) {
 	infos := make(map[string]NodeInfo, len(nodes))
 	var runtimeErrs []RuntimeError
 	observedNodes := map[string]bool{}
+	now := time.Now()
 	for _, n := range nodes {
 		// 仅在节点有活跃 WS 会话、且已认领 Gateway 身份时才观测。
 		if !n.Online() || n.ID() == "" {
 			continue
 		}
-		metrics[n.Name] = o.collectMetrics(ctx, n)
-		if info, err := o.fetchInfo(ctx, n); err == nil {
-			infos[n.Name] = info
-		}
-		containers, err := o.observeNode(ctx, n)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			o.logger.Warn("observe node failed", zap.String("node", n.Name), zap.Error(err))
+		// 连续失败的节点处于退避窗口内：本轮跳过探测，避免坏节点每轮空转。
+		if o.inObserveBackoff(n.Name, now) {
 			continue
 		}
+		// 三项只读探测并发下发：单节点无响应时本轮等待以单次 callTimeout 封顶，
+		// 而非三项串行累加（3×callTimeout），避免一个坏节点拖垮整轮观测。
+		var (
+			metric     NodeMetric
+			info       NodeInfo
+			infoOK     bool
+			containers []gwclient.Container
+			obsErr     error
+		)
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() { defer wg.Done(); metric = o.collectMetrics(ctx, n) }()
+		go func() {
+			defer wg.Done()
+			if in, err := o.fetchInfo(ctx, n); err == nil {
+				info, infoOK = in, true
+			}
+		}()
+		go func() { defer wg.Done(); containers, obsErr = o.observeNode(ctx, n) }()
+		wg.Wait()
+
+		metrics[n.Name] = metric
+		if infoOK {
+			infos[n.Name] = info
+		}
+		if obsErr != nil {
+			if firstErr == nil {
+				firstErr = obsErr
+			}
+			fails := o.noteObserveFailure(n.Name, time.Now())
+			o.logger.Warn("observe node failed", zap.String("node", n.Name),
+				zap.Int("consecutive", fails), zap.Error(obsErr))
+			continue
+		}
+		o.noteObserveSuccess(n.Name)
 		upCt++
 		ct += len(containers)
 		observedNodes[n.Name] = true
@@ -454,6 +545,7 @@ func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, no
 type Stats struct {
 	NodeUp       int       `json:"node_up"`
 	Containers   int       `json:"containers"`
+	Degraded     int       `json:"degraded"` // 处于观测退避窗口内的节点数
 	LastReportAt time.Time `json:"last_report_at"`
 	LastError    string    `json:"last_error,omitempty"`
 }
@@ -465,6 +557,7 @@ func (o *Observer) Stats() Stats {
 	s := Stats{
 		NodeUp:       o.nodeUpCt,
 		Containers:   o.containerCt,
+		Degraded:     o.degradedCountLocked(time.Now()),
 		LastReportAt: o.lastReport,
 	}
 	if o.lastErr != nil {

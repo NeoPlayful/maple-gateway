@@ -39,6 +39,9 @@ func (r *Runtime) Info(ctx context.Context) (docker.NodeInfo, error) {
 	return r.docker.Info(ctx)
 }
 
+// Ping 探测本机 Docker 引擎是否可用。
+func (r *Runtime) Ping(ctx context.Context) error { return r.docker.Ping(ctx) }
+
 // List 列出全部受管容器。
 func (r *Runtime) List(ctx context.Context) ([]docker.Container, error) {
 	return r.docker.ListManaged(ctx)

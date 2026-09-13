@@ -64,6 +64,14 @@ func New(host, managedLabel string) (*Client, error) {
 // Close 释放底层连接。
 func (c *Client) Close() error { return c.cli.Close() }
 
+// Ping 探测 Docker 引擎是否响应（连接建立后的存活检测）。
+func (c *Client) Ping(ctx context.Context) error {
+	if _, err := c.cli.Ping(ctx); err != nil {
+		return fmt.Errorf("docker ping: %w", err)
+	}
+	return nil
+}
+
 // CreateSpec 是创建一个容器所需的规格。
 type CreateSpec struct {
 	InstanceID   string            `json:"instance_id"`
