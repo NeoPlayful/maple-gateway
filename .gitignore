@@ -2,6 +2,10 @@
 .env
 *.local
 
+# Node Agent 注册凭证（含 node_secret，禁止入库）
+nodeagent-credential.json
+server/configs/nodeagent-credential.json
+
 # Go
 server/bin/
 server/*.exe

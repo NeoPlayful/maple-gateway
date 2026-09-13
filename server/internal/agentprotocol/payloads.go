@@ -155,6 +155,44 @@ type TaskCancelPayload struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// ---- 任务参数与结果（CM 与 Agent 共用的动作契约）----
+//
+// 参数由 CM 构造、Agent 解析；结果反方向。容器相关结果沿用 Agent 的 docker 视图
+// JSON（id/name/state/...），CM 侧按同名结构解析。
+
+// IDParams 是凭容器标识（容器 ID 或 instance_id）的单参动作入参。
+type IDParams struct {
+	ID string `json:"id"`
+}
+
+// RemoveParams 是删除容器入参。
+type RemoveParams struct {
+	ID    string `json:"id"`
+	Force bool   `json:"force,omitempty"`
+}
+
+// LogsReadParams 是读取容器日志入参。
+type LogsReadParams struct {
+	ID   string `json:"id"`
+	Tail int    `json:"tail,omitempty"`
+}
+
+// ImagePullParams 是拉取镜像入参。
+type ImagePullParams struct {
+	Image string `json:"image"`
+}
+
+// CreateResult 是 container.create 的结果。
+type CreateResult struct {
+	ContainerID string `json:"container_id"`
+	HostPort    int    `json:"host_port"`
+}
+
+// LogsReadResult 是 logs.read 的结果。
+type LogsReadResult struct {
+	Logs string `json:"logs"`
+}
+
 // ---- 日志类 ----
 
 // LogsOpenPayload 是请求打开某容器的日志流。

@@ -12,11 +12,13 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
@@ -238,7 +240,10 @@ func (r *Reconciler) drain(ctx context.Context, containers []observer.ObservedCo
 	}
 }
 
-// createReplica 在一个节点上创建一份副本：预生成 instance_id → 下发 Agent 创建。
+// replicaCallTimeout 是单次副本操作（创建/停止/删除）的等待上限。
+const replicaCallTimeout = 60 * time.Second
+
+// createReplica 在一个节点上创建一份副本：预生成 instance_id → 经 WS 通道下发创建。
 func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *agentregistry.Node) {
 	instanceID := uuid.NewString()
 	spec := gwclient.CreateSpec{
@@ -251,11 +256,15 @@ func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *
 		Env:          st.Env,
 		HealthPath:   st.HealthPath,
 	}
-	res, err := node.Agent.Create(ctx, spec)
+	cctx, cancel := context.WithTimeout(ctx, replicaCallTimeout)
+	defer cancel()
+	raw, err := node.Call(cctx, agentprotocol.ActionContainerCreate, spec)
 	if err != nil {
 		r.noteFailure(st.DeploymentID.String(), instanceID, fmt.Sprintf("create on node %s: %v", node.Name, err))
 		return
 	}
+	var res agentprotocol.CreateResult
+	_ = json.Unmarshal(raw, &res)
 	r.mu.Lock()
 	r.instanceOf[instanceID] = st.VersionID.String()
 	// 登记为 in-flight：观测确认前计入实际数，避免窗口内重复创建。
@@ -284,13 +293,15 @@ func (r *Reconciler) removeReplica(ctx context.Context, c observer.ObservedConta
 	if !ok {
 		return
 	}
+	cctx, cancel := context.WithTimeout(ctx, replicaCallTimeout)
+	defer cancel()
 	// 后停容器：优雅停止（超时强杀），再删除。
-	if err := node.Agent.Stop(ctx, c.InstanceID); err != nil {
+	if _, err := node.Call(cctx, agentprotocol.ActionContainerStop, agentprotocol.IDParams{ID: c.InstanceID}); err != nil {
 		r.logger.Warn("stop container failed", zap.String("instance_id", c.InstanceID), zap.Error(err))
 	}
-	if err := node.Agent.Remove(ctx, c.InstanceID, false); err != nil {
+	if _, err := node.Call(cctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: c.InstanceID}); err != nil {
 		// 停止可能未成功，退化为强删。
-		if err := node.Agent.Remove(ctx, c.InstanceID, true); err != nil {
+		if _, err := node.Call(cctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: c.InstanceID, Force: true}); err != nil {
 			r.logger.Warn("remove container failed", zap.String("instance_id", c.InstanceID), zap.Error(err))
 		}
 	}

@@ -7,8 +7,10 @@ package control
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
@@ -52,7 +54,7 @@ func (c *Controller) Restart(ctx context.Context, instanceID string) error {
 	if err != nil {
 		return err
 	}
-	if err := node.Agent.Restart(ctx, instanceID); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerRestart, agentprotocol.IDParams{ID: instanceID}); err != nil {
 		return err
 	}
 	c.store.Resume(instanceID)
@@ -66,7 +68,7 @@ func (c *Controller) Stop(ctx context.Context, instanceID string) error {
 	if err != nil {
 		return err
 	}
-	if err := node.Agent.Stop(ctx, instanceID); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerStop, agentprotocol.IDParams{ID: instanceID}); err != nil {
 		return err
 	}
 	c.store.Pause(instanceID, oc.Container.Labels["maple.version_id"])
@@ -81,7 +83,7 @@ func (c *Controller) Start(ctx context.Context, instanceID string) error {
 	if err != nil {
 		return err
 	}
-	if err := node.Agent.Start(ctx, instanceID); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerStart, agentprotocol.IDParams{ID: instanceID}); err != nil {
 		return err
 	}
 	c.store.Resume(instanceID)
@@ -95,5 +97,13 @@ func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (str
 	if err != nil {
 		return "", err
 	}
-	return node.Agent.Logs(ctx, instanceID, tail)
+	raw, err := node.Call(ctx, agentprotocol.ActionLogsRead, agentprotocol.LogsReadParams{ID: instanceID, Tail: tail})
+	if err != nil {
+		return "", err
+	}
+	var out agentprotocol.LogsReadResult
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", err
+	}
+	return out.Logs, nil
 }

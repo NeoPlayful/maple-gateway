@@ -9,11 +9,52 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"go.uber.org/zap"
 )
+
+// fakeCommander 返回可编排的只读命令结果，替代真实 WS 任务通道。
+type fakeCommander struct {
+	mu      sync.Mutex
+	results map[string]json.RawMessage
+}
+
+func newFakeCommander(containers string) *fakeCommander {
+	return &fakeCommander{results: map[string]json.RawMessage{
+		agentprotocol.ActionContainerList: json.RawMessage(containers),
+		agentprotocol.ActionSystemInfo:    json.RawMessage(`{"id":"n","name":"n1","cpus":4,"memory_bytes":1024}`),
+		agentprotocol.ActionNodeMetrics:   json.RawMessage(`{"host":{"available":false},"docker":{}}`),
+	}}
+}
+
+func (f *fakeCommander) Set(action, result string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.results[action] = json.RawMessage(result)
+}
+
+func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r, ok := f.results[action]; ok {
+		return r, nil
+	}
+	return nil, nil
+}
+
+// onlineRegistry 构造一个含在线节点 node-uuid-1（名 node-01）的视图。
+func onlineRegistry(cmd agentregistry.Commander) *agentregistry.Registry {
+	st := nodes.New(nil, 0, 0)
+	_, _ = st.Ensure(context.Background(), "node-uuid-1", "node-01", "", "", "")
+	st.Touch("node-uuid-1")
+	reg := agentregistry.New([]config.NodeConfig{{Name: "node-01", Host: "10.0.0.11"}}, cmd, st)
+	reg.Bind("node-01", "node-uuid-1")
+	return reg
+}
 
 // 记录 Gateway 收到的上报调用。
 type gwRecorder struct {
@@ -22,28 +63,18 @@ type gwRecorder struct {
 	nodeHB         int
 	instReg        []map[string]any
 	instHB         int
-	instRegistered bool // 实例已注册后心跳才返回 200（否则 404，触发注册）
+	instRegistered bool
 }
 
 func TestObserverReportsContainers(t *testing.T) {
 	const iid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-	// 假 Agent：返回一个 running 的受管容器。
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/health":
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
-		case "/api/internal/containers":
-			_, _ = w.Write([]byte(`[{"id":"c1","state":"running","instance_id":"` + iid + `",
-				"host_port":8081,"labels":{"maple.managed":"true","maple.instance_id":"` + iid + `",
-				"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer agent.Close()
+	containers := `[{"id":"c1","state":"running","instance_id":"` + iid + `",
+		"host_port":8081,"labels":{"maple.managed":"true","maple.instance_id":"` + iid + `",
+		"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`
+	cmd := newFakeCommander(containers)
+	reg := onlineRegistry(cmd)
 
-	// 假 Gateway：记录节点/实例上报。
 	rec := &gwRecorder{}
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec.mu.Lock()
@@ -70,16 +101,12 @@ func TestObserverReportsContainers(t *testing.T) {
 			rec.instHB++
 			_, _ = w.Write([]byte(`{"code":"OK"}`))
 		default:
-			// 未知路径：Gateway 返回 404（与真实行为一致）。
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"code":"NOT_FOUND"}`))
 		}
 	}))
 	defer gateway.Close()
 
-	reg := agentregistry.New([]config.NodeConfig{{
-		Name: "node-01", Host: "10.0.0.11", AgentAddr: agent.URL, AgentToken: "tok",
-	}})
 	gw := gwclient.NewGatewayClient(gateway.URL, "internal-tok")
 	obs := New(reg, gw, time.Second, zap.NewNop())
 
@@ -87,10 +114,10 @@ func TestObserverReportsContainers(t *testing.T) {
 
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
-	if rec.nodeReg != 1 {
-		t.Errorf("node register = %d, want 1", rec.nodeReg)
+	// 节点身份在 Agent 接入时经 Gateway 解析并绑定，观测循环只发心跳、不再注册。
+	if rec.nodeHB != 1 {
+		t.Errorf("node heartbeat = %d, want 1", rec.nodeHB)
 	}
-	// 首轮：实例心跳失败 → 注册；故注册数应为 1。
 	if len(rec.instReg) != 1 {
 		t.Fatalf("instance register = %d, want 1", len(rec.instReg))
 	}
@@ -109,25 +136,10 @@ func TestObserverReportsContainers(t *testing.T) {
 // 容器消失：上一轮见过、本轮不在（节点仍可观测）→ 通知 Gateway 注销实例。
 func TestObserverDeregistersVanished(t *testing.T) {
 	const iid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-	var present sync.Mutex
-	has := true
 
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		present.Lock()
-		defer present.Unlock()
-		switch r.URL.Path {
-		case "/health":
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
-		case "/api/internal/containers":
-			if !has {
-				_, _ = w.Write([]byte(`[]`))
-				return
-			}
-			_, _ = w.Write([]byte(`[{"id":"c1","state":"running","instance_id":"` + iid + `","host_port":8081,
-				"labels":{"maple.version_id":"v1","maple.service_id":"s1"}}]`))
-		}
-	}))
-	defer agent.Close()
+	cmd := newFakeCommander(`[{"id":"c1","state":"running","instance_id":"` + iid + `","host_port":8081,
+		"labels":{"maple.version_id":"v1","maple.service_id":"s1"}}]`)
+	reg := onlineRegistry(cmd)
 
 	var mu sync.Mutex
 	deleted := 0
@@ -136,11 +148,9 @@ func TestObserverDeregistersVanished(t *testing.T) {
 		defer mu.Unlock()
 		switch {
 		case r.URL.Path == "/api/internal/nodes/register":
-			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"n1"}}`))
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"node-uuid-1"}}`))
 		case r.Method == http.MethodDelete && r.URL.Path == "/api/internal/instances/"+iid:
 			deleted++
-			_, _ = w.Write([]byte(`{"code":"OK"}`))
-		case r.URL.Path == "/api/internal/instances/"+iid+"/heartbeat":
 			_, _ = w.Write([]byte(`{"code":"OK"}`))
 		default:
 			_, _ = w.Write([]byte(`{"code":"OK"}`))
@@ -148,14 +158,11 @@ func TestObserverDeregistersVanished(t *testing.T) {
 	}))
 	defer gateway.Close()
 
-	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
 	gw := gwclient.NewGatewayClient(gateway.URL, "tok")
 	obs := New(reg, gw, time.Second, zap.NewNop())
 
 	obs.tick(context.Background()) // 第一轮：容器存在
-	present.Lock()
-	has = false
-	present.Unlock()
+	cmd.Set(agentprotocol.ActionContainerList, `[]`)
 	obs.tick(context.Background()) // 第二轮：容器消失
 
 	mu.Lock()
@@ -169,22 +176,10 @@ func TestObserverDeregistersVanished(t *testing.T) {
 func TestObserverReportsCrashedAsUnhealthy(t *testing.T) {
 	const iid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/health":
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
-		case "/api/internal/node/metrics":
-			_, _ = w.Write([]byte(`{"host":{"available":false}}`))
-		case "/api/internal/containers":
-			// exited 容器：无 host_port、带退出码。
-			_, _ = w.Write([]byte(`[{"id":"c1","state":"exited","instance_id":"` + iid + `",
-				"exit_code":137,"oom_killed":true,
-				"labels":{"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer agent.Close()
+	cmd := newFakeCommander(`[{"id":"c1","state":"exited","instance_id":"` + iid + `",
+		"exit_code":137,"oom_killed":true,
+		"labels":{"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`)
+	reg := onlineRegistry(cmd)
 
 	var mu sync.Mutex
 	healthReports := []string{}
@@ -193,7 +188,7 @@ func TestObserverReportsCrashedAsUnhealthy(t *testing.T) {
 		defer mu.Unlock()
 		switch {
 		case r.URL.Path == "/api/internal/nodes/register":
-			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"n1"}}`))
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"node-uuid-1"}}`))
 		case r.URL.Path == "/api/internal/instances/"+iid+"/health":
 			var body struct {
 				Health string `json:"health"`
@@ -207,7 +202,6 @@ func TestObserverReportsCrashedAsUnhealthy(t *testing.T) {
 	}))
 	defer gateway.Close()
 
-	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
 	gw := gwclient.NewGatewayClient(gateway.URL, "tok")
 	obs := New(reg, gw, time.Second, zap.NewNop())
 
@@ -224,7 +218,6 @@ func TestObserverReportsCrashedAsUnhealthy(t *testing.T) {
 	if !found {
 		t.Errorf("health reports = %v, want an unhealthy report for crashed instance", healthReports)
 	}
-	// 运行时报错应记录该实例。
 	var hasErr bool
 	for _, e := range obs.RuntimeErrors() {
 		if e.InstanceID == iid && e.ExitCode == 137 && e.OOMKilled {

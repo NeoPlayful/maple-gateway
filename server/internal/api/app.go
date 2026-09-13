@@ -113,6 +113,7 @@ func New(d Deps) *fiber.App {
 	disc := discovery.NewHandler(node.NewRepository(d.Ent), instance.NewRepository(d.Ent))
 	registerInternal := func(g fiber.Router) {
 		g.Post("/nodes/register", disc.RegisterNode)
+		g.Get("/nodes", disc.ListNodes)
 		g.Patch("/nodes/:id", disc.UpdateNode)
 		g.Delete("/nodes/:id", disc.DeleteNode)
 		g.Post("/nodes/:id/heartbeat", disc.HeartbeatNode)

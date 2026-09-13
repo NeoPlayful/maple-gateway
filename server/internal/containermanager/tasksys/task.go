@@ -52,10 +52,12 @@ type Task struct {
 	DeadlineMs int64           `json:"deadline_ms,omitempty"`
 	Attempts   int             `json:"attempts"`
 	mu         *sync.Mutex     `json:"-"`
+	done       chan struct{}   `json:"-"` // 终态时关闭，供同步等待者唤醒
+	finished   bool            `json:"-"` // 是否已关闭 done（保证只关一次）
 }
 
-// newTask 构造任务并初始化其锁。
-func newTask() *Task { return &Task{mu: &sync.Mutex{}} }
+// newTask 构造任务并初始化其锁与终态信号。
+func newTask() *Task { return &Task{mu: &sync.Mutex{}, done: make(chan struct{})} }
 
 // setStatus 在锁内迁移状态并记录时间戳。
 func (t *Task) setStatus(s Status) {
@@ -66,6 +68,10 @@ func (t *Task) setStatus(s Status) {
 	}
 	if s.Terminal() {
 		t.FinishedMs = now
+		if !t.finished {
+			t.finished = true
+			close(t.done)
+		}
 	}
 }
 

@@ -20,6 +20,9 @@ type AgentConfig struct {
 	// Listen 对外监听地址（供 CM 调用容器操作），应仅绑内网；
 	// 容器内或被远程 CM 调用时需绑 0.0.0.0 并配合防火墙/allowlist。
 	Listen string `yaml:"listen"`
+	// DisableHTTP 关闭面向 CM 的 HTTP 管理端口。配置了 server_url（反连）后应置 true：
+	// 命令全部经 WebSocket 下行，节点不再暴露任何入站管理端口。
+	DisableHTTP bool `yaml:"disable_http"`
 	// Token 校验 CM 访问本 Agent 的令牌。
 	Token string `yaml:"token"`
 	// DockerHost Docker Engine 地址；空则用 SDK 平台默认端点：
@@ -81,6 +84,9 @@ func Load(path string) (*Config, error) {
 func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_AGENT_LISTEN"); v != "" {
 		c.Agent.Listen = v
+	}
+	if v := os.Getenv("MAPLE_AGENT_DISABLE_HTTP"); v != "" {
+		c.Agent.DisableHTTP = parseBool(v, c.Agent.DisableHTTP)
 	}
 	if v := os.Getenv("MAPLE_AGENT_TOKEN"); v != "" {
 		c.Agent.Token = v

@@ -2,20 +2,68 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+// fakeCommander 记录下发的 action 并返回可编排的结果，替代真实 WS 任务通道。
+type fakeCommander struct {
+	mu      sync.Mutex
+	calls   []string
+	results map[string]json.RawMessage
+}
+
+func newFakeCommander() *fakeCommander {
+	return &fakeCommander{results: map[string]json.RawMessage{
+		agentprotocol.ActionContainerCreate: json.RawMessage(`{"container_id":"c","host_port":9001}`),
+	}}
+}
+
+func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, action)
+	if r, ok := f.results[action]; ok {
+		return r, nil
+	}
+	return nil, nil
+}
+
+func (f *fakeCommander) count(action string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, a := range f.calls {
+		if a == action {
+			n++
+		}
+	}
+	return n
+}
+
+// newOnlineRegistry 构造含一个在线节点的视图（命令走 fakeCommander）。
+func newOnlineRegistry(cmd agentregistry.Commander) *agentregistry.Registry {
+	st := nodes.New(nil, 0, 0)
+	st.Ensure(context.Background(), "gw-node-1", "n1", "", "", "")
+	st.Touch("gw-node-1")
+	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1"}}, cmd, st)
+	reg.Bind("n1", "gw-node-1")
+	return reg
+}
 
 // fakeDesired 是可控的期望态读取器。
 type fakeDesired struct {
@@ -48,23 +96,8 @@ type fakeActual struct {
 func (f *fakeActual) Snapshot() map[string]observer.ObservedContainer { return f.snap }
 
 func TestReconcileScaleUp(t *testing.T) {
-	var mu sync.Mutex
-	created := 0
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/api/internal/containers" {
-			mu.Lock()
-			created++
-			mu.Unlock()
-			_, _ = w.Write([]byte(`{"id":"c","instance_id":"x","host_port":9001}`))
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer agent.Close()
-
-	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
-	// 标记健康（模拟已探测）。
-	reg.SetHealth("n1", true, "gw-node-1", time.Now().UnixMilli())
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
 
 	verID := uuid.New()
 	fd := &fakeDesired{states: []desired.State{{
@@ -73,42 +106,25 @@ func TestReconcileScaleUp(t *testing.T) {
 	}}}
 	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
 
-	gw := gwclient.NewGatewayClient("", "") // 未接入 Gateway：drain 跳过
+	gw := gwclient.NewGatewayClient("", "")
 	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
 	r.Reconcile(context.Background())
 
-	mu.Lock()
-	defer mu.Unlock()
-	if created != 3 {
-		t.Errorf("created = %d, want 3", created)
+	if got := cmd.count(agentprotocol.ActionContainerCreate); got != 3 {
+		t.Errorf("created = %d, want 3", got)
 	}
 }
 
-// 观测滞后场景：连续两轮 reconcile 之间实际态快照尚未反映首轮创建的容器，
-// in-flight 计数应阻止第二轮重复创建（否则会超配到 3）。
+// 观测滞后场景：连续多轮 reconcile 之间实际态快照尚未反映首轮创建的容器，
+// in-flight 计数应阻止重复创建（否则会超配到 3）。
 func TestReconcileNoOverProvisionOnObserveLag(t *testing.T) {
-	var mu sync.Mutex
-	created := 0
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/api/internal/containers" {
-			mu.Lock()
-			created++
-			mu.Unlock()
-			_, _ = w.Write([]byte(`{"id":"c","instance_id":"x","host_port":9001}`))
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer agent.Close()
-
-	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
-	reg.SetHealth("n1", true, "gw-1", time.Now().UnixMilli())
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
 
 	fd := &fakeDesired{states: []desired.State{{
 		DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: uuid.New(),
 		Image: "nginx:alpine", Port: 80, Replicas: 2,
 	}}}
-	// 实际态始终为空（模拟观测尚未确认）。
 	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
 	gw := gwclient.NewGatewayClient("", "")
 	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
@@ -117,34 +133,17 @@ func TestReconcileNoOverProvisionOnObserveLag(t *testing.T) {
 	r.Reconcile(context.Background())
 	r.Reconcile(context.Background())
 
-	mu.Lock()
-	defer mu.Unlock()
-	if created != 2 {
-		t.Errorf("created = %d, want 2 (in-flight should suppress over-provisioning)", created)
+	if got := cmd.count(agentprotocol.ActionContainerCreate); got != 2 {
+		t.Errorf("created = %d, want 2 (in-flight should suppress over-provisioning)", got)
 	}
 }
 
 // 人工维护场景：管理员手动停掉的实例被登记为 paused，对账器应计入实际数、不再补回。
 func TestReconcileRespectsOperatorPaused(t *testing.T) {
-	var mu sync.Mutex
-	created := 0
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/api/internal/containers" {
-			mu.Lock()
-			created++
-			mu.Unlock()
-			_, _ = w.Write([]byte(`{"id":"c","instance_id":"x","host_port":9001}`))
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer agent.Close()
-
-	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
-	reg.SetHealth("n1", true, "gw-1", time.Now().UnixMilli())
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
 
 	verID := uuid.New()
-	// 目标 2 副本，但已有 1 个被人工置为维护：只需再补 1 个。
 	fd := &fakeDesired{
 		states: []desired.State{{
 			DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: verID,
@@ -157,31 +156,16 @@ func TestReconcileRespectsOperatorPaused(t *testing.T) {
 	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
 	r.Reconcile(context.Background())
 
-	mu.Lock()
-	defer mu.Unlock()
-	if created != 1 {
-		t.Errorf("created = %d, want 1 (paused instance counts toward replicas)", created)
+	if got := cmd.count(agentprotocol.ActionContainerCreate); got != 1 {
+		t.Errorf("created = %d, want 1 (paused instance counts toward replicas)", got)
 	}
 }
 
 func TestReconcileScaleDownDrainsFirst(t *testing.T) {
-	var mu sync.Mutex
+	cmd := newFakeCommander()
+
 	drained := false
-	stopped, removed := 0, 0
-
-	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/internal/containers/i1/stop":
-			stopped++
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/internal/containers/i1":
-			removed++
-		}
-		_, _ = w.Write([]byte(`{"stopped":true}`))
-	}))
-	defer agent.Close()
-
+	var mu sync.Mutex
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -192,8 +176,7 @@ func TestReconcileScaleDownDrainsFirst(t *testing.T) {
 	}))
 	defer gateway.Close()
 
-	reg := agentregistry.New([]config.NodeConfig{{Name: "n1", Host: "10.0.0.1", AgentAddr: agent.URL}})
-	reg.SetHealth("n1", true, "gw-node-1", time.Now().UnixMilli())
+	reg := newOnlineRegistry(cmd)
 
 	verID := uuid.New()
 	fd := &fakeDesired{states: []desired.State{{VersionID: verID, Replicas: 0, Image: "x"}}}
@@ -215,7 +198,8 @@ func TestReconcileScaleDownDrainsFirst(t *testing.T) {
 	if !drained {
 		t.Error("expected drain before stop")
 	}
-	if stopped != 1 || removed != 1 {
-		t.Errorf("stopped=%d removed=%d, want 1/1", stopped, removed)
+	if cmd.count(agentprotocol.ActionContainerStop) != 1 || cmd.count(agentprotocol.ActionContainerRemove) != 1 {
+		t.Errorf("stopped=%d removed=%d, want 1/1",
+			cmd.count(agentprotocol.ActionContainerStop), cmd.count(agentprotocol.ActionContainerRemove))
 	}
 }

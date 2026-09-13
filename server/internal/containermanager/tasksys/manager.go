@@ -1,6 +1,7 @@
 package tasksys
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -115,6 +116,37 @@ func (m *Manager) Get(id string) (*Task, bool) {
 	return t.Snapshot(), true
 }
 
+// Call 同步下发一次任务并等待其终态，返回结果的原始载荷。
+// 用于请求/响应式操作（探测、列表、人工启停）。超时或失败返回已定型的错误。
+func (m *Manager) Call(ctx context.Context, nodeID, action string, params any) (json.RawMessage, error) {
+	t, err := m.Dispatch(nodeID, action, params)
+	if err != nil {
+		return nil, err
+	}
+	// Dispatch 已返回快照；按 ID 取回内部指针以等待终态。
+	m.mu.RLock()
+	live, ok := m.tasks[t.ID]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, ErrUnknownTask
+	}
+	select {
+	case <-live.done:
+	case <-ctx.Done():
+		// 上下文取消：尽力取消任务，返回上下文错误。
+		m.Cancel(nodeID, t.ID, "context canceled")
+		return nil, ctx.Err()
+	}
+	got, _ := m.Get(t.ID)
+	if got.Status != StatusSuccess {
+		if got.Error != "" {
+			return nil, fmt.Errorf("task %s: %s", got.Status, got.Error)
+		}
+		return nil, fmt.Errorf("task %s", got.Status)
+	}
+	return got.Result, nil
+}
+
 // List 返回全部任务快照。
 func (m *Manager) List() []*Task {
 	m.mu.RLock()
@@ -199,18 +231,30 @@ func (m *Manager) Cancel(nodeID, taskID, reason string) error {
 	return nil
 }
 
-// Sweep 扫描超时任务：非终态且已过 deadline，置 timeout。
+// Sweep 扫描超时任务：非终态且已过 deadline，置 timeout，并尽力向 Agent 下发
+// task.cancel 做补偿，避免 CM 判超时、Agent 仍在执行导致两侧分叉。
 func (m *Manager) Sweep() int {
 	now := time.Now().UnixMilli()
 	n := 0
 	for _, t := range m.snapshotTasks() {
 		t.mu.Lock()
-		if !t.Status.Terminal() && t.DeadlineMs > 0 && now >= t.DeadlineMs {
+		expired := !t.Status.Terminal() && t.DeadlineMs > 0 && now >= t.DeadlineMs
+		if expired {
 			t.Error = "task timeout"
 			t.setStatus(StatusTimeout)
 			n++
 		}
+		nodeID := t.NodeID
+		taskID := t.ID
 		t.mu.Unlock()
+		if expired {
+			if sender, ok := m.router.SenderFor(nodeID); ok {
+				env, _ := agentprotocol.New(agentprotocol.TypeTaskCancel, "", agentprotocol.TaskCancelPayload{
+					TaskID: taskID, Reason: "task timeout",
+				})
+				sender.Send(env)
+			}
+		}
 	}
 	return n
 }

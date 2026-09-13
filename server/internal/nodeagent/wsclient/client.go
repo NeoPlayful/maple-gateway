@@ -77,6 +77,11 @@ type Client struct {
 	heartbeat time.Duration
 	cred      *Credential
 	backoff   time.Duration
+
+	// wmu 串行化对同一条连接的写：心跳协程与各任务协程并发写会破坏 gorilla 连接。
+	wmu sync.Mutex
+	// inflight 记录在途任务的可取消上下文（task_id → cancel），供 task.cancel 中断执行。
+	inflight map[string]context.CancelFunc
 }
 
 // New 构造客户端。
@@ -200,7 +205,7 @@ func (c *Client) handshake(conn Conn) error {
 	return nil
 }
 
-// readLoop 读取下行消息并分派：任务执行、日志指令、ping。
+// readLoop 读取下行消息并分派：任务执行/取消、日志指令、ping。
 func (c *Client) readLoop(ctx context.Context, conn Conn) error {
 	for {
 		select {
@@ -216,6 +221,8 @@ func (c *Client) readLoop(ctx context.Context, conn Conn) error {
 		switch env.Type {
 		case agentprotocol.TypeTaskExecute:
 			c.handleTask(ctx, conn, env)
+		case agentprotocol.TypeTaskCancel:
+			c.handleCancel(env)
 		case agentprotocol.TypeLogsOpen, agentprotocol.TypeLogsClose:
 			// 日志流在后续接入；当前忽略但不报错。
 		default:
@@ -236,17 +243,69 @@ func (c *Client) handleTask(ctx context.Context, conn Conn, env agentprotocol.En
 	}
 	// ack: 已接收。
 	if a, err := agentprotocol.New(agentprotocol.TypeTaskAck, env.RequestID, agentprotocol.TaskAckPayload{TaskID: p.TaskID}); err == nil {
-		_ = conn.WriteEnvelope(a)
+		_ = c.write(conn, a)
 	}
 
+	// 为在途任务登记可取消上下文；取消消息到达时据此中断执行。
+	taskCtx, cancel := context.WithCancel(ctx)
+	c.mu.Lock()
+	if c.inflight == nil {
+		c.inflight = make(map[string]context.CancelFunc)
+	}
+	c.inflight[p.TaskID] = cancel
+	c.mu.Unlock()
+
 	go func() {
-		res, err := c.executor.Execute(ctx, p.Action, p.Params)
+		defer func() {
+			cancel()
+			c.mu.Lock()
+			delete(c.inflight, p.TaskID)
+			c.mu.Unlock()
+		}()
+		c.reportProgress(conn, p.TaskID, 0, "started")
+		res, err := c.executor.Execute(taskCtx, p.Action, p.Params)
 		if err != nil {
+			if taskCtx.Err() == context.Canceled {
+				c.reportResult(conn, p.TaskID, "cancelled", "task cancelled", nil)
+				return
+			}
 			c.reportResult(conn, p.TaskID, "failed", err.Error(), nil)
 			return
 		}
 		c.reportResult(conn, p.TaskID, "success", "", res)
 	}()
+}
+
+// handleCancel 处理取消指令：中断对应在途任务的执行上下文。
+func (c *Client) handleCancel(env agentprotocol.Envelope) {
+	var p agentprotocol.TaskCancelPayload
+	if err := env.DecodePayload(&p); err != nil {
+		return
+	}
+	c.mu.Lock()
+	cancel := c.inflight[p.TaskID]
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// reportProgress 上报任务进度。
+func (c *Client) reportProgress(conn Conn, taskID string, percent int, msg string) {
+	p := agentprotocol.TaskProgressPayload{TaskID: taskID, Percent: percent, Message: msg}
+	env, err := agentprotocol.New(agentprotocol.TypeTaskProgress, "", p)
+	if err != nil {
+		return
+	}
+	c.write(conn, env)
+}
+
+// write 串行化写：设置写超时后写出一条消息。
+func (c *Client) write(conn Conn, env agentprotocol.Envelope) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+	return conn.WriteEnvelope(env)
 }
 
 // reportResult 上报任务结果。
@@ -256,7 +315,7 @@ func (c *Client) reportResult(conn Conn, taskID, status, errMsg string, res json
 	if err != nil {
 		return
 	}
-	if werr := conn.WriteEnvelope(env); werr != nil {
+	if werr := c.write(conn, env); werr != nil {
 		c.logger.Debug("report task result failed", zap.String("task_id", taskID), zap.Error(werr))
 	}
 }
@@ -282,8 +341,7 @@ func (c *Client) heartbeatLoop(ctx context.Context, conn Conn) {
 			if err != nil {
 				continue
 			}
-			_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := conn.WriteEnvelope(env); err != nil {
+			if err := c.write(conn, env); err != nil {
 				// 写失败：结束连接以便上层重连。
 				_ = conn.Close()
 				return

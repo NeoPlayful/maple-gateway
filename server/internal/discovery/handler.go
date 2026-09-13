@@ -20,6 +20,7 @@ func NewHandler(nodes *node.Repository, instances *instance.Repository) *Handler
 }
 
 // RegisterNode POST /api/internal/discovery/nodes/register
+// 按 name 幂等：已存在则刷新心跳并回填变化字段，否则新建。CM 重启后重注册不再冲突。
 func (h *Handler) RegisterNode(c fiber.Ctx) error {
 	var in node.New
 	if err := c.Bind().Body(&in); err != nil {
@@ -28,16 +29,32 @@ func (h *Handler) RegisterNode(c fiber.Ctx) error {
 	if err := pkg.ValidateStruct(in); err != nil {
 		return pkg.Err(c, err)
 	}
-	n, err := h.nodes.Create(c.Context(), in)
+	existing, err := h.nodes.GetByName(c.Context(), in.Name)
 	if err != nil {
 		return pkg.Err(c, err)
 	}
+	if existing == nil {
+		n, err := h.nodes.Create(c.Context(), in)
+		if err != nil {
+			return pkg.Err(c, err)
+		}
+		existing = n
+	}
 	// 注册即心跳，避免首次注册被 watchdog 立即判 offline。
-	n, err = h.nodes.Heartbeat(c.Context(), n.ID)
+	n, err := h.nodes.Heartbeat(c.Context(), existing.ID)
 	if err != nil {
 		return pkg.Err(c, err)
 	}
 	return pkg.OK(c, n)
+}
+
+// ListNodes GET /api/internal/nodes —— 供 CM 在注册前认领既有节点身份（name → UUID）。
+func (h *Handler) ListNodes(c fiber.Ctx) error {
+	ns, err := h.nodes.All(c.Context())
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, ns)
 }
 
 // HeartbeatNode POST /api/internal/discovery/nodes/:id/heartbeat

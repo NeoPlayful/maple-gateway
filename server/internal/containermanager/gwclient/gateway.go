@@ -31,6 +31,7 @@ func NewGatewayClient(baseURL, token string) *GatewayClient {
 func (c *GatewayClient) Enabled() bool { return c.baseURL != "" }
 
 // RegisterNode 上报节点注册，返回 Gateway 侧节点 ID。
+// Gateway 侧按 name 幂等：已存在则刷新心跳并返回既有 UUID。
 func (c *GatewayClient) RegisterNode(ctx context.Context, name, host, region string, labels map[string]string) (string, error) {
 	in := map[string]any{"name": name, "host": host, "region": region, "labels": labels}
 	var out struct {
@@ -42,6 +43,15 @@ func (c *GatewayClient) RegisterNode(ctx context.Context, name, host, region str
 		return "", err
 	}
 	return out.Data.ID, nil
+}
+
+// ResolveNode 实现 enrollment.Registrar：把节点名解析为 Gateway 节点 UUID。
+// 依赖 Gateway /nodes/register 的按名幂等语义。
+func (c *GatewayClient) ResolveNode(ctx context.Context, name, host, region string, labels map[string]string) (string, error) {
+	if !c.Enabled() {
+		return "", fmt.Errorf("gateway base url not configured; cannot resolve node identity")
+	}
+	return c.RegisterNode(ctx, name, host, region, labels)
 }
 
 // HeartbeatNode 上报节点心跳。
