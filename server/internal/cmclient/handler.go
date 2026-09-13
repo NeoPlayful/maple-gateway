@@ -40,6 +40,7 @@ type Proxier interface {
 	SaveApplication(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	DeployApplication(ctx context.Context, id string) (json.RawMessage, error)
 	StopApplication(ctx context.Context, id string) (json.RawMessage, error)
+	StartApplication(ctx context.Context, id string) (json.RawMessage, error)
 	RestartApplication(ctx context.Context, id string) (json.RawMessage, error)
 	RemoveApplication(ctx context.Context, id string) error
 	ApplicationPs(ctx context.Context, id string) (json.RawMessage, error)
@@ -342,6 +343,18 @@ func (h *Handler) StopApplication(c fiber.Ctx) error {
 	out, err := h.cm.StopApplication(c.Context(), c.Params("id"))
 	if err != nil {
 		return pkg.Err(c, pkg.ErrSystem("停止应用失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// StartApplication POST /api/admin/cm/applications/:id/start
+func (h *Handler) StartApplication(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	out, err := h.cm.StartApplication(c.Context(), c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("启动应用失败: "+err.Error()))
 	}
 	return raw(c, out)
 }

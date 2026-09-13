@@ -573,9 +573,11 @@
     "validateFail": "规格不合法",
     "deploy": "部署",
     "stop": "停止",
+    "start": "启动",
     "restart": "重启",
     "errName": "请填写应用名",
     "errSpec": "请填写 Compose 规格",
+    "statusRunning": "运行中",
     "confirmRemove": "确认移除该应用？将经 `docker compose down -v` 停止并移除其容器。"
   }
 }

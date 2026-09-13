@@ -293,6 +293,11 @@ func (c *Client) StopApplication(ctx context.Context, id string) (json.RawMessag
 	return c.appAction(ctx, id, "stop")
 }
 
+// StartApplication 启动应用：POST {cm}/api/mgmt/applications/{id}/start。
+func (c *Client) StartApplication(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.appAction(ctx, id, "start")
+}
+
 // RestartApplication 重启应用：POST {cm}/api/mgmt/applications/{id}/restart。
 func (c *Client) RestartApplication(ctx context.Context, id string) (json.RawMessage, error) {
 	return c.appAction(ctx, id, "restart")

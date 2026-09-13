@@ -237,6 +237,7 @@ func run(configPath string) error {
 		Delete:   appStore.Delete,
 		Deploy:   appCtl.Deploy,
 		Stop:     appCtl.Stop,
+		Start:    appCtl.Start,
 		Restart:  appCtl.Restart,
 		Remove:   appCtl.Remove,
 		Ps:       appCtl.Ps,

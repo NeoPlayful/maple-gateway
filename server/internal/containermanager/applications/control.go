@@ -77,7 +77,8 @@ func (c *Controller) Deploy(ctx context.Context, id string) (Application, error)
 	a.NodeID = n.ID()
 	raw, err := n.Call(ctx, agentprotocol.ActionApplicationDeploy, spec(a))
 	if err != nil {
-		c.store.SetStatus(id, "failed")
+		a.Status = "failed"
+		c.store.Put(a)
 		return Application{}, err
 	}
 	var res agentprotocol.ApplicationActionResult
@@ -86,15 +87,21 @@ func (c *Controller) Deploy(ctx context.Context, id string) (Application, error)
 	if state == "" {
 		state = "running"
 	}
-	c.store.SetStatus(id, state)
+	a.Status = state
+	c.store.Put(a)
 	c.logger.Info("application deployed", zap.String("app", id), zap.String("node", n.Name))
 	out, _ := c.store.Get(id)
 	return out, nil
 }
 
-// Stop 停止应用。
+// Stop 停止应用（容器保留，可经 Start 恢复）。
 func (c *Controller) Stop(ctx context.Context, id string) (Application, error) {
 	return c.action(ctx, id, agentprotocol.ActionApplicationStop, "stopped")
+}
+
+// Start 启动已停止的应用（复用既有容器）。
+func (c *Controller) Start(ctx context.Context, id string) (Application, error) {
+	return c.action(ctx, id, agentprotocol.ActionApplicationStart, "running")
 }
 
 // Restart 重启应用。

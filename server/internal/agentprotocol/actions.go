@@ -43,6 +43,7 @@ const (
 	ActionApplicationValidate = "application.validate"
 	ActionApplicationDeploy   = "application.deploy"
 	ActionApplicationStop     = "application.stop"
+	ActionApplicationStart    = "application.start"
 	ActionApplicationRestart  = "application.restart"
 	ActionApplicationRemove   = "application.remove"
 	ActionApplicationPs       = "application.ps"
@@ -61,8 +62,9 @@ var allowedActions = map[string]struct{}{
 	ActionNetworkList: {}, ActionNetworkInspect: {}, ActionNetworkCreate: {}, ActionNetworkRemove: {},
 	ActionVolumeList: {}, ActionVolumeInspect: {}, ActionVolumeCreate: {}, ActionVolumeRemove: {},
 	ActionApplicationValidate: {}, ActionApplicationDeploy: {}, ActionApplicationStop: {},
-	ActionApplicationRestart: {}, ActionApplicationRemove: {}, ActionApplicationPs: {},
-	ActionLogsRead: {},
+	ActionApplicationStart: {}, ActionApplicationRestart: {}, ActionApplicationRemove: {},
+	ActionApplicationPs: {},
+	ActionLogsRead:      {},
 }
 
 // forbiddenActions 是显式禁止的 Action（便于测试与文档化，不进入白名单）。

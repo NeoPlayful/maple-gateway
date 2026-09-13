@@ -115,9 +115,19 @@ svcs = (r.get("data") or {}).get("services") or []
 check("ps 返回 2 服务 running", st == 200 and len(svcs) == 2 and all(s.get("state") == "running" for s in svcs),
       ", ".join(f"{s.get('service')}:{s.get('state')}" for s in svcs))
 
-print("== 6. 停止 / 重启 ==")
+print("== 6. 停止保留容器 / 启动恢复 ==")
 st, r = call("POST", f"/api/admin/cm/applications/{ids['demo']}/stop", token=tok)
 check("停止后 stopped", (r.get("data") or {}).get("status") == "stopped", f"status={(r.get('data') or {}).get('status')}")
+st, r = call("GET", f"/api/admin/cm/applications/{ids['demo']}/ps", token=tok)
+svcs = (r.get("data") or {}).get("services") or []
+check("停止后容器仍在（exited）", st == 200 and len(svcs) == 2 and all(s.get("state") == "exited" for s in svcs),
+      ", ".join(f"{s.get('service')}:{s.get('state')}" for s in svcs))
+st, r = call("POST", f"/api/admin/cm/applications/{ids['demo']}/start", token=tok)
+check("启动后 running", (r.get("data") or {}).get("status") == "running", f"status={(r.get('data') or {}).get('status')}")
+st, r = call("GET", f"/api/admin/cm/applications/{ids['demo']}/ps", token=tok)
+svcs = (r.get("data") or {}).get("services") or []
+check("启动后容器 running", st == 200 and len(svcs) == 2 and all(s.get("state") == "running" for s in svcs),
+      ", ".join(f"{s.get('service')}:{s.get('state')}" for s in svcs))
 st, r = call("POST", f"/api/admin/cm/applications/{ids['demo']}/restart", token=tok)
 check("重启后 running", (r.get("data") or {}).get("status") == "running", f"status={(r.get('data') or {}).get('status')}")
 

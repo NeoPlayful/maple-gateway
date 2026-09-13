@@ -228,6 +228,7 @@ func New(d Deps) *fiber.App {
 		cg.Get("/applications/:id/ps", cmH.ApplicationPs)
 		cg.Post("/applications/:id/deploy", cmH.DeployApplication)
 		cg.Post("/applications/:id/stop", cmH.StopApplication)
+		cg.Post("/applications/:id/start", cmH.StartApplication)
 		cg.Post("/applications/:id/restart", cmH.RestartApplication)
 		cg.Post("/applications/:id/validate", cmH.ValidateApplication)
 		cg.Delete("/applications/:id", cmH.RemoveApplication)

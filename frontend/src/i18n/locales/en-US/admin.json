@@ -573,9 +573,11 @@
     "validateFail": "Spec invalid",
     "deploy": "Deploy",
     "stop": "Stop",
+    "start": "Start",
     "restart": "Restart",
     "errName": "Please enter an application name",
     "errSpec": "Please provide the Compose spec",
+    "statusRunning": "Running",
     "confirmRemove": "Remove this application? Its containers are stopped and removed via `docker compose down -v`."
   }
 }
