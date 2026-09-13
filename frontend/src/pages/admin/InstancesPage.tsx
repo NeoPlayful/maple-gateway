@@ -213,13 +213,14 @@ export default function InstancesPage() {
               <th className="px-4 py-2">{t('fields.health')}</th>
               <th className="px-4 py-2">{t('fields.status')}</th>
               <th className="px-4 py-2">{t('instances.container')}</th>
+              <th className="px-4 py-2">{t('instances.containerId')}</th>
               <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
+                <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
               </tr>
             )}
             {rows.map((r) => {
@@ -237,6 +238,11 @@ export default function InstancesPage() {
                 <td className="px-4 py-2">
                   {cmEnabled && ct
                     ? <StatusBadge value={ct.state} raw />
+                    : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs">
+                  {cmEnabled && ct?.container_id
+                    ? <span title={ct.container_id}>{ct.container_id.slice(0, 12)}</span>
                     : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
                 </td>
                 <td className="px-4 py-2">

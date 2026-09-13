@@ -384,7 +384,8 @@
     "errFill": "Fill in service and address",
     "registerSuccess": "Registered",
     "registerFailed": "Registration failed",
-    "container": "Container"
+    "container": "Container",
+    "containerId": "Container ID"
   },
   "logs": {
     "title": "Logs",
@@ -484,6 +485,7 @@
     "noEvents": "No container events",
     "colEventAction": "Event",
     "colInstance": "Instance",
+    "colContainerId": "Container ID",
     "colNode": "Node",
     "colState": "State",
     "colExitCode": "Exit code",
