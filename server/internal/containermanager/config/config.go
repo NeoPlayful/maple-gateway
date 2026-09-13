@@ -33,7 +33,7 @@ type CMConfig struct {
 	ObserveInterval time.Duration `yaml:"observe_interval"`
 	// DefaultReplicas 期望态未指定副本数时的缺省值。
 	DefaultReplicas int `yaml:"default_replicas"`
-	// AgentListen 接收 Agent 反连的 WebSocket 监听地址（独立于面向 Gateway 的端口）。
+	// AgentListen 接收 Agent 主动连接的 WebSocket 监听地址（独立于面向 Gateway 的端口）。
 	AgentListen string `yaml:"agent_listen"`
 	// EnrollmentRequired 首注册是否强制校验 Enrollment Token（生产应为 true）。
 	EnrollmentRequired bool `yaml:"enrollment_required"`
@@ -48,7 +48,7 @@ type CMConfig struct {
 }
 
 // NodeConfig 是一个节点的静态登记项。
-// 仅提供节点名与调度属性；节点身份（Gateway UUID）由 Agent 反连时按名解析。
+// 仅提供节点名与调度属性；节点身份（Gateway UUID）由 Agent 连接时按名解析。
 type NodeConfig struct {
 	// Name 节点名（须与对应 Agent 的 node_name 一致；也是 Gateway nodes.name）。
 	Name string `yaml:"name"`

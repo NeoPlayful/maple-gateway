@@ -58,7 +58,7 @@ type Dialer interface {
 	Dial(ctx context.Context, url string) (Conn, error)
 }
 
-// Client 是 Agent 的反向连接客户端：连接 → 握手 → 心跳/任务循环 → 断线重连。
+// Client 是 Agent 主动连接 CM 的客户端：连接 → 握手 → 心跳/任务循环 → 断线重连。
 type Client struct {
 	enrollee Enrollee
 	executor Executor

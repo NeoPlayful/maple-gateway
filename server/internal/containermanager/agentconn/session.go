@@ -1,5 +1,5 @@
 // Package agentconn 承载 Container Manager 侧的 Agent 接入：
-// 作为 WebSocket 服务端接收 Agent 主动反连，维护单节点单活跃会话，
+// 作为 WebSocket 服务端接收 Agent 主动连接，维护单节点单活跃会话，
 // 并提供向节点下发消息（任务/日志指令）与会话生命周期回调。
 //
 // 节点自身不开放任何管理端口，全部命令经这条持久连接下行。

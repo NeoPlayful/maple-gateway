@@ -5,7 +5,7 @@ import "sync"
 // Enrollee 提供 Agent 的注册资料与凭证读写。
 // 由上层注入（从配置读取 server url / token，从磁盘读写凭证），便于测试替换。
 type Enrollee interface {
-	// ServerURL 返回 CM 的反连地址（ws(s)://host:port/agent/ws）。
+	// ServerURL 返回 CM 的 WebSocket 接入地址（ws(s)://host:port/agent/ws）。
 	ServerURL() string
 	// EnrollmentToken 返回首注册令牌（已注册后可返回空）。
 	EnrollmentToken() string

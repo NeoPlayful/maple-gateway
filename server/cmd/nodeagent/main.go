@@ -62,9 +62,9 @@ func run(configPath string) error {
 	rt := runtime.New(dcli, cfg.Agent.AllowedImages)
 	app := api.New(cfg, logger, rt)
 
-	// 反向连接：配置了 server_url 即主动连 CM，命令经此连接下行。
+	// 主动连接 CM：配置了 server_url 即建立 WebSocket，命令经此连接下行。
 	if cfg.Agent.ServerURL != "" {
-		startReverseClient(ctx, cfg, rt, logger)
+		startWSClient(ctx, cfg, rt, logger)
 	}
 
 	// 关闭面向 CM 的 HTTP 入站口：命令全部经 WS 下行，节点不暴露管理端口。
@@ -73,7 +73,7 @@ func run(configPath string) error {
 		if cfg.Agent.ServerURL == "" {
 			return fmt.Errorf("disable_http 需要同时配置 server_url，否则节点无可达通道")
 		}
-		logger.Info("node agent HTTP listener disabled; serving over reverse WebSocket only")
+		logger.Info("node agent HTTP listener disabled; serving over WebSocket only")
 		<-ctx.Done()
 		logger.Info("node agent shutting down")
 		return nil
@@ -96,9 +96,9 @@ func run(configPath string) error {
 	}
 }
 
-// startReverseClient 装配并启动反连客户端：从配置/磁盘取得注册资料，
+// startWSClient 装配并启动 WebSocket 客户端：从配置/磁盘取得注册资料，
 // 把 CM 下发的 Action 映射到本机 runtime 执行。
-func startReverseClient(ctx context.Context, cfg *config.Config, rt *runtime.Runtime, logger *zap.Logger) {
+func startWSClient(ctx context.Context, cfg *config.Config, rt *runtime.Runtime, logger *zap.Logger) {
 	credPath := cfg.Agent.CredentialPath
 	cred, err := wsclient.LoadCredential(credPath)
 	if err != nil {
@@ -115,5 +115,5 @@ func startReverseClient(ctx context.Context, cfg *config.Config, rt *runtime.Run
 	)
 	client := wsclient.New(enrollee, exec.New(rt), wsclient.NewWSDialer(), logger)
 	go client.Run(ctx)
-	logger.Info("agent reverse client started", zap.String("server_url", cfg.Agent.ServerURL))
+	logger.Info("agent WebSocket client started", zap.String("server_url", cfg.Agent.ServerURL))
 }

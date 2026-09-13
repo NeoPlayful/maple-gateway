@@ -25,8 +25,8 @@ type Hello struct {
 	Hostname        string
 	OS              string
 	Arch            string
-	// RemoteHost 是反连连接的对端地址（不含端口），由接入端从 HTTP 请求填充，
-	// 作为节点 host 上报 Gateway（反连场景下这是最准确的节点地址）。
+	// RemoteHost 是连接的对端地址（不含端口），由接入端从 HTTP 请求填充，
+	// 作为节点 host 上报 Gateway（Agent 主动连接场景下这是最准确的节点地址）。
 	RemoteHost string
 }
 

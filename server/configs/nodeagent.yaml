@@ -3,10 +3,10 @@
 # Agent 运行在每台 Node 上，是唯一直连本机 Docker Engine 的组件。
 
 agent:
-  # 反连 CM：命令经这条持久 WebSocket 下行。配置后 Agent 主动连 CM，
+  # Agent 主动连接 CM：命令经这条持久 WebSocket 下行。配置后 Agent 主动连 CM，
   # 节点无需对外暴露任何入站管理端口。路径固定为 /agent/ws。
   server_url: "ws://127.0.0.1:9093/agent/ws"
-  # 不监听面向 CM 的 HTTP 管理端口。置 true 后节点仅以反连方式被访问。
+  # 不监听面向 CM 的 HTTP 管理端口。置 true 后节点仅经 WebSocket 连接被访问。
   disable_http: true
   # 凭证落盘路径：首注册成功后 CM 下发的 node_id + secret 存放于此，重启免重注册。
   credential_path: "configs/nodeagent-credential.json"
@@ -18,7 +18,7 @@ agent:
   docker_host: ""
   allowed_images: []              # 镜像允许清单（前缀匹配，空则不限）
   managed_label: "maple.managed"  # 受管容器标签键：Agent 只操作带此标签的容器
-  node_name: "node-local"         # 本节点标识（反连时作为节点名，须与 CM static nodes 一致）
+  node_name: "node-local"         # 本节点标识（连接时作为节点名，须与 CM static nodes 一致）
 
 logging:
   level: info

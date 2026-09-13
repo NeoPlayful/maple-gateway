@@ -95,7 +95,7 @@ func run(configPath string) error {
 	go obs.Run(ctx)
 	go rec.Run(ctx)
 
-	// Agent 反连接入：会话注册表 + 准入 + 任务系统。
+	// Agent 主动连入：会话注册表 + 准入 + 任务系统。
 	// 节点主动连 CM，CM 不向节点发起入站；命令经这条连接下行。
 	enroll := enrollment.NewManager(cfg.CM.EnrollmentRequired, nodeStore, gw)
 	agentSrv := agentconn.NewServer(cfg.CM.AgentListen, enroll, hub, agentconn.Callbacks{
