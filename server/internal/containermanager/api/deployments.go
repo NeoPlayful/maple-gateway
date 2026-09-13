@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// internalAuth 校验 Gateway 下发的内部令牌（Authorization: Bearer <cm.token>）。
-func internalAuth(token string) fiber.Handler {
+// gatewayAuth 校验 Gateway 下发的令牌（Authorization: Bearer <cm.token>）。
+func gatewayAuth(token string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		if token == "" {
 			return fiber.NewError(fiber.StatusUnauthorized, "cm token 未配置")
@@ -22,11 +22,11 @@ func internalAuth(token string) fiber.Handler {
 	}
 }
 
-// registerDeployments 挂载部署意图接收与状态查询路由（内部令牌认证）。
+// registerDeployments 挂载部署意图接收与状态查询路由（令牌认证）。
 func registerDeployments(app *fiber.App, store *desired.Store, token string) {
-	g := app.Group("/api/internal/deployments", internalAuth(token))
+	g := app.Group("/api/deployments", gatewayAuth(token))
 
-	// POST /api/internal/deployments 下发/更新部署期望态。
+	// POST /api/deployments 下发/更新部署期望态。
 	g.Post("/", func(c fiber.Ctx) error {
 		var in desired.State
 		if err := c.Bind().Body(&in); err != nil {
@@ -39,7 +39,7 @@ func registerDeployments(app *fiber.App, store *desired.Store, token string) {
 		return c.JSON(in)
 	})
 
-	// POST /api/internal/deployments/:id/stop 停止部署。
+	// POST /api/deployments/:id/stop 停止部署。
 	g.Post("/:id/stop", func(c fiber.Ctx) error {
 		id, err := uuid.Parse(c.Params("id"))
 		if err != nil {
@@ -49,7 +49,7 @@ func registerDeployments(app *fiber.App, store *desired.Store, token string) {
 		return c.JSON(fiber.Map{"stopped": true})
 	})
 
-	// GET /api/internal/deployments/:id/status 查询编排进度。
+	// GET /api/deployments/:id/status 查询编排进度。
 	g.Get("/:id/status", func(c fiber.Ctx) error {
 		id, err := uuid.Parse(c.Params("id"))
 		if err != nil {
@@ -59,9 +59,9 @@ func registerDeployments(app *fiber.App, store *desired.Store, token string) {
 	})
 }
 
-// registerStats 挂载 CM 集成健康统计端点（供监控查询上报滞后/错误/纳管数）。
-func registerStats(app *fiber.App, stats StatsProvider) {
-	app.Get("/api/internal/stats", func(c fiber.Ctx) error {
+// registerStats 挂载 CM 集成健康统计端点（供监控查询上报滞后/错误/纳管数，令牌认证）。
+func registerStats(app *fiber.App, token string, stats StatsProvider) {
+	app.Get("/api/stats", gatewayAuth(token), func(c fiber.Ctx) error {
 		return c.JSON(stats.Stats())
 	})
 }

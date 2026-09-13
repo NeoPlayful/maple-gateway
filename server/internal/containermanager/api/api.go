@@ -18,8 +18,8 @@ type StatsProvider interface {
 	Stats() observer.Stats
 }
 
-// New 构造 CM 的 Fiber 应用。store 保存期望态；stats 可空（提供 /api/internal/stats）；
-// mgmt 汇总管理读接口与人工控制（提供 /api/internal/mgmt/*，供 Gateway 聚合代理调用）。
+// New 构造 CM 的 Fiber 应用。store 保存期望态；stats 可空（提供 /api/stats）；
+// mgmt 汇总管理读接口与人工控制（提供 /api/mgmt/*，供 Gateway 聚合代理调用）。
 func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats StatsProvider, mgmt Mgmt) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:   "maple-cm",
@@ -31,7 +31,7 @@ func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats Sta
 
 	registerDeployments(app, store, cfg.CM.Token)
 	if stats != nil {
-		registerStats(app, stats)
+		registerStats(app, cfg.CM.Token, stats)
 	}
 	registerMgmt(app, cfg.CM.Token, mgmt)
 
