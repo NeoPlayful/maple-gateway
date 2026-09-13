@@ -228,9 +228,9 @@ Gateway 新增"面向 CM 的部署意图"出口。**方向选择**：采用 Gate
 
 ```text
 Gateway → CM（CM 暴露，Gateway 充当客户端）
-  POST   {cm}/api/internal/deployments            # 下发/更新部署期望态
-  POST   {cm}/api/internal/deployments/:id/stop   # 停止
-  GET    {cm}/api/internal/deployments/:id/status # 查询编排进度
+  POST   {cm}/api/deployments            # 下发/更新部署期望态
+  POST   {cm}/api/deployments/:id/stop   # 停止
+  GET    {cm}/api/deployments/:id/status # 查询编排进度
 ```
 
 - Gateway 侧新增轻量 `gwclient`（在 `internal/containermanager` 之外，属 Gateway 的 CM 客户端）：在部署配置变更时（admin 改 deployment/version 或点"部署"）由 Leader 推送期望态。
@@ -366,7 +366,7 @@ CM 维护：
 - [x] Agent 上启动的受管容器，经 CM 上报后出现在 Gateway 实例列表并可路由
 - [x] 容器停止/消失 → Gateway 实例被注销/摘除
 - [x] 节点心跳与离线感知经上报通道生效
-- [~] CM 侧上报滞后/错误可观测（`/api/internal/stats`）；Gateway 侧"滞后/告警"面板列为后续项
+- [~] CM 侧上报滞后/错误可观测（`/api/stats`）；Gateway 侧"滞后/告警"面板列为后续项
 - [x] 无 CM 时 Gateway 行为与 Phase 6 一致（回归）
 
 ---
@@ -375,7 +375,7 @@ CM 维护：
 
 ### 9.1 期望态模型与来源
 
-- CM 接收 Gateway 下发的部署期望态（S2 的 `POST {cm}/api/internal/deployments`），落 CM 自有表（`cm_deployments` / `cm_replicas`，与 Gateway 表分离，CM 自管）；
+- CM 接收 Gateway 下发的部署期望态（S2 的 `POST {cm}/api/deployments`），落 CM 自有表（`cm_deployments` / `cm_replicas`，与 Gateway 表分离，CM 自管）；
 - 期望态内容：`service/deployment/version` + `image` + `replicas` + `port` + `env` + `resources` + `node_selector` + `strategy`。
 
 ### 9.2 对账循环（reconcile）

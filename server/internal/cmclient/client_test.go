@@ -30,7 +30,7 @@ func TestPushDeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PushDeploy: %v", err)
 	}
-	if gotPath != "/api/internal/deployments" {
+	if gotPath != "/api/deployments" {
 		t.Errorf("path = %q", gotPath)
 	}
 	if gotAuth != "Bearer tok" {

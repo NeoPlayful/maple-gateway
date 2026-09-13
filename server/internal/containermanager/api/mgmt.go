@@ -55,9 +55,9 @@ type Mgmt struct {
 	Logs       func(instanceID string, tail int) (string, error)
 }
 
-// registerMgmt 挂载管理读接口与人工控制接口（内部令牌认证，供 Gateway 聚合代理调用）。
+// registerMgmt 挂载管理读接口与人工控制接口（令牌认证，供 Gateway 聚合代理调用）。
 func registerMgmt(app *fiber.App, token string, m Mgmt) {
-	g := app.Group("/api/internal/mgmt", internalAuth(token))
+	g := app.Group("/api/mgmt", gatewayAuth(token))
 
 	// 观测统计 + 部署进度：管理面总览。
 	g.Get("/overview", func(c fiber.Ctx) error {

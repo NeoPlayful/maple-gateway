@@ -55,59 +55,59 @@ func New(baseURL, token string) *Client {
 // Enabled 报告是否已配置 CM 地址。
 func (c *Client) Enabled() bool { return c.baseURL != "" }
 
-// PushDeploy 下发/更新部署期望态：POST {cm}/api/internal/deployments。
+// PushDeploy 下发/更新部署期望态：POST {cm}/api/deployments。
 func (c *Client) PushDeploy(ctx context.Context, in DesiredState) error {
 	if !c.Enabled() {
 		return nil
 	}
-	return c.do(ctx, http.MethodPost, "/api/internal/deployments", in, nil)
+	return c.do(ctx, http.MethodPost, "/api/deployments", in, nil)
 }
 
-// StopDeploy 停止部署：POST {cm}/api/internal/deployments/{id}/stop。
+// StopDeploy 停止部署：POST {cm}/api/deployments/{id}/stop。
 func (c *Client) StopDeploy(ctx context.Context, deploymentID uuid.UUID) error {
 	if !c.Enabled() {
 		return nil
 	}
 	return c.do(ctx, http.MethodPost,
-		fmt.Sprintf("/api/internal/deployments/%s/stop", deploymentID), nil, nil)
+		fmt.Sprintf("/api/deployments/%s/stop", deploymentID), nil, nil)
 }
 
-// Status 查询编排进度：GET {cm}/api/internal/deployments/{id}/status，返回原始 JSON。
+// Status 查询编排进度：GET {cm}/api/deployments/{id}/status，返回原始 JSON。
 func (c *Client) Status(ctx context.Context, deploymentID uuid.UUID) (json.RawMessage, error) {
 	if !c.Enabled() {
 		return json.RawMessage(`{}`), nil
 	}
 	var out json.RawMessage
 	if err := c.do(ctx, http.MethodGet,
-		fmt.Sprintf("/api/internal/deployments/%s/status", deploymentID), nil, &out); err != nil {
+		fmt.Sprintf("/api/deployments/%s/status", deploymentID), nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Overview 拉取 CM 管理总览（观测统计 + 部署进度 + 节点状态）：GET {cm}/api/internal/mgmt/overview。
+// Overview 拉取 CM 管理总览（观测统计 + 部署进度 + 节点状态）：GET {cm}/api/mgmt/overview。
 func (c *Client) Overview(ctx context.Context) (json.RawMessage, error) {
-	return c.mgmtGet(ctx, "/api/internal/mgmt/overview")
+	return c.mgmtGet(ctx, "/api/mgmt/overview")
 }
 
-// MgmtNodes 拉取节点与 Agent 连接态：GET {cm}/api/internal/mgmt/nodes。
+// MgmtNodes 拉取节点与 Agent 连接态：GET {cm}/api/mgmt/nodes。
 func (c *Client) MgmtNodes(ctx context.Context) (json.RawMessage, error) {
-	return c.mgmtGet(ctx, "/api/internal/mgmt/nodes")
+	return c.mgmtGet(ctx, "/api/mgmt/nodes")
 }
 
-// MgmtMetrics 拉取各节点资源指标：GET {cm}/api/internal/mgmt/metrics。
+// MgmtMetrics 拉取各节点资源指标：GET {cm}/api/mgmt/metrics。
 func (c *Client) MgmtMetrics(ctx context.Context) (json.RawMessage, error) {
-	return c.mgmtGet(ctx, "/api/internal/mgmt/metrics")
+	return c.mgmtGet(ctx, "/api/mgmt/metrics")
 }
 
-// MgmtErrors 拉取运行时错误列表：GET {cm}/api/internal/mgmt/errors。
+// MgmtErrors 拉取运行时错误列表：GET {cm}/api/mgmt/errors。
 func (c *Client) MgmtErrors(ctx context.Context) (json.RawMessage, error) {
-	return c.mgmtGet(ctx, "/api/internal/mgmt/errors")
+	return c.mgmtGet(ctx, "/api/mgmt/errors")
 }
 
-// MgmtContainers 拉取受管容器清单：GET {cm}/api/internal/mgmt/containers。
+// MgmtContainers 拉取受管容器清单：GET {cm}/api/mgmt/containers。
 func (c *Client) MgmtContainers(ctx context.Context) (json.RawMessage, error) {
-	return c.mgmtGet(ctx, "/api/internal/mgmt/containers")
+	return c.mgmtGet(ctx, "/api/mgmt/containers")
 }
 
 // mgmtGet 发起一次管理读请求，未接入 CM 时返回空对象。
@@ -122,29 +122,29 @@ func (c *Client) mgmtGet(ctx context.Context, path string) (json.RawMessage, err
 	return out, nil
 }
 
-// RestartInstance 人工重启实例容器：POST {cm}/api/internal/mgmt/instances/{id}/restart。
+// RestartInstance 人工重启实例容器：POST {cm}/api/mgmt/instances/{id}/restart。
 func (c *Client) RestartInstance(ctx context.Context, instanceID string) error {
 	return c.instanceAction(ctx, instanceID, "restart")
 }
 
-// StopInstance 人工停止实例容器：POST {cm}/api/internal/mgmt/instances/{id}/stop。
+// StopInstance 人工停止实例容器：POST {cm}/api/mgmt/instances/{id}/stop。
 func (c *Client) StopInstance(ctx context.Context, instanceID string) error {
 	return c.instanceAction(ctx, instanceID, "stop")
 }
 
-// StartInstance 人工启动实例容器：POST {cm}/api/internal/mgmt/instances/{id}/start。
+// StartInstance 人工启动实例容器：POST {cm}/api/mgmt/instances/{id}/start。
 func (c *Client) StartInstance(ctx context.Context, instanceID string) error {
 	return c.instanceAction(ctx, instanceID, "start")
 }
 
-// InstanceLogs 读取实例容器日志：GET {cm}/api/internal/mgmt/instances/{id}/logs?tail=n。
+// InstanceLogs 读取实例容器日志：GET {cm}/api/mgmt/instances/{id}/logs?tail=n。
 func (c *Client) InstanceLogs(ctx context.Context, instanceID string, tail int) (json.RawMessage, error) {
 	if !c.Enabled() {
 		return json.RawMessage(`{"logs":""}`), nil
 	}
 	var out json.RawMessage
 	if err := c.do(ctx, http.MethodGet,
-		fmt.Sprintf("/api/internal/mgmt/instances/%s/logs?tail=%d", instanceID, tail), nil, &out); err != nil {
+		fmt.Sprintf("/api/mgmt/instances/%s/logs?tail=%d", instanceID, tail), nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -156,7 +156,7 @@ func (c *Client) instanceAction(ctx context.Context, instanceID, action string) 
 		return fmt.Errorf("container manager 未接入")
 	}
 	return c.do(ctx, http.MethodPost,
-		fmt.Sprintf("/api/internal/mgmt/instances/%s/%s", instanceID, action), nil, nil)
+		fmt.Sprintf("/api/mgmt/instances/%s/%s", instanceID, action), nil, nil)
 }
 
 // do 发送一次请求；body 非空则 JSON 编码，out 非空则解码响应体。
