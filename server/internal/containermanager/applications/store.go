@@ -73,8 +73,8 @@ func (s *Store) Load(ctx context.Context) error {
 	return rows.Err()
 }
 
-// Put 写入/覆盖一个 Application。
-func (s *Store) Put(a Application) {
+// Put 写入/覆盖一个 Application，返回存储后的对象（含新生成的 id，调用方无需再查）。
+func (s *Store) Put(a Application) Application {
 	if a.ID == "" {
 		a.ID = uuid.NewString()
 	}
@@ -84,9 +84,16 @@ func (s *Store) Put(a Application) {
 	}
 	a.UpdatedAt = now
 	s.mu.Lock()
+	// 收敛历史脏键：删除 id 相同但键不同的残留条目，保证一个 id 对应唯一记录。
+	for k, v := range s.apps {
+		if k != a.ID && v.ID == a.ID {
+			delete(s.apps, k)
+		}
+	}
 	s.apps[a.ID] = a
 	s.mu.Unlock()
 	s.persist(a)
+	return a
 }
 
 // Get 取一个 Application。
@@ -97,10 +104,14 @@ func (s *Store) Get(id string) (Application, bool) {
 	return a, ok
 }
 
-// Delete 删除一个 Application。
+// Delete 删除一个 Application。按 id 与 map 键双向匹配，兼容个别脏键残留记录。
 func (s *Store) Delete(id string) {
 	s.mu.Lock()
-	delete(s.apps, id)
+	for k, v := range s.apps {
+		if k == id || v.ID == id {
+			delete(s.apps, k)
+		}
+	}
 	s.mu.Unlock()
 	if s.db != nil {
 		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM cm_applications WHERE id=$1::uuid`, id)

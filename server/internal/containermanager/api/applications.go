@@ -13,7 +13,7 @@ import (
 type AppSource struct {
 	List     func() []applications.Application
 	Get      func(id string) (applications.Application, bool)
-	Put      func(a applications.Application)
+	Put      func(a applications.Application) applications.Application
 	Delete   func(id string)
 	Deploy   func(ctx context.Context, id string) (applications.Application, error)
 	Stop     func(ctx context.Context, id string) (applications.Application, error)
@@ -62,8 +62,7 @@ func registerApplications(app *fiber.App, token string, a AppSource) {
 		if in.Spec == "" {
 			return fiber.NewError(fiber.StatusBadRequest, "缺少 Compose 规格")
 		}
-		a.Put(in)
-		out, _ := a.Get(in.ID)
+		out := a.Put(in)
 		return c.JSON(out)
 	})
 

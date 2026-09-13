@@ -136,14 +136,18 @@ func (d *Driver) Restart(ctx context.Context, project string) ([]Service, string
 }
 
 // Remove 停止并清理项目（compose down -v --remove-orphans），随后删除组成文件。
+// 规格损坏（如校验失败的残留）时 compose 无法解析、down 必失败，但此类项目从未成功 up、
+// 无容器可清，故跳过 down 直接清理落盘，避免"坏规格删不掉"卡死记录。
 func (d *Driver) Remove(ctx context.Context, project string) (string, error) {
 	file := d.composeFile(project)
 	out := ""
-	if _, err := os.Stat(file); err == nil {
-		var rerr error
-		out, rerr = d.run(ctx, project, file, "down", "-v", "--remove-orphans")
-		if rerr != nil {
-			return out, rerr
+	if spec, err := os.ReadFile(file); err == nil {
+		if ok, _, _ := d.Validate(ctx, project, string(spec)); ok {
+			var rerr error
+			out, rerr = d.run(ctx, project, file, "down", "-v", "--remove-orphans")
+			if rerr != nil {
+				return out, rerr
+			}
 		}
 	}
 	_ = os.RemoveAll(filepath.Join(d.workDir, project))
