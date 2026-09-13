@@ -17,6 +17,7 @@ type AppSource struct {
 	Delete   func(id string)
 	Deploy   func(ctx context.Context, id string) (applications.Application, error)
 	Stop     func(ctx context.Context, id string) (applications.Application, error)
+	Start    func(ctx context.Context, id string) (applications.Application, error)
 	Restart  func(ctx context.Context, id string) (applications.Application, error)
 	Remove   func(ctx context.Context, id string) error
 	Ps       func(ctx context.Context, id string) ([]agentprotocol.ApplicationService, error)
@@ -95,6 +96,18 @@ func registerApplications(app *fiber.App, token string, a AppSource) {
 			return fiber.NewError(fiber.StatusNotImplemented, "未启用应用管理")
 		}
 		out, err := a.Stop(c.Context(), c.Params("id"))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadGateway, err.Error())
+		}
+		return c.JSON(out)
+	})
+
+	// POST /api/mgmt/applications/:id/start 启动（复用既有容器）。
+	g.Post("/:id/start", func(c fiber.Ctx) error {
+		if a.Start == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用应用管理")
+		}
+		out, err := a.Start(c.Context(), c.Params("id"))
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadGateway, err.Error())
 		}

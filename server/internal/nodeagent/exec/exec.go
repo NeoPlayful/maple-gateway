@@ -135,6 +135,8 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		return e.appDeploy(ctx, params)
 	case agentprotocol.ActionApplicationStop:
 		return e.appStop(ctx, params)
+	case agentprotocol.ActionApplicationStart:
+		return e.appStart(ctx, params)
 	case agentprotocol.ActionApplicationRestart:
 		return e.appRestart(ctx, params)
 	case agentprotocol.ActionApplicationRemove:
@@ -201,7 +203,7 @@ func (e *Executor) appDeploy(ctx context.Context, raw json.RawMessage) (json.Raw
 	})
 }
 
-// appStop 停止 Application（compose down）。
+// appStop 停止 Application（compose stop，容器保留）。
 func (e *Executor) appStop(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 	p, err := specParam(raw)
 	if err != nil {
@@ -212,6 +214,21 @@ func (e *Executor) appStop(ctx context.Context, raw json.RawMessage) (json.RawMe
 		return nil, err
 	}
 	return json.Marshal(agentprotocol.ApplicationActionResult{Project: p.Project, State: "stopped", Output: out})
+}
+
+// appStart 启动已停止的 Application（compose start，复用既有容器）。
+func (e *Executor) appStart(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
+	p, err := specParam(raw)
+	if err != nil {
+		return nil, err
+	}
+	svcs, out, err := e.rt.Compose().Start(ctx, p.Project)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(agentprotocol.ApplicationActionResult{
+		Project: p.Project, State: "running", Services: toProtoServices(svcs), Output: out,
+	})
 }
 
 // appRestart 重启 Application（compose restart）。

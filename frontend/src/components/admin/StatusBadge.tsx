@@ -51,11 +51,13 @@ const color: Record<string, string> = {
 };
 
 // 状态文案取 i18n 词表 status.<key>；无词条则回退原始值（active/enabled 等保持英文枚举原样）。
-export function StatusBadge({ value, raw }: { value: string; raw?: boolean }) {
+// label 可覆盖文案：同一状态值在不同语境语义不同时（如 running 在应用页是终态「运行中」、
+// 在任务/概览页是进度「进行中」），由调用方显式给出更贴切的文案，避免改全局词表牵连其它页面。
+export function StatusBadge({ value, raw, label }: { value: string; raw?: boolean; label?: string }) {
   const { t } = useTranslation('admin');
   const key = value.toLowerCase();
   const cls = color[key] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
-  const text = t(`status.${key}`, { defaultValue: raw ? value : value });
+  const text = label ?? t(`status.${key}`, { defaultValue: raw ? value : value });
   return (
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{text}</span>
   );

@@ -112,13 +112,28 @@ func (d *Driver) Up(ctx context.Context, project, yaml string) ([]Service, strin
 	return svcs, out, nil
 }
 
-// Stop 停止并移除项目容器（compose down），保留组成文件。
+// Stop 停止项目全部服务（compose stop），容器保留（exited），可经 Start 复用。
+// 与 Remove 区分：Stop 只停不删，故停后重启/启动仍作用于原容器。
 func (d *Driver) Stop(ctx context.Context, project string) (string, error) {
 	file := d.composeFile(project)
 	if _, err := os.Stat(file); err != nil {
 		return "", fmt.Errorf("项目 %s 无组成文件", project)
 	}
-	return d.run(ctx, project, file, "down")
+	return d.run(ctx, project, file, "stop")
+}
+
+// Start 启动项目已停止的服务（compose start），复用既有容器，不按规格重建。
+func (d *Driver) Start(ctx context.Context, project string) ([]Service, string, error) {
+	file := d.composeFile(project)
+	if _, err := os.Stat(file); err != nil {
+		return nil, "", fmt.Errorf("项目 %s 无组成文件", project)
+	}
+	out, err := d.run(ctx, project, file, "start")
+	if err != nil {
+		return nil, out, err
+	}
+	svcs, _ := d.Ps(ctx, project)
+	return svcs, out, nil
 }
 
 // Restart 重启项目全部服务（compose restart）。

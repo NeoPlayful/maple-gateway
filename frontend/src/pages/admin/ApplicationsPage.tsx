@@ -206,7 +206,7 @@ export default function ApplicationsPage() {
                   {a.description && <p className="text-xs text-slate-400">{a.description}</p>}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{a.version || '-'}</td>
-                <td className="px-4 py-2"><StatusBadge value={a.status} raw /></td>
+                <td className="px-4 py-2"><StatusBadge value={a.status} raw label={a.status === 'running' ? t('applications.statusRunning') : undefined} /></td>
                 <td className="px-4 py-2 font-mono text-xs">{a.node_id ? a.node_id.slice(0, 8) : '-'}</td>
                 <td className="px-4 py-2 text-xs text-slate-400">{a.updated_at ? new Date(a.updated_at).toLocaleString() : '-'}</td>
                 <td className="px-4 py-2">
@@ -214,6 +214,7 @@ export default function ApplicationsPage() {
                     <ActionBtn onClick={() => validate(a.id)}>{t('applications.validate')}</ActionBtn>
                     <ActionBtn onClick={() => act(a.id, 'deploy')}>{t('applications.deploy')}</ActionBtn>
                     <ActionBtn onClick={() => act(a.id, 'restart')}>{t('applications.restart')}</ActionBtn>
+                    {a.status === 'stopped' && <ActionBtn onClick={() => act(a.id, 'start')}>{t('applications.start')}</ActionBtn>}
                     {a.status === 'running' && <ActionBtn onClick={() => act(a.id, 'stop')}>{t('applications.stop')}</ActionBtn>}
                     <ActionBtn onClick={() => openEdit(a)}>{t('common.edit')}</ActionBtn>
                     <ActionBtn danger onClick={() => setRemoveId(a.id)}>{t('common.delete')}</ActionBtn>
@@ -289,7 +290,7 @@ export default function ApplicationsPage() {
                 {detail?.services.map((s, i) => (
                   <tr key={`${s.name}-${i}`} className="border-b border-slate-200 last:border-b-0 dark:border-slate-700">
                     <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{s.service || s.name}</td>
-                    <td className="px-3 py-2"><StatusBadge value={s.state} raw /></td>
+                    <td className="px-3 py-2"><StatusBadge value={s.state} raw label={s.state === 'running' ? t('applications.statusRunning') : undefined} /></td>
                     <td className="px-3 py-2 text-xs">{s.health || '-'}</td>
                     <td className="px-3 py-2 font-mono text-xs">{s.image || '-'}</td>
                     <td className="px-3 py-2 font-mono text-xs">
