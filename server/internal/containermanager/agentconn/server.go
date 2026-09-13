@@ -95,7 +95,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, ok := s.handshake(conn)
+	res, ok := s.handshake(r.Context(), conn, remoteHost(r))
 	if !ok {
 		_ = conn.Close()
 		return
@@ -136,7 +136,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 // handshake 读取首帧并要求为 agent.hello；通过准入后返回准入结果。
-func (s *Server) handshake(conn *websocket.Conn) (AuthResult, bool) {
+func (s *Server) handshake(ctx context.Context, conn *websocket.Conn, remote string) (AuthResult, bool) {
 	_ = conn.SetReadDeadline(time.Now().Add(handshakeWait))
 	var env agentprotocol.Envelope
 	if err := conn.ReadJSON(&env); err != nil {
@@ -151,7 +151,7 @@ func (s *Server) handshake(conn *websocket.Conn) (AuthResult, bool) {
 	if err := env.DecodePayload(&p); err != nil {
 		return AuthResult{}, false
 	}
-	res, err := s.auth.Authenticate(Hello{
+	res, err := s.auth.Authenticate(ctx, Hello{
 		NodeID:          p.NodeID,
 		EnrollmentToken: p.EnrollmentToken,
 		Credential:      p.NodeCredential,
@@ -159,12 +159,22 @@ func (s *Server) handshake(conn *websocket.Conn) (AuthResult, bool) {
 		Hostname:        p.Hostname,
 		OS:              p.OS,
 		Arch:            p.Arch,
+		RemoteHost:      remote,
 	})
 	if err != nil || res.NodeID == "" {
 		s.logger.Warn("agent handshake rejected", zap.String("node_id", p.NodeID), zap.Error(err))
 		return AuthResult{}, false
 	}
 	return res, true
+}
+
+// remoteHost 取反连连接的对端主机（不含端口）。
+func remoteHost(r *http.Request) string {
+	host := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+	return host
 }
 
 // readLoop 持续读取上行消息并分派；读失败即退出。

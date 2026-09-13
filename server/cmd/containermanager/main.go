@@ -7,7 +7,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -24,7 +26,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/enrollment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
-	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodestate"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/reconciler"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
@@ -58,26 +60,55 @@ func run(configPath string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// 期望态存储 + 节点注册表 + 上报 Gateway 客户端 + 观测/对账循环。
-	store := desired.NewStore()
-	registry := agentregistry.New(cfg.CM.Nodes)
+	// 持久化（可选）：配置了 database_url 则节点/令牌/任务/期望态落库。
+	var sqlDB *sql.DB
+	if cfg.CM.DatabaseURL != "" {
+		db, err := pkg.NewDB(ctx, cfg.CM.DatabaseURL)
+		if err != nil {
+			return fmt.Errorf("connect database: %w", err)
+		}
+		defer db.Close()
+		sqlDB = db.SQL
+	} else {
+		logger.Warn("cm.database_url 未配置，节点/令牌/任务/期望态仅存内存（重启即失忆）")
+	}
+
+	// 统一节点模型（运行期）+ 上报 Gateway 客户端。
+	nodeStore := nodes.New(sqlDB, 0, 0)
+	if err := nodeStore.Load(ctx); err != nil {
+		return fmt.Errorf("load nodes: %w", err)
+	}
+	go nodeStore.Runner(ctx, 15*time.Second)
+
 	gw := gwclient.NewGatewayClient(cfg.CM.GatewayBaseURL, cfg.CM.GatewayToken)
+
+	// 期望态存储 + 观测/对账循环 + 节点命令通道（WS 任务）。
+	store := desired.NewStore(sqlDB)
+	if err := store.Load(ctx); err != nil {
+		return fmt.Errorf("load deployments: %w", err)
+	}
+	hub := agentconn.NewHub()
+	tasks := tasksys.New(hub, cfg.CM.TaskTimeout, logger)
+	registry := agentregistry.New(cfg.CM.Nodes, tasks, nodeStore)
 	obs := observer.New(registry, gw, cfg.CM.ObserveInterval, logger)
 	rec := reconciler.New(store, obs, registry, gw, cfg.CM.ReconcileInterval, logger)
 	go obs.Run(ctx)
 	go rec.Run(ctx)
 
-	// Agent 反连接入：会话注册表 + 准入 + 在线状态机 + 任务系统。
+	// Agent 反连接入：会话注册表 + 准入 + 任务系统。
 	// 节点主动连 CM，CM 不向节点发起入站；命令经这条连接下行。
-	hub := agentconn.NewHub()
-	enroll := enrollment.NewManager(cfg.CM.EnrollmentRequired)
-	states := nodestate.New(0, 0)
-	tasks := tasksys.New(hub, cfg.CM.TaskTimeout, logger)
+	enroll := enrollment.NewManager(cfg.CM.EnrollmentRequired, nodeStore, gw)
 	agentSrv := agentconn.NewServer(cfg.CM.AgentListen, enroll, hub, agentconn.Callbacks{
-		OnSessionStart: func(nodeID string) { states.Touch(nodeID) },
-		OnSessionEnd:   func(nodeID string, kicked bool) { states.Disconnect(nodeID) },
-		OnHeartbeat:    func(nodeID string, _ agentprotocol.HeartbeatPayload) { states.Touch(nodeID) },
-		OnTaskAck:      func(nodeID string, p agentprotocol.TaskAckPayload) { tasks.OnAck(nodeID, p.TaskID) },
+		OnSessionStart: func(nodeID string) {
+			nodeStore.Touch(nodeID)
+			// 依节点登记名把视图绑定到 Gateway 节点 UUID（node_id）。
+			if r, ok := nodeStore.Get(nodeID); ok && r.Name != "" {
+				registry.Bind(r.Name, nodeID)
+			}
+		},
+		OnSessionEnd: func(nodeID string, _ bool) { nodeStore.Disconnect(nodeID) },
+		OnHeartbeat:  func(nodeID string, _ agentprotocol.HeartbeatPayload) { nodeStore.Touch(nodeID) },
+		OnTaskAck:    func(nodeID string, p agentprotocol.TaskAckPayload) { tasks.OnAck(nodeID, p.TaskID) },
 		OnTaskProgress: func(nodeID string, p agentprotocol.TaskProgressPayload) {
 			tasks.OnProgress(nodeID, p.TaskID, p.Percent, p.Message)
 		},
@@ -111,7 +142,10 @@ func run(configPath string) error {
 			for _, n := range nodes {
 				st := api.NodeStatus{
 					Name: n.Name, Host: n.Host, Region: n.Region, Labels: n.Labels,
-					Healthy: n.Healthy, GatewayID: n.GatewayID, LastSeenMs: n.LastSeenMs,
+					Healthy: n.Online(), GatewayID: n.ID(),
+				}
+				if r, ok := nodeStore.Get(n.ID()); ok {
+					st.LastSeenMs = r.LastSeenAt.UnixMilli()
 				}
 				if info, ok := infos[n.Name]; ok {
 					st.CPUs = info.CPUs

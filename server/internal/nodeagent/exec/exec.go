@@ -11,6 +11,7 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/docker"
+	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/hostmetrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/runtime"
 )
 
@@ -35,6 +36,14 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		}
 		return json.Marshal(info)
 
+	case agentprotocol.ActionNodeMetrics:
+		host, err := hostmetrics.Collect()
+		if err != nil {
+			host = hostmetrics.Metrics{Available: false}
+		}
+		du, _ := e.rt.DiskUsage(ctx)
+		return json.Marshal(map[string]any{"host": host, "docker": du})
+
 	case agentprotocol.ActionContainerList:
 		list, err := e.rt.List(ctx)
 		if err != nil {
@@ -51,7 +60,7 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(map[string]any{"container_id": id, "host_port": port})
+		return json.Marshal(agentprotocol.CreateResult{ContainerID: id, HostPort: port})
 
 	case agentprotocol.ActionContainerStart:
 		id, err := idParam(params)
@@ -75,20 +84,14 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		return nil, e.rt.Restart(ctx, id)
 
 	case agentprotocol.ActionContainerRemove:
-		var p struct {
-			ID    string `json:"id"`
-			Force bool   `json:"force"`
-		}
+		var p agentprotocol.RemoveParams
 		if err := decode(params, &p); err != nil {
 			return nil, err
 		}
 		return nil, e.rt.Remove(ctx, p.ID, p.Force)
 
 	case agentprotocol.ActionLogsRead:
-		var p struct {
-			ID   string `json:"id"`
-			Tail int    `json:"tail"`
-		}
+		var p agentprotocol.LogsReadParams
 		if err := decode(params, &p); err != nil {
 			return nil, err
 		}
@@ -96,12 +99,10 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(map[string]string{"logs": out})
+		return json.Marshal(agentprotocol.LogsReadResult{Logs: out})
 
 	case agentprotocol.ActionImagePull:
-		var p struct {
-			Image string `json:"image"`
-		}
+		var p agentprotocol.ImagePullParams
 		if err := decode(params, &p); err != nil {
 			return nil, err
 		}

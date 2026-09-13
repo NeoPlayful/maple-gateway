@@ -7,8 +7,9 @@ package agentprotocol
 
 const (
 	// 系统 / Docker 信息。
-	ActionSystemInfo = "system.info"
-	ActionDockerInfo = "docker.info"
+	ActionSystemInfo  = "system.info"
+	ActionDockerInfo  = "docker.info"
+	ActionNodeMetrics = "node.metrics"
 
 	// 容器。
 	ActionContainerList    = "container.list"
@@ -52,7 +53,7 @@ const (
 
 // allowedActions 是全部合法 Action 的集合。
 var allowedActions = map[string]struct{}{
-	ActionSystemInfo: {}, ActionDockerInfo: {},
+	ActionSystemInfo: {}, ActionDockerInfo: {}, ActionNodeMetrics: {},
 	ActionContainerList: {}, ActionContainerInspect: {}, ActionContainerCreate: {},
 	ActionContainerStart: {}, ActionContainerStop: {}, ActionContainerRestart: {},
 	ActionContainerRemove: {}, ActionContainerStats: {},

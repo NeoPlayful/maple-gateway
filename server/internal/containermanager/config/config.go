@@ -39,28 +39,25 @@ type CMConfig struct {
 	EnrollmentRequired bool `yaml:"enrollment_required"`
 	// TaskTimeout 单条下发任务的执行时限。
 	TaskTimeout time.Duration `yaml:"task_timeout"`
+	// DatabaseURL PostgreSQL 连接串（与 Gateway 同库）。空则回退内存模式，
+	// 节点/令牌/任务/期望态不持久化（仅开发用）。
+	DatabaseURL string `yaml:"database_url"`
 	// Nodes 静态登记的节点清单：CM 据此探测 Agent 并采集容器状态。
 	// 生产可由 Agent 自注册扩展；本期以配置登记为主。
 	Nodes []NodeConfig `yaml:"nodes"`
 }
 
 // NodeConfig 是一个节点的静态登记项。
+// 仅提供节点名与调度属性；节点身份（Gateway UUID）由 Agent 反连时按名解析。
 type NodeConfig struct {
-	// Name 节点名（上报 Gateway 的节点标识，需全局唯一）。
+	// Name 节点名（须与对应 Agent 的 node_name 一致；也是 Gateway nodes.name）。
 	Name string `yaml:"name"`
-	// Host 节点地址（管理面，上报 Gateway 供展示/回连）。
+	// Host 节点地址（管理面，上报 Gateway 供展示）。
 	Host string `yaml:"host"`
 	// Region 区域（调度亲和）。
 	Region string `yaml:"region"`
 	// Labels 节点标签（调度约束 node_selector 匹配）。
 	Labels map[string]string `yaml:"labels"`
-	// AgentAddr 本节点 Node Agent 的基址，须为 CM 所在处可达的地址：
-	//   Linux 主机      : http://10.0.0.11:9092
-	//   同宿主机容器    : http://nodeagent:9092（compose 服务名）或宿主 IP
-	//   Windows 主机    : http://<windows-lan-ip>:9092（Agent 原生运行，监听可达网卡）
-	AgentAddr string `yaml:"agent_addr"`
-	// AgentToken 访问该 Agent 的令牌（= Agent 的 MAPLE_AGENT_TOKEN）。
-	AgentToken string `yaml:"agent_token"`
 }
 
 // LoggingConfig 日志配置。
@@ -140,6 +137,11 @@ func (c *Config) applyEnv() {
 		if d, err := time.ParseDuration(v); err == nil {
 			c.CM.TaskTimeout = d
 		}
+	}
+	if v := os.Getenv("MAPLE_CM_DATABASE_URL"); v != "" {
+		c.CM.DatabaseURL = v
+	} else if v := os.Getenv("MAPLE_DATABASE_URL"); v != "" {
+		c.CM.DatabaseURL = v
 	}
 	if v := os.Getenv("MAPLE_LOG_LEVEL"); v != "" {
 		c.Logging.Level = v

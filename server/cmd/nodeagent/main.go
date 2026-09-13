@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -64,6 +65,18 @@ func run(configPath string) error {
 	// 反向连接：配置了 server_url 即主动连 CM，命令经此连接下行。
 	if cfg.Agent.ServerURL != "" {
 		startReverseClient(ctx, cfg, rt, logger)
+	}
+
+	// 关闭面向 CM 的 HTTP 入站口：命令全部经 WS 下行，节点不暴露管理端口。
+	// 必须已配置 server_url，否则节点没有任何可达通道可下发命令。
+	if cfg.Agent.DisableHTTP {
+		if cfg.Agent.ServerURL == "" {
+			return fmt.Errorf("disable_http 需要同时配置 server_url，否则节点无可达通道")
+		}
+		logger.Info("node agent HTTP listener disabled; serving over reverse WebSocket only")
+		<-ctx.Done()
+		logger.Info("node agent shutting down")
+		return nil
 	}
 
 	errCh := make(chan error, 1)

@@ -27,7 +27,7 @@ func (s *Scheduler) Select(selector map[string]string, placement map[string]int,
 	}
 	candidates := make([]*agentregistry.Node, 0)
 	for _, node := range s.registry.All() {
-		if !node.Healthy {
+		if !node.Online() {
 			continue
 		}
 		if !matchesSelector(node.Labels, selector) {

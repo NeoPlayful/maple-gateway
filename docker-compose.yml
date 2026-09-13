@@ -59,26 +59,31 @@ services:
       MAPLE_CM_TOKEN: dev-cm-token                              # 校验 Gateway 访问
       MAPLE_CM_GATEWAY_BASE_URL: http://maple-gateway:8090      # 状态上报目标
       MAPLE_CM_GATEWAY_TOKEN: dev-internal-token                # = Gateway MAPLE_INTERNAL_TOKEN
+      MAPLE_CM_DATABASE_URL: postgres://maple:maple@postgres:5432/maple?sslmode=disable
+      MAPLE_CM_AGENT_LISTEN: ":9093"                            # 接收 Agent 反连（WebSocket）
       MAPLE_CM_RECONCILE_INTERVAL: 5s
       MAPLE_CM_OBSERVE_INTERVAL: 10s
     ports:
-      - "9091:9091"
+      - "9091:9091"       # 面向 Gateway
+      - "9093:9093"       # 面向 Agent 的反连接入
     restart: unless-stopped
 
   # ---- 控制面：Node Agent（唯一直连本机 Docker Engine 的组件） ----
   nodeagent:
     image: maple-gateway:dev
     entrypoint: ["maple-nodeagent"]
+    depends_on:
+      - containermanager
     environment:
-      MAPLE_AGENT_LISTEN: "0.0.0.0:9092"        # 供 CM 调用容器操作，应仅内网可达
-      MAPLE_AGENT_TOKEN: dev-agent-token        # 校验 CM 访问
+      MAPLE_AGENT_SERVER_URL: "ws://containermanager:9093/agent/ws"   # 主动反连 CM
+      MAPLE_AGENT_DISABLE_HTTP: "true"          # 不暴露入站管理端口，命令全部经 WS 下行
       MAPLE_AGENT_DOCKER_HOST: ""               # 空则用挂载的 docker.sock
       MAPLE_AGENT_MANAGED_LABEL: maple.managed  # 仅操作带此标签的容器
       MAPLE_AGENT_NODE_NAME: node-local         # 本节点标识
-    ports:
-      - "9092:9092"
+      MAPLE_AGENT_CREDENTIAL_PATH: /var/lib/maple-agent/credential.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock   # Agent 直接驱动本机 Docker Engine
+      - nodeagent-cred:/var/lib/maple-agent         # 持久化注册凭证，重启免重注册
     restart: unless-stopped
 
   # ---- 开发测试容器（模拟租户实例，供数据平面转发验证） ----
@@ -91,3 +96,4 @@ services:
 
 volumes:
   postgres-data:
+  nodeagent-cred:

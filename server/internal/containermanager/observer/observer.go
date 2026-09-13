@@ -2,18 +2,59 @@
 //
 // 职责（状态上行）：节点注册/心跳 → 容器发现 → 实例注册/心跳/注销。
 // 容器 maple.instance_id 标签 = Gateway instances.id（同 UUID），保证一一对应。
+//
+// 采集经 WS 任务通道下发（container.list / system.info / node.metrics），
+// 节点在线状态来自统一节点模型（有活跃 WS 会话才尝试采集），不再依赖 HTTP 探测。
 package observer
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"go.uber.org/zap"
 )
+
+// NodeInfo 是节点容量摘要（对应 Agent docker.NodeInfo）。
+type NodeInfo struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	CPUs          int    `json:"cpus"`
+	MemoryBytes   int64  `json:"memory_bytes"`
+	Containers    int    `json:"containers"`
+	DockerVersion string `json:"docker_version"`
+}
+
+// HostMetrics 是主机资源使用摘要（对应 Agent hostmetrics.Metrics）。
+type HostMetrics struct {
+	Available   bool    `json:"available"`
+	CPUPercent  float64 `json:"cpu_percent"`
+	MemTotal    int64   `json:"mem_total"`
+	MemUsed     int64   `json:"mem_used"`
+	MemPercent  float64 `json:"mem_percent"`
+	DiskTotal   int64   `json:"disk_total"`
+	DiskUsed    int64   `json:"disk_used"`
+	DiskPercent float64 `json:"disk_percent"`
+}
+
+// DockerDisk 是 Docker 引擎空间占用摘要。
+type DockerDisk struct {
+	LayersSize int64 `json:"layers_size"`
+	Images     int   `json:"images"`
+	Containers int   `json:"containers"`
+	Volumes    int   `json:"volumes"`
+}
+
+// NodeMetrics 是节点指标聚合（主机 + Docker）。
+type NodeMetrics struct {
+	Host   HostMetrics `json:"host"`
+	Docker DockerDisk  `json:"docker"`
+}
 
 // Observer 周期观测节点与容器并上报 Gateway。
 type Observer struct {
@@ -23,21 +64,21 @@ type Observer struct {
 	logger   *zap.Logger
 
 	mu          sync.Mutex
-	lastReport  time.Time                    // 上次成功上报时间
-	lastErr     error                        // 上次上报错误
-	containerCt int                          // 纳管容器数
-	nodeUpCt    int                          // 可用节点数
-	snapshot    map[string]ObservedContainer // instance_id → 观测到的容器（最近一轮）
-	metrics     map[string]NodeMetric        // 节点名 → 最近采集的资源指标
-	info        map[string]gwclient.NodeInfo // 节点名 → 最近采集的节点容量（核数/内存/Docker 版本）
-	errors      []RuntimeError               // 最近一轮观测到的运行时错误（崩溃/退出）
+	lastReport  time.Time
+	lastErr     error
+	containerCt int
+	nodeUpCt    int
+	snapshot    map[string]ObservedContainer
+	metrics     map[string]NodeMetric
+	info        map[string]NodeInfo
+	errors      []RuntimeError
 }
 
 // NodeMetric 是某节点最近一次采集到的资源指标。
 type NodeMetric struct {
-	NodeName string               `json:"node_name"`
-	Metrics  gwclient.NodeMetrics `json:"metrics"`
-	Error    string               `json:"error,omitempty"` // 采集失败原因
+	NodeName string      `json:"node_name"`
+	Metrics  NodeMetrics `json:"metrics"`
+	Error    string      `json:"error,omitempty"`
 }
 
 // RuntimeError 是一次运行时异常（容器非正常退出）记录。
@@ -47,7 +88,7 @@ type RuntimeError struct {
 	State      string `json:"state"`
 	ExitCode   int    `json:"exit_code"`
 	OOMKilled  bool   `json:"oom_killed"`
-	At         int64  `json:"at"` // Unix 秒
+	At         int64  `json:"at"`
 }
 
 // ObservedContainer 是最近一轮观测到的受管容器（含其所在节点）。
@@ -66,13 +107,12 @@ func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval 
 		logger:   logger,
 		snapshot: map[string]ObservedContainer{},
 		metrics:  map[string]NodeMetric{},
-		info:     map[string]gwclient.NodeInfo{},
+		info:     map[string]NodeInfo{},
 	}
 }
 
 // Run 启动周期观测循环，直到 ctx 取消。
 func (o *Observer) Run(ctx context.Context) {
-	// 启动即先跑一轮，缩短首帧延迟；随周期定时。
 	o.tick(ctx)
 	ticker := time.NewTicker(o.interval)
 	defer ticker.Stop()
@@ -93,14 +133,16 @@ func (o *Observer) tick(ctx context.Context) {
 	var firstErr error
 	snap := make(map[string]ObservedContainer)
 	metrics := make(map[string]NodeMetric, len(nodes))
-	infos := make(map[string]gwclient.NodeInfo, len(nodes))
+	infos := make(map[string]NodeInfo, len(nodes))
 	var runtimeErrs []RuntimeError
-	// 本轮成功观测的节点集合：仅对这些节点做"消失即注销"，避免节点瞬时不可达误删其余实例。
 	observedNodes := map[string]bool{}
 	for _, n := range nodes {
-		// 节点指标独立于容器观测：即使容器列表失败也尝试采集，供运维视图展示。
+		// 仅在节点有活跃 WS 会话、且已认领 Gateway 身份时才观测。
+		if !n.Online() || n.ID() == "" {
+			continue
+		}
 		metrics[n.Name] = o.collectMetrics(ctx, n)
-		if info, err := n.Agent.Info(ctx); err == nil {
+		if info, err := o.fetchInfo(ctx, n); err == nil {
 			infos[n.Name] = info
 		}
 		containers, err := o.observeNode(ctx, n)
@@ -118,7 +160,6 @@ func (o *Observer) tick(ctx context.Context) {
 			if c.InstanceID != "" {
 				snap[c.InstanceID] = ObservedContainer{NodeName: n.Name, InstanceID: c.InstanceID, Container: c}
 			}
-			// 非 running 的受管容器（exited/dead）→ 记为运行时错误，供运维视图展示。
 			if c.InstanceID != "" && c.State != "running" {
 				runtimeErrs = append(runtimeErrs, RuntimeError{
 					NodeName: n.Name, InstanceID: c.InstanceID, State: c.State,
@@ -148,7 +189,7 @@ func (o *Observer) tick(ctx context.Context) {
 	// 消失注销：上一轮见过、本轮未见于"已成功观测节点"上的实例 → 通知 Gateway 注销。
 	for iid, pc := range prev {
 		if !observedNodes[pc.NodeName] {
-			continue // 该节点本轮未成功观测，不能据此判定实例消失
+			continue
 		}
 		if _, still := snap[iid]; still {
 			continue
@@ -188,10 +229,10 @@ func (o *Observer) Metrics() map[string]NodeMetric {
 }
 
 // Infos 返回各节点最近一轮采集到的容量信息（核数/内存/Docker 版本）。
-func (o *Observer) Infos() map[string]gwclient.NodeInfo {
+func (o *Observer) Infos() map[string]NodeInfo {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	out := make(map[string]gwclient.NodeInfo, len(o.info))
+	out := make(map[string]NodeInfo, len(o.info))
 	for k, v := range o.info {
 		out[k] = v
 	}
@@ -209,26 +250,51 @@ func (o *Observer) RuntimeErrors() []RuntimeError {
 
 // collectMetrics 采集单节点资源指标；失败时记录错误原因但不影响观测主流程。
 func (o *Observer) collectMetrics(ctx context.Context, n *agentregistry.Node) NodeMetric {
-	m, err := n.Agent.Metrics(ctx)
+	raw, err := o.call(ctx, n, agentprotocol.ActionNodeMetrics)
 	if err != nil {
+		return NodeMetric{NodeName: n.Name, Error: err.Error()}
+	}
+	var m NodeMetrics
+	if err := json.Unmarshal(raw, &m); err != nil {
 		return NodeMetric{NodeName: n.Name, Error: err.Error()}
 	}
 	return NodeMetric{NodeName: n.Name, Metrics: m}
 }
 
-// observeNode 探测节点并采集容器列表；同时更新注册表健康状态。
-func (o *Observer) observeNode(ctx context.Context, n *agentregistry.Node) ([]gwclient.Container, error) {
-	if err := n.Agent.Health(ctx); err != nil {
-		o.registry.SetHealth(n.Name, false, "", time.Now().UnixMilli())
-		return nil, err
-	}
-	containers, err := n.Agent.Containers(ctx)
+// fetchInfo 拉取节点容量摘要（核数/内存/Docker 版本）。
+func (o *Observer) fetchInfo(ctx context.Context, n *agentregistry.Node) (NodeInfo, error) {
+	raw, err := o.call(ctx, n, agentprotocol.ActionSystemInfo)
 	if err != nil {
-		o.registry.SetHealth(n.Name, false, "", time.Now().UnixMilli())
+		return NodeInfo{}, err
+	}
+	var info NodeInfo
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return NodeInfo{}, err
+	}
+	return info, nil
+}
+
+// observeNode 采集受管容器列表。
+func (o *Observer) observeNode(ctx context.Context, n *agentregistry.Node) ([]gwclient.Container, error) {
+	raw, err := o.call(ctx, n, agentprotocol.ActionContainerList)
+	if err != nil {
 		return nil, err
 	}
-	o.registry.SetHealth(n.Name, true, "", time.Now().UnixMilli())
+	var containers []gwclient.Container
+	if err := json.Unmarshal(raw, &containers); err != nil {
+		return nil, err
+	}
 	return containers, nil
+}
+
+// callTimeout 是单次只读命令的等待上限：节点卡死时不拖垮整轮观测。
+const callTimeout = 20 * time.Second
+
+// call 经 WS 任务通道下发一次只读命令。
+func (o *Observer) call(ctx context.Context, n *agentregistry.Node, action string) (json.RawMessage, error) {
+	cctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return n.Call(cctx, action, nil)
 }
 
 // reportNode 上报节点注册/心跳，并把该节点上的容器作为实例上报。
@@ -236,22 +302,14 @@ func (o *Observer) reportNode(ctx context.Context, n *agentregistry.Node, contai
 	if !o.gw.Enabled() {
 		return
 	}
-	// 节点注册（首次）或心跳（已有 ID）。
-	nodeID := n.GatewayID
+	nodeID := n.ID()
 	if nodeID == "" {
-		id, err := o.gw.RegisterNode(ctx, n.Name, n.Host, n.Region, n.Labels)
-		if err != nil {
-			o.logger.Warn("register node to gateway failed", zap.String("node", n.Name), zap.Error(err))
-			return
-		}
-		o.registry.SetHealth(n.Name, true, id, time.Now().UnixMilli())
-		nodeID = id
-	} else if err := o.gw.HeartbeatNode(ctx, nodeID); err != nil {
+		return
+	}
+	if err := o.gw.HeartbeatNode(ctx, nodeID); err != nil {
 		o.logger.Warn("node heartbeat to gateway failed", zap.String("node", n.Name), zap.Error(err))
 	}
 
-	// 容器 → 实例上报：仅处理带 instance_id 标签的受管容器。
-	// running → 心跳/注册（正常态）；非 running → 上报 unhealthy（崩溃可见，而非消失）。
 	sort.Slice(containers, func(i, j int) bool { return containers[i].InstanceID < containers[j].InstanceID })
 	for _, ct := range containers {
 		if ct.InstanceID == "" {
@@ -266,7 +324,6 @@ func (o *Observer) reportNode(ctx context.Context, n *agentregistry.Node, contai
 }
 
 // reportUnhealthy 上报非运行容器为 unhealthy：让崩溃实例在 Gateway 侧以不健康形态可见。
-// 已注册的实例直接改健康态；尚未注册的先注册再标记（保证崩溃也留下痕迹）。
 func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, nodeID string, ct gwclient.Container) {
 	if err := o.gw.ReportHealth(ctx, ct.InstanceID, "unhealthy"); err == nil {
 		return
@@ -294,11 +351,9 @@ func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, n
 
 // reportInstance 上报单个容器对应的实例：优先心跳（已注册），失败则注册。
 func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, nodeID string, ct gwclient.Container) {
-	// 直接用 instance_id 作心跳：容器标签即 Gateway 实例 ID。
 	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID); err == nil {
 		return
 	}
-	// 心跳失败（实例尚不存在）→ 注册。
 	rep := gwclient.InstanceReport{
 		ID:           ct.InstanceID,
 		ServiceID:    ct.Labels["maple.service_id"],
