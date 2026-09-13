@@ -61,7 +61,20 @@ func Collect() (Metrics, error) {
 			m.DiskPercent = round1(float64(used) / float64(total) * 100)
 		}
 	}
+	if up, err := readUptime(); err == nil {
+		m.UptimeSec = up
+	}
 	return m, nil
+}
+
+// readUptime 用 GetTickCount64 返回系统运行秒数。
+func readUptime() (int64, error) {
+	procGetTickCount64 := kernel32.NewProc("GetTickCount64")
+	r, _, err := procGetTickCount64.Call()
+	if r == 0 {
+		return 0, err
+	}
+	return int64(r / 1000), nil
 }
 
 // cpuTimes 是一组累计 CPU 时间（100ns 单位）。

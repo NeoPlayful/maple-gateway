@@ -145,3 +145,52 @@ func TestDisallowedAction(t *testing.T) {
 		t.Fatal("forbidden action should be rejected")
 	}
 }
+
+func TestRetryLineage(t *testing.T) {
+	r := newFakeRouter()
+	m := newMgr(t, r)
+	task, _ := m.DispatchBy("node-1", agentprotocol.ActionImagePull, map[string]string{"image": "nginx"}, "admin-1")
+	m.OnResult("node-1", task.ID, string(StatusFailed), "boom", nil)
+
+	// 未结束任务不可重试。
+	running, _ := m.Dispatch("node-1", agentprotocol.ActionSystemInfo, nil)
+	if _, err := m.Retry(running.ID); err == nil {
+		t.Fatal("non-terminal task should not be retryable")
+	}
+
+	retried, err := m.Retry(task.ID)
+	if err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if retried.ID == task.ID {
+		t.Fatal("retry should create a new task id")
+	}
+	if retried.ParentID != task.ID {
+		t.Fatalf("want parent %s, got %s", task.ID, retried.ParentID)
+	}
+	if retried.CreatedBy != "admin-1" {
+		t.Fatalf("retry should inherit creator, got %q", retried.CreatedBy)
+	}
+	if retried.Attempts != task.Attempts+1 {
+		t.Fatalf("want attempts %d, got %d", task.Attempts+1, retried.Attempts)
+	}
+	if retried.Status != StatusDispatching {
+		t.Fatalf("want dispatching, got %s", retried.Status)
+	}
+}
+
+func TestAdminCancelUnknown(t *testing.T) {
+	r := newFakeRouter()
+	m := newMgr(t, r)
+	if err := m.AdminCancel("nope", "x"); err != ErrUnknownTask {
+		t.Fatalf("want ErrUnknownTask, got %v", err)
+	}
+	task, _ := m.Dispatch("node-1", agentprotocol.ActionSystemInfo, nil)
+	if err := m.AdminCancel(task.ID, "operator"); err != nil {
+		t.Fatalf("admin cancel: %v", err)
+	}
+	got, _ := m.Get(task.ID)
+	if got.Status != StatusCancelled {
+		t.Fatalf("want cancelled, got %s", got.Status)
+	}
+}

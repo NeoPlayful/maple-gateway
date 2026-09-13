@@ -23,6 +23,7 @@ import RateLimitsPage from './pages/admin/RateLimitsPage';
 import BlueGreenPage from './pages/admin/BlueGreenPage';
 import HealthPage from './pages/admin/HealthPage';
 import RuntimePage from './pages/admin/RuntimePage';
+import ApplicationsPage from './pages/admin/ApplicationsPage';
 
 export default function App() {
   const { t } = useTranslation('admin');
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="blue-green" element={<BlueGreenPage />} />
           <Route path="health" element={<HealthPage />} />
           <Route path="runtime" element={<RuntimePage />} />
+          <Route path="applications" element={<ApplicationsPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

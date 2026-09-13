@@ -22,6 +22,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -103,6 +104,7 @@ type NodeInfo struct {
 	MemoryBytes   int64  `json:"memory_bytes"`
 	Containers    int    `json:"containers"` // 运行中的受管容器数
 	DockerVersion string `json:"docker_version"`
+	DockerAPIVer  string `json:"docker_api_version"`
 }
 
 // DiskUsage 是 Docker 引擎空间占用摘要。
@@ -302,6 +304,110 @@ func (c *Client) Logs(ctx context.Context, id string, tail int) (string, error) 
 	return combined, nil
 }
 
+// FollowLogs 持续跟随容器日志，每读到一段即回调 emit。
+// 非 TTY 容器的 stdout/stderr 以帧复用，需逐帧 demux；follow 会保持连接直到
+// ctx 取消或容器结束。tail<=0 时取默认 200 行历史。
+func (c *Client) FollowLogs(ctx context.Context, id string, tail int, emit func(chunk string) error) error {
+	if tail <= 0 || tail > 5000 {
+		tail = 200
+	}
+	opts := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Timestamps: true,
+		Follow:     true,
+		Tail:       strconv.Itoa(tail),
+	}
+	rc, err := c.cli.ContainerLogs(ctx, id, opts)
+	if err != nil {
+		return fmt.Errorf("container logs: %w", err)
+	}
+	defer func() { _ = rc.Close() }()
+
+	header := make([]byte, 8)
+	for {
+		if _, err := io.ReadFull(rc, header); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return nil // 流自然结束
+			}
+			if ctx.Err() != nil {
+				return nil // 上下文取消视为正常收尾
+			}
+			return fmt.Errorf("read log frame: %w", err)
+		}
+		size := int(header[4])<<24 | int(header[5])<<16 | int(header[6])<<8 | int(header[7])
+		if size <= 0 {
+			continue
+		}
+		payload := make([]byte, size)
+		if _, err := io.ReadFull(rc, payload); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return fmt.Errorf("read log payload: %w", err)
+		}
+		if err := emit(string(payload)); err != nil {
+			return err // 回调侧要求终止（如写失败）
+		}
+	}
+}
+
+// DockerEvent 是一条受管容器相关的 Docker 事件（已映射为平台视图）。
+type DockerEvent struct {
+	Action      string
+	ContainerID string
+	InstanceID  string
+	Image       string
+	ExitCode    int
+	Time        int64 // Unix 秒
+}
+
+// WatchEvents 订阅 Docker 容器事件并逐条回调 emit，直到 ctx 取消。
+// 只上报带受管标签的容器事件（非受管容器一律忽略）。
+func (c *Client) WatchEvents(ctx context.Context, emit func(DockerEvent)) error {
+	f := filters.NewArgs()
+	f.Add("type", string(events.ContainerEventType))
+	msgCh, errCh := c.cli.Events(ctx, events.ListOptions{Filters: f})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-errCh:
+			if ctx.Err() != nil {
+				return nil
+			}
+			return fmt.Errorf("watch docker events: %w", err)
+		case msg := <-msgCh:
+			ev, ok := c.fromMessage(msg)
+			if ok {
+				emit(ev)
+			}
+		}
+	}
+}
+
+// fromMessage 把一条 Docker 事件映射为受管事件；非受管容器返回 false。
+func (c *Client) fromMessage(msg events.Message) (DockerEvent, bool) {
+	if msg.Actor.Attributes[c.managedLabel] != "true" {
+		return DockerEvent{}, false
+	}
+	ev := DockerEvent{
+		Action:      string(msg.Action),
+		ContainerID: msg.Actor.ID,
+		InstanceID:  msg.Actor.Attributes[LabelInstanceID],
+		Image:       msg.Actor.Attributes["image"],
+		Time:        msg.Time,
+	}
+	// die 事件带退出码：exitCode 为字符串属性。
+	if msg.Action == events.ActionDie {
+		if code, err := strconv.Atoi(msg.Actor.Attributes["exitCode"]); err == nil {
+			ev.ExitCode = code
+		}
+	}
+	return ev, true
+}
+
 // DiskUsage 返回 Docker 引擎的空间占用摘要。
 func (c *Client) DiskUsage(ctx context.Context) (DiskUsage, error) {
 	du, err := c.cli.DiskUsage(ctx, types.DiskUsageOptions{})
@@ -360,6 +466,7 @@ func (c *Client) Info(ctx context.Context) (NodeInfo, error) {
 		MemoryBytes:   info.MemTotal,
 		Containers:    len(running),
 		DockerVersion: info.ServerVersion,
+		DockerAPIVer:  c.cli.ClientVersion(),
 	}, nil
 }
 

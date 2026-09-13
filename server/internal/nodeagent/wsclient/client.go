@@ -62,6 +62,8 @@ type Dialer interface {
 type Client struct {
 	enrollee Enrollee
 	executor Executor
+	streamer LogStreamer
+	events   EventSource
 	dialer   Dialer
 	logger   *zap.Logger
 
@@ -82,6 +84,8 @@ type Client struct {
 	wmu sync.Mutex
 	// inflight 记录在途任务的可取消上下文（task_id → cancel），供 task.cancel 中断执行。
 	inflight map[string]context.CancelFunc
+	// streams 记录打开的日志流（stream_id → cancel），供 logs.close 终止跟随。
+	streams map[string]context.CancelFunc
 }
 
 // New 构造客户端。
@@ -89,11 +93,29 @@ func New(enrollee Enrollee, executor Executor, dialer Dialer, logger *zap.Logger
 	return &Client{
 		enrollee:  enrollee,
 		executor:  executor,
+		streamer:  asStreamer(executor),
+		events:    asEventSource(executor),
 		dialer:    dialer,
 		logger:    logger,
 		heartbeat: defaultHeartbeat,
 		backoff:   minBackoff,
 	}
+}
+
+// asStreamer 从 Executor 适配出 LogStreamer（若其同时实现了该接口）。
+func asStreamer(e Executor) LogStreamer {
+	if s, ok := e.(LogStreamer); ok {
+		return s
+	}
+	return nil
+}
+
+// asEventSource 从 Executor 适配出 EventSource（若其同时实现了该接口）。
+func asEventSource(e Executor) EventSource {
+	if s, ok := e.(EventSource); ok {
+		return s
+	}
+	return nil
 }
 
 // Run 持续保持到 CM 的连接，直到 ctx 结束。断线按指数退避重连。
@@ -148,6 +170,13 @@ func (c *Client) session(ctx context.Context) error {
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	defer hbCancel()
 	go c.heartbeatLoop(hbCtx, conn)
+
+	// 事件协程：订阅本机 Docker 事件并上行 docker.event，随连接结束而停止。
+	evCtx, evCancel := context.WithCancel(ctx)
+	defer evCancel()
+	if c.events != nil {
+		go c.eventLoop(evCtx, conn)
+	}
 
 	return c.readLoop(ctx, conn)
 }
@@ -223,8 +252,10 @@ func (c *Client) readLoop(ctx context.Context, conn Conn) error {
 			c.handleTask(ctx, conn, env)
 		case agentprotocol.TypeTaskCancel:
 			c.handleCancel(env)
-		case agentprotocol.TypeLogsOpen, agentprotocol.TypeLogsClose:
-			// 日志流在后续接入；当前忽略但不报错。
+		case agentprotocol.TypeLogsOpen:
+			c.handleLogsOpen(ctx, conn, env)
+		case agentprotocol.TypeLogsClose:
+			c.handleLogsClose(env)
 		default:
 			c.logger.Debug("agent unknown message", zap.String("type", string(env.Type)))
 		}
@@ -290,6 +321,84 @@ func (c *Client) handleCancel(env agentprotocol.Envelope) {
 	}
 }
 
+// handleLogsOpen 打开一条日志流：随日志产出上行 logs.data，结束或关闭时上行 logs.close。
+func (c *Client) handleLogsOpen(ctx context.Context, conn Conn, env agentprotocol.Envelope) {
+	var p agentprotocol.LogsOpenPayload
+	if err := env.DecodePayload(&p); err != nil {
+		return
+	}
+	if c.streamer == nil {
+		c.writeLogsClose(conn, env, p.StreamID, "日志流未启用")
+		return
+	}
+	streamCtx, cancel := context.WithCancel(ctx)
+	c.mu.Lock()
+	if c.streams == nil {
+		c.streams = make(map[string]context.CancelFunc)
+	}
+	// 同 stream_id 重复打开：先停旧的（前置指令或客户端重试）。
+	if prev, ok := c.streams[p.StreamID]; ok {
+		prev()
+	}
+	c.streams[p.StreamID] = cancel
+	c.mu.Unlock()
+
+	go func() {
+		defer func() {
+			cancel()
+			c.mu.Lock()
+			delete(c.streams, p.StreamID)
+			c.mu.Unlock()
+		}()
+		err := c.streamer.FollowLogs(streamCtx, p.Target, p.Tail, func(chunk string) error {
+			return c.writeLogsData(conn, env.RequestID, p.StreamID, chunk, false)
+		})
+		reason := ""
+		if err != nil {
+			reason = err.Error()
+		}
+		// 末片置 EOF：CM 据此关闭该流；再补一条 logs.close 供协议完整性。
+		_ = c.writeLogsData(conn, env.RequestID, p.StreamID, "", true)
+		c.writeLogsClose(conn, env, p.StreamID, reason)
+	}()
+}
+
+// handleLogsClose 处理 CM 关闭日志流的指令：中断对应跟随。
+func (c *Client) handleLogsClose(env agentprotocol.Envelope) {
+	var p agentprotocol.LogsClosePayload
+	if err := env.DecodePayload(&p); err != nil {
+		return
+	}
+	c.mu.Lock()
+	cancel := c.streams[p.StreamID]
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// writeLogsData 上行一片日志。request_id 回填打开指令的 request_id，供 CM 路由。
+func (c *Client) writeLogsData(conn Conn, requestID, streamID, data string, eof bool) error {
+	env, err := agentprotocol.New(agentprotocol.TypeLogsData, requestID, agentprotocol.LogsDataPayload{
+		StreamID: streamID, Data: data, EOF: eof,
+	})
+	if err != nil {
+		return err
+	}
+	return c.write(conn, env)
+}
+
+// writeLogsClose 上行日志流关闭。request_id 回填打开指令的 request_id。
+func (c *Client) writeLogsClose(conn Conn, openEnv agentprotocol.Envelope, streamID, reason string) {
+	env, err := agentprotocol.New(agentprotocol.TypeLogsClose, openEnv.RequestID, agentprotocol.LogsClosePayload{
+		StreamID: streamID, Reason: reason,
+	})
+	if err != nil {
+		return
+	}
+	_ = c.write(conn, env)
+}
+
 // reportProgress 上报任务进度。
 func (c *Client) reportProgress(conn Conn, taskID string, percent int, msg string) {
 	p := agentprotocol.TaskProgressPayload{TaskID: taskID, Percent: percent, Message: msg}
@@ -317,6 +426,30 @@ func (c *Client) reportResult(conn Conn, taskID, status, errMsg string, res json
 	}
 	if werr := c.write(conn, env); werr != nil {
 		c.logger.Debug("report task result failed", zap.String("task_id", taskID), zap.Error(werr))
+	}
+}
+
+// eventLoop 订阅本机 Docker 事件并上行。写失败即结束连接以便重连。
+func (c *Client) eventLoop(ctx context.Context, conn Conn) {
+	err := c.events.WatchEvents(ctx, func(ev DockerEvent) {
+		env, eerr := agentprotocol.New(agentprotocol.TypeDockerEvent, "", agentprotocol.DockerEventPayload{
+			NodeID:      c.nodeID(),
+			Action:      ev.Action,
+			ContainerID: ev.ContainerID,
+			InstanceID:  ev.InstanceID,
+			Image:       ev.Image,
+			ExitCode:    ev.ExitCode,
+			Time:        ev.Time,
+		})
+		if eerr != nil {
+			return
+		}
+		if werr := c.write(conn, env); werr != nil {
+			_ = conn.Close()
+		}
+	})
+	if err != nil && ctx.Err() == nil {
+		c.logger.Warn("docker event watch ended", zap.Error(err))
 	}
 }
 

@@ -29,9 +29,17 @@ type Manager struct {
 	requireEn bool // 是否强制首注册必须携带有效 Enrollment Token
 }
 
-// NewManager 构造准入管理器。
+// NewManager 构造准入管理器（Token 存储退化为进程内）。
 func NewManager(requireEnrollment bool, nodeStore *nodes.Store, reg Registrar) *Manager {
-	return &Manager{tokens: NewTokenStore(), nodes: nodeStore, reg: reg, requireEn: requireEnrollment}
+	return NewManagerWithTokens(requireEnrollment, nodeStore, reg, NewTokenStore())
+}
+
+// NewManagerWithTokens 构造准入管理器，使用外部提供的 Token 存储（可带持久化）。
+func NewManagerWithTokens(requireEnrollment bool, nodeStore *nodes.Store, reg Registrar, tokens *TokenStore) *Manager {
+	if tokens == nil {
+		tokens = NewTokenStore()
+	}
+	return &Manager{tokens: tokens, nodes: nodeStore, reg: reg, requireEn: requireEnrollment}
 }
 
 // Tokens 暴露 Token 存储，供管理端签发/撤销。

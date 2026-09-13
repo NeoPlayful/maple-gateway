@@ -20,12 +20,14 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentconn"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/applications"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/control"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/enrollment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/logstream"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/reconciler"
@@ -88,16 +90,30 @@ func run(configPath string) error {
 		return fmt.Errorf("load deployments: %w", err)
 	}
 	hub := agentconn.NewHub()
-	tasks := tasksys.New(hub, cfg.CM.TaskTimeout, logger)
+	streams := logstream.NewHub()
+	tasks := tasksys.New(hub, cfg.CM.TaskTimeout, logger).WithStore(tasksys.NewStore(sqlDB))
+	if err := tasks.Load(ctx); err != nil {
+		return fmt.Errorf("load tasks: %w", err)
+	}
+	// Compose 应用存储与控制（整包多服务部署）。
+	appStore := applications.NewStore(sqlDB)
+	if err := appStore.Load(ctx); err != nil {
+		return fmt.Errorf("load applications: %w", err)
+	}
 	registry := agentregistry.New(cfg.CM.Nodes, tasks, nodeStore)
 	obs := observer.New(registry, gw, cfg.CM.ObserveInterval, logger)
 	rec := reconciler.New(store, obs, registry, gw, cfg.CM.ReconcileInterval, logger)
+	appCtl := applications.NewController(appStore, registry, logger)
 	go obs.Run(ctx)
 	go rec.Run(ctx)
 
 	// Agent 主动连入：会话注册表 + 准入 + 任务系统。
 	// 节点主动连 CM，CM 不向节点发起入站；命令经这条连接下行。
-	enroll := enrollment.NewManager(cfg.CM.EnrollmentRequired, nodeStore, gw)
+	tokenStore := enrollment.NewTokenStoreDB(sqlDB)
+	if err := tokenStore.Load(ctx); err != nil {
+		return fmt.Errorf("load enrollment tokens: %w", err)
+	}
+	enroll := enrollment.NewManagerWithTokens(cfg.CM.EnrollmentRequired, nodeStore, gw, tokenStore)
 	agentSrv := agentconn.NewServer(cfg.CM.AgentListen, enroll, hub, agentconn.Callbacks{
 		OnSessionStart: func(nodeID string) {
 			nodeStore.Touch(nodeID)
@@ -115,6 +131,12 @@ func run(configPath string) error {
 		OnTaskResult: func(nodeID string, p agentprotocol.TaskResultPayload) {
 			tasks.OnResult(nodeID, p.TaskID, p.Status, p.Error, p.Result)
 		},
+		OnLogsData: func(nodeID string, p agentprotocol.LogsDataPayload) {
+			streams.Dispatch(p.StreamID, p.Data, p.EOF)
+		},
+		OnDockerEvent: func(nodeID string, p agentprotocol.DockerEventPayload) {
+			obs.OnDockerEvent(nodeID, p)
+		},
 	}, logger)
 	go func() {
 		if err := agentSrv.Serve(ctx); err != nil {
@@ -129,7 +151,7 @@ func run(configPath string) error {
 		zap.String("agent_listen", cfg.CM.AgentListen))
 
 	// 人工控制通道：管理端经 Gateway 下发的实例操作（与对账器自动决策区分）。
-	ctrl := control.New(registry, obs, store, logger)
+	ctrl := control.New(registry, obs, store, streams, logger)
 	mgmt := api.Mgmt{
 		Stats:   obs.Stats,
 		Metrics: obs.Metrics,
@@ -151,6 +173,7 @@ func run(configPath string) error {
 					st.CPUs = info.CPUs
 					st.MemoryBytes = info.MemoryBytes
 					st.DockerVersion = info.DockerVersion
+					st.DockerAPIVer = info.DockerAPIVer
 				}
 				out = append(out, st)
 			}
@@ -160,6 +183,14 @@ func run(configPath string) error {
 		Stop:    func(id string) error { return ctrl.Stop(ctx, id) },
 		Start:   func(id string) error { return ctrl.Start(ctx, id) },
 		Logs:    func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
+		FollowLogs: func(cctx context.Context, id string, tail int) (<-chan []byte, <-chan struct{}, func() bool, error) {
+			st, err := ctrl.FollowLogs(cctx, id, tail)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			return st.Chunks(), st.Done(), st.Overflow, nil
+		},
+		Events:  obs.Events,
 		Containers: func() []api.ContainerStatus {
 			snap := obs.Snapshot()
 			out := make([]api.ContainerStatus, 0, len(snap))
@@ -194,7 +225,23 @@ func run(configPath string) error {
 			return out
 		},
 	}
-	app := api.New(cfg, logger, store, obs, mgmt)
+	app := api.New(cfg, logger, store, obs, mgmt, tokenStore, api.TaskSource{
+		List:   tasks.List,
+		Get:    tasks.Get,
+		Retry:  tasks.Retry,
+		Cancel: tasks.AdminCancel,
+	}, api.AppSource{
+		List:     appStore.List,
+		Get:      appStore.Get,
+		Put:      appStore.Put,
+		Delete:   appStore.Delete,
+		Deploy:   appCtl.Deploy,
+		Stop:     appCtl.Stop,
+		Restart:  appCtl.Restart,
+		Remove:   appCtl.Remove,
+		Ps:       appCtl.Ps,
+		Validate: appCtl.Validate,
+	})
 
 	errCh := make(chan error, 1)
 	go func() {

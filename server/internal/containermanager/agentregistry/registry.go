@@ -15,11 +15,14 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
 )
 
 // Commander 是向某节点下发一次命令并等待结果的通道（由 tasksys.Manager 实现）。
 type Commander interface {
 	Call(ctx context.Context, nodeID, action string, params any) (json.RawMessage, error)
+	// SenderFor 返回向某节点单向投递消息的通道（用于日志流等异步指令）。
+	SenderFor(nodeID string) (tasksys.Sender, bool)
 }
 
 // Node 是 CM 视野内的一个节点。
@@ -63,6 +66,15 @@ func (n *Node) Online() bool {
 // Call 经 WS 任务通道向本节点下发一次命令并等待结果。
 func (n *Node) Call(ctx context.Context, action string, params any) (json.RawMessage, error) {
 	return n.cmd.Call(ctx, n.ID(), action, params)
+}
+
+// Sender 返回向本节点单向投递消息的通道（节点无活跃会话时返回 nil）。
+func (n *Node) Sender() tasksys.Sender {
+	s, ok := n.cmd.SenderFor(n.ID())
+	if !ok {
+		return nil
+	}
+	return s
 }
 
 // Registry 是节点视图。

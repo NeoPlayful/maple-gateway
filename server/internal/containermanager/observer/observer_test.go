@@ -14,6 +14,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +46,9 @@ func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.R
 	}
 	return nil, nil
 }
+
+// SenderFor 实现 agentregistry.Commander：测试中不投递单向消息。
+func (f *fakeCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
 
 // onlineRegistry 构造一个含在线节点 node-uuid-1（名 node-01）的视图。
 func onlineRegistry(cmd agentregistry.Commander) *agentregistry.Registry {

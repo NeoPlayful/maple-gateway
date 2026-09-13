@@ -13,6 +13,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/logstream"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"go.uber.org/zap"
 )
@@ -27,12 +28,13 @@ type Controller struct {
 	registry *agentregistry.Registry
 	actual   ActualReader
 	store    *desired.Store
+	streams  *logstream.Hub
 	logger   *zap.Logger
 }
 
 // New 构造。
-func New(registry *agentregistry.Registry, actual ActualReader, store *desired.Store, logger *zap.Logger) *Controller {
-	return &Controller{registry: registry, actual: actual, store: store, logger: logger}
+func New(registry *agentregistry.Registry, actual ActualReader, store *desired.Store, streams *logstream.Hub, logger *zap.Logger) *Controller {
+	return &Controller{registry: registry, actual: actual, store: store, streams: streams, logger: logger}
 }
 
 // locate 依据最近观测快照找到实例所在节点。
@@ -106,4 +108,35 @@ func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (str
 		return "", err
 	}
 	return out.Logs, nil
+}
+
+// FollowLogs 打开一条实时日志流并返回其句柄。调用方负责在结束时 Close。
+// 流经 logs.open 下发到实例所在节点；ctx 取消时向 Agent 下发 logs.close。
+func (c *Controller) FollowLogs(ctx context.Context, instanceID string, tail int) (*logstream.Stream, error) {
+	node, _, err := c.locate(instanceID)
+	if err != nil {
+		return nil, err
+	}
+	stream := c.streams.Open(instanceID)
+	sender := node.Sender()
+	if sender == nil {
+		c.streams.Close(stream.ID)
+		return nil, fmt.Errorf("实例所在节点 %s 不在线", node.Name)
+	}
+	env, _ := agentprotocol.New(agentprotocol.TypeLogsOpen, stream.ID, agentprotocol.LogsOpenPayload{
+		StreamID: stream.ID, Target: instanceID, Tail: tail, Follow: true,
+	})
+	if !sender.Send(env) {
+		c.streams.Close(stream.ID)
+		return nil, fmt.Errorf("向节点 %s 下发日志流失败", node.Name)
+	}
+	// 订阅方取消时通知 Agent 停止跟随（发送带同一 request_id 的 logs.close）。
+	go func() {
+		<-ctx.Done()
+		closeEnv, _ := agentprotocol.New(agentprotocol.TypeLogsClose, stream.ID,
+			agentprotocol.LogsClosePayload{StreamID: stream.ID, Reason: "client closed"})
+		sender.Send(closeEnv)
+		c.streams.Close(stream.ID)
+	}()
+	return stream, nil
 }

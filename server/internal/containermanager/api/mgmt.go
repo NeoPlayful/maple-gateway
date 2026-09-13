@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bufio"
+	"context"
 	"strconv"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
@@ -22,6 +24,7 @@ type NodeStatus struct {
 	CPUs          int    `json:"cpus,omitempty"`
 	MemoryBytes   int64  `json:"memory_bytes,omitempty"`
 	DockerVersion string `json:"docker_version,omitempty"`
+	DockerAPIVer  string `json:"docker_api_version,omitempty"`
 }
 
 // ContainerStatus 是受管容器对管理端的视图（含所在节点）。
@@ -49,10 +52,13 @@ type Mgmt struct {
 	Errors     func() []observer.RuntimeError
 	Phases     func() map[uuid.UUID]desired.Phase
 	Containers func() []ContainerStatus
+	Events     func() []observer.DockerEvent
 	Restart    func(instanceID string) error
 	Stop       func(instanceID string) error
 	Start      func(instanceID string) error
 	Logs       func(instanceID string, tail int) (string, error)
+	// FollowLogs 打开一条实时日志流；返回的分片通道、完成通道与是否溢出。
+	FollowLogs func(ctx context.Context, instanceID string, tail int) (chunks <-chan []byte, done <-chan struct{}, overflow func() bool, err error)
 }
 
 // registerMgmt 挂载管理读接口与人工控制接口（令牌认证，供 Gateway 聚合代理调用）。
@@ -103,6 +109,14 @@ func registerMgmt(app *fiber.App, token string, m Mgmt) {
 		return c.JSON(m.Containers())
 	})
 
+	// 受管容器的 Docker 事件（start/stop/die/…），供运行时页展示。
+	g.Get("/events", func(c fiber.Ctx) error {
+		if m.Events == nil {
+			return c.JSON([]observer.DockerEvent{})
+		}
+		return c.JSON(m.Events())
+	})
+
 	// 人工控制：实例 start/stop/restart 与日志查看。
 	g.Post("/instances/:id/restart", func(c fiber.Ctx) error {
 		if m.Restart == nil {
@@ -144,5 +158,49 @@ func registerMgmt(app *fiber.App, token string, m Mgmt) {
 			return fiber.NewError(fiber.StatusBadGateway, err.Error())
 		}
 		return c.JSON(fiber.Map{"logs": logs})
+	})
+
+	// GET /api/mgmt/instances/:id/logs/stream 实时跟随容器日志（分块流式响应）。
+	g.Get("/instances/:id/logs/stream", func(c fiber.Ctx) error {
+		if m.FollowLogs == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用日志流")
+		}
+		tail, _ := strconv.Atoi(c.Query("tail", "200"))
+		ctx, cancel := context.WithCancel(c.Context())
+		defer cancel()
+		chunks, done, overflow, err := m.FollowLogs(ctx, c.Params("id"), tail)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadGateway, err.Error())
+		}
+		c.Set("Content-Type", "text/plain; charset=utf-8")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("X-Accel-Buffering", "no")
+		return c.SendStreamWriter(func(w *bufio.Writer) {
+			for {
+				select {
+				case <-done:
+					// 流自然结束：若曾丢片，补一行提示后收尾。
+					if overflow() {
+						_, _ = w.WriteString("\n[日志流：因消费过慢，部分日志已丢弃]\n")
+					}
+					_ = w.Flush()
+					return
+				case <-ctx.Done():
+					_ = w.Flush()
+					return
+				case b, ok := <-chunks:
+					if !ok {
+						_ = w.Flush()
+						return
+					}
+					if _, err := w.Write(b); err != nil {
+						return
+					}
+					if err := w.Flush(); err != nil {
+						return
+					}
+				}
+			}
+		})
 	})
 }

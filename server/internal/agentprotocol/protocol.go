@@ -46,6 +46,10 @@ const (
 	TypeLogsClose MessageType = "logs.close" // 双向：关闭日志流
 )
 
+// StreamRequestID 是日志流下行指令（logs.open / logs.close）统一使用的 request_id 前缀。
+// CM 侧以此把上行 logs.data 路由回所属订阅；Agent 原样回填该值即可。
+const StreamRequestID = "stream_"
+
 // Envelope 是所有消息的统一包裹。
 type Envelope struct {
 	Type      MessageType     `json:"type"`

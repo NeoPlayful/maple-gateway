@@ -39,6 +39,15 @@ const color: Record<string, string> = {
   running: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
   created: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   completed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+  // 任务状态
+  dispatching: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+  success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+  cancelled: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+  timeout: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+  // 应用状态
+  stopped: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+  removed: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+  exited: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
 };
 
 // 状态文案取 i18n 词表 status.<key>；无词条则回退原始值（active/enabled 等保持英文枚举原样）。

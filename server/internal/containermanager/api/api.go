@@ -8,6 +8,7 @@ package api
 import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/enrollment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -20,7 +21,9 @@ type StatsProvider interface {
 
 // New 构造 CM 的 Fiber 应用。store 保存期望态；stats 可空（提供 /api/stats）；
 // mgmt 汇总管理读接口与人工控制（提供 /api/mgmt/*，供 Gateway 聚合代理调用）。
-func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats StatsProvider, mgmt Mgmt) *fiber.App {
+// tokens 提供 Enrollment Token 管理接口（签发/列出/撤销）；
+// tasks 提供任务列表/详情/重试/取消接口；apps 提供 Compose 应用管理接口。
+func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats StatsProvider, mgmt Mgmt, tokens *enrollment.TokenStore, tasks TaskSource, apps AppSource) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:   "maple-cm",
 		BodyLimit: 4 * 1024 * 1024,
@@ -34,6 +37,15 @@ func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats Sta
 		registerStats(app, cfg.CM.Token, stats)
 	}
 	registerMgmt(app, cfg.CM.Token, mgmt)
+	if tokens != nil {
+		registerEnrollment(app, cfg.CM.Token, tokens)
+	}
+	if tasks.List != nil {
+		registerTasks(app, cfg.CM.Token, tasks)
+	}
+	if apps.List != nil {
+		registerApplications(app, cfg.CM.Token, apps)
+	}
 
 	_ = cfg
 	_ = logger
