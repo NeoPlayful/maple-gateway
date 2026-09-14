@@ -13,6 +13,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/logstream"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"go.uber.org/zap"
@@ -108,6 +109,24 @@ func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (str
 		return "", err
 	}
 	return out.Logs, nil
+}
+
+// Stats 采集实例容器的资源用量（CPU/内存/网络/磁盘 IO）。
+// 走 Probe 通道（详情面板按需轮询，不产生任务记录）；速率为两次采样差分，首次为 0。
+func (c *Controller) Stats(ctx context.Context, instanceID string) (gwclient.ContainerStats, error) {
+	node, _, err := c.locate(instanceID)
+	if err != nil {
+		return gwclient.ContainerStats{}, err
+	}
+	raw, err := node.Probe(ctx, agentprotocol.ActionContainerStats, agentprotocol.IDParams{ID: instanceID})
+	if err != nil {
+		return gwclient.ContainerStats{}, err
+	}
+	var out gwclient.ContainerStats
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return gwclient.ContainerStats{}, err
+	}
+	return out, nil
 }
 
 // FollowLogs 打开一条实时日志流并返回其句柄。调用方负责在结束时 Close。

@@ -13,11 +13,13 @@ package docker
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -43,6 +45,19 @@ const (
 type Client struct {
 	cli          *client.Client
 	managedLabel string
+
+	// lastSample 缓存各容器上一次采集的累计计数器与时刻，供两次采样差分算速率。
+	// 统计为按需拉取（详情面板打开期间），首次采样无前值，速率返回 0。
+	statsMu    sync.Mutex
+	lastSample map[string]statSample
+}
+
+// statSample 是一次采样的累计计数器（网络收发、块设备读写）与时刻。
+type statSample struct {
+	at        time.Time
+	rx, tx    uint64
+	blkRead   uint64
+	blkWrite  uint64
 }
 
 // New 构造。managedLabel 为受管标签键；host 为空则用 SDK 平台默认端点
@@ -58,7 +73,7 @@ func New(host, managedLabel string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("docker client: %w", err)
 	}
-	return &Client{cli: cli, managedLabel: managedLabel}, nil
+	return &Client{cli: cli, managedLabel: managedLabel, lastSample: map[string]statSample{}}, nil
 }
 
 // Close 释放底层连接。
@@ -123,6 +138,32 @@ type DiskUsage struct {
 	Images     int   `json:"images"`
 	Containers int   `json:"containers"`
 	Volumes    int   `json:"volumes"`
+}
+
+// ContainerStats 是单个容器的资源用量视图（按需采集，供详情面板）。
+// 速率类字段（*_bps）由两次采样对累计计数器做差得出；首次采样无前值时为 0。
+type ContainerStats struct {
+	ContainerID string `json:"container_id"`
+
+	CPUPercent float64 `json:"cpu_percent"` // CPU 使用率 %（按在线核数归一）
+
+	MemUsage   int64   `json:"mem_usage"`   // 已用内存（字节，已扣除文件缓存）
+	MemLimit   int64   `json:"mem_limit"`   // 内存上限（字节，0 表示无限制）
+	MemPercent float64 `json:"mem_percent"` // 内存使用率 %
+
+	// 网络：累计收发总量与差分速率。
+	NetRxBytes uint64  `json:"net_rx_bytes"`
+	NetTxBytes uint64  `json:"net_tx_bytes"`
+	NetRxBps   float64 `json:"net_rx_bps"`
+	NetTxBps   float64 `json:"net_tx_bps"`
+
+	// 块设备 IO：累计读写总量与差分速率。
+	BlkReadBytes  uint64  `json:"blk_read_bytes"`
+	BlkWriteBytes uint64  `json:"blk_write_bytes"`
+	BlkReadBps    float64 `json:"blk_read_bps"`
+	BlkWriteBps   float64 `json:"blk_write_bps"`
+
+	PidsCurrent uint64 `json:"pids_current"` // 当前进程/线程数
 }
 
 // managedFilter 返回"仅受管容器"的过滤参数。
@@ -430,6 +471,134 @@ func (c *Client) DiskUsage(ctx context.Context) (DiskUsage, error) {
 		Containers: len(du.Containers),
 		Volumes:    len(du.Volumes),
 	}, nil
+}
+
+// Stats 采集单个容器的资源用量（CPU/内存/网络/磁盘 IO）。id 可为容器 ID 或 instance_id。
+// 网络与块 IO 的速率由本方法维护的上一次采样差分得出，故面板应周期性调用以维持采样点。
+func (c *Client) Stats(ctx context.Context, id string) (ContainerStats, error) {
+	real, err := c.resolve(ctx, id)
+	if err != nil {
+		return ContainerStats{}, err
+	}
+	resp, err := c.cli.ContainerStatsOneShot(ctx, real)
+	if err != nil {
+		return ContainerStats{}, fmt.Errorf("container stats: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var raw container.StatsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return ContainerStats{}, fmt.Errorf("decode container stats: %w", err)
+	}
+	return c.toContainerStats(real, raw), nil
+}
+
+// resolve 把传入标识解析为真实容器 ID：优先按 instance_id 标签匹配受管容器，
+// 未命中则回退按容器 ID/名称直查（仍限受管容器）。
+func (c *Client) resolve(ctx context.Context, id string) (string, error) {
+	if looksLikeUUID(id) {
+		if ct, ok, err := c.FindByInstance(ctx, id); err != nil {
+			return "", err
+		} else if ok {
+			return ct.ID, nil
+		}
+	}
+	return id, nil
+}
+
+// looksLikeUUID 粗判是否 UUID 形态（36 字符 4 连字符），用于选择解析路径。
+func looksLikeUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, r := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if r != '-' {
+				return false
+			}
+			continue
+		}
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+	return strings.Count(s, "-") == 4
+}
+
+// toContainerStats 把 Docker 原始 StatsResponse 映射为用量视图并计算差分速率。
+func (c *Client) toContainerStats(containerID string, raw container.StatsResponse) ContainerStats {
+	st := ContainerStats{ContainerID: containerID}
+
+	// CPU%：本周期 CPU 增量 / 系统 CPU 增量 × 在线核数 × 100。
+	// 单次 OneShot 自带 precpu，可直接得出；系统增量缺失时退化为 0。
+	cpuDelta := float64(raw.CPUStats.CPUUsage.TotalUsage - raw.PreCPUStats.CPUUsage.TotalUsage)
+	sysDelta := float64(raw.CPUStats.SystemUsage - raw.PreCPUStats.SystemUsage)
+	onlineCPUs := float64(raw.CPUStats.OnlineCPUs)
+	if onlineCPUs == 0 {
+		onlineCPUs = float64(len(raw.CPUStats.CPUUsage.PercpuUsage))
+	}
+	if sysDelta > 0 && cpuDelta > 0 {
+		st.CPUPercent = cpuDelta / sysDelta * onlineCPUs * 100
+	}
+
+	// 内存：usage 含文件缓存，扣除 inactive_file 更贴近实际占用（与 docker stats 口径一致）。
+	usage := raw.MemoryStats.Usage
+	if v, ok := raw.MemoryStats.Stats["total_inactive_file"]; ok && v < usage {
+		usage -= v
+	} else if v, ok := raw.MemoryStats.Stats["inactive_file"]; ok && v < usage {
+		usage -= v
+	}
+	st.MemUsage = int64(usage)
+	st.MemLimit = int64(raw.MemoryStats.Limit)
+	if st.MemLimit > 0 {
+		st.MemPercent = float64(st.MemUsage) / float64(st.MemLimit) * 100
+	}
+
+	// 网络：按网卡累加收发字节。
+	for _, n := range raw.Networks {
+		st.NetRxBytes += n.RxBytes
+		st.NetTxBytes += n.TxBytes
+	}
+	st.BlkReadBytes, st.BlkWriteBytes = blkioBytes(raw.BlkioStats)
+	st.PidsCurrent = raw.PidsStats.Current
+
+	// 差分速率：与上一次采样（同容器）做差；首次采样无前值则速率为 0。
+	c.statsMu.Lock()
+	prev, ok := c.lastSample[containerID]
+	c.lastSample[containerID] = statSample{
+		at: time.Now(), rx: st.NetRxBytes, tx: st.NetTxBytes,
+		blkRead: st.BlkReadBytes, blkWrite: st.BlkWriteBytes,
+	}
+	c.statsMu.Unlock()
+	if ok {
+		if secs := time.Since(prev.at).Seconds(); secs > 0 {
+			st.NetRxBps = rate(prev.rx, st.NetRxBytes, secs)
+			st.NetTxBps = rate(prev.tx, st.NetTxBytes, secs)
+			st.BlkReadBps = rate(prev.blkRead, st.BlkReadBytes, secs)
+			st.BlkWriteBps = rate(prev.blkWrite, st.BlkWriteBytes, secs)
+		}
+	}
+	return st
+}
+
+// blkioBytes 汇总块设备读写累计字节（按 Op 分类，兼容 read/write 与 Read/Write 大小写）。
+func blkioBytes(b container.BlkioStats) (read, write uint64) {
+	for _, e := range b.IoServiceBytesRecursive {
+		switch strings.ToLower(e.Op) {
+		case "read":
+			read += e.Value
+		case "write":
+			write += e.Value
+		}
+	}
+	return read, write
+}
+
+// rate 由两次累计值之差除以间隔秒数得出速率；计数器回绕（负增量）时返回 0。
+func rate(prev, cur uint64, secs float64) float64 {
+	if cur < prev {
+		return 0
+	}
+	return float64(cur-prev) / secs
 }
 
 // FindByInstance 按 instance_id 标签查找受管容器。

@@ -27,6 +27,7 @@ type Proxier interface {
 	StopInstance(ctx context.Context, instanceID string) error
 	StartInstance(ctx context.Context, instanceID string) error
 	InstanceLogs(ctx context.Context, instanceID string, tail int) (json.RawMessage, error)
+	InstanceStats(ctx context.Context, instanceID string) (json.RawMessage, error)
 	FollowInstanceLogs(ctx context.Context, instanceID string, tail int) (*http.Response, error)
 	EnrollmentTokens(ctx context.Context) (json.RawMessage, error)
 	IssueEnrollmentToken(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
@@ -182,6 +183,19 @@ func (h *Handler) InstanceLogs(c fiber.Ctx) error {
 	out, err := h.cm.InstanceLogs(c.Context(), c.Params("id"), tail)
 	if err != nil {
 		return pkg.Err(c, pkg.ErrSystem("读取实例日志失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// InstanceStats GET /api/admin/cm/instances/:id/stats
+// 单容器资源用量（CPU/内存/网络/磁盘 IO），供运行时页详情面板按需轮询。
+func (h *Handler) InstanceStats(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	out, err := h.cm.InstanceStats(c.Context(), c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("采集容器指标失败: "+err.Error()))
 	}
 	return raw(c, out)
 }

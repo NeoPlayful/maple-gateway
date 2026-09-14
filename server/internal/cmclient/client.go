@@ -156,6 +156,19 @@ func (c *Client) InstanceLogs(ctx context.Context, instanceID string, tail int) 
 	return out, nil
 }
 
+// InstanceStats 采集实例容器资源用量：GET {cm}/api/mgmt/instances/{id}/stats。
+func (c *Client) InstanceStats(ctx context.Context, instanceID string) (json.RawMessage, error) {
+	if !c.Enabled() {
+		return json.RawMessage(`{}`), nil
+	}
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/api/mgmt/instances/%s/stats", instanceID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FollowInstanceLogs 打开实例实时日志流：GET {cm}/api/mgmt/instances/{id}/logs/stream。
 // 返回的响应体交由调用方（Gateway 代理）分块转发给前端。
 func (c *Client) FollowInstanceLogs(ctx context.Context, instanceID string, tail int) (*http.Response, error) {

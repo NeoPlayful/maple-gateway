@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -61,6 +62,8 @@ type Mgmt struct {
 	Logs       func(instanceID string, tail int) (string, error)
 	// FollowLogs 打开一条实时日志流；返回的分片通道、完成通道与是否溢出。
 	FollowLogs func(ctx context.Context, instanceID string, tail int) (chunks <-chan []byte, done <-chan struct{}, overflow func() bool, err error)
+	// InstanceStats 采集单容器资源用量（CPU/内存/网络/磁盘 IO），供详情面板按需轮询。
+	InstanceStats func(ctx context.Context, instanceID string) (gwclient.ContainerStats, error)
 }
 
 // registerMgmt 挂载管理读接口与人工控制接口（令牌认证，供 Gateway 聚合代理调用）。
@@ -160,6 +163,18 @@ func registerMgmt(app *fiber.App, token string, m Mgmt) {
 			return fiber.NewError(fiber.StatusBadGateway, err.Error())
 		}
 		return c.JSON(fiber.Map{"logs": logs})
+	})
+
+	// GET /api/mgmt/instances/:id/stats 单容器资源用量（详情面板按需轮询）。
+	g.Get("/instances/:id/stats", func(c fiber.Ctx) error {
+		if m.InstanceStats == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用容器指标采集")
+		}
+		st, err := m.InstanceStats(c.Context(), c.Params("id"))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadGateway, err.Error())
+		}
+		return c.JSON(st)
 	})
 
 	// GET /api/mgmt/instances/:id/logs/stream 实时跟随容器日志（分块流式响应）。

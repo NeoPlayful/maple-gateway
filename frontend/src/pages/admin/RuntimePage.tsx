@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api, ApiError, getToken } from '../../lib/client';
 import { list } from '../../lib/modules';
-import type { CMOverview, CMNodeStatus, NodeMetric, CMRuntimeError, CMContainer, CMDockerEvent, CMTask, CMTaskPage, Instance } from '../../types';
+import type { CMOverview, CMNodeStatus, NodeMetric, CMRuntimeError, CMContainer, CMContainerStats, CMDockerEvent, CMTask, CMTaskPage, Instance } from '../../types';
 import { PageHeader } from '../../themes';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
@@ -24,6 +24,19 @@ function fmtBytes(n: number): string {
   if (!n || n <= 0) return '-';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+// 把字节/秒格式化为易读速率（复用字节单位，后缀 /s）。
+function fmtRate(bps: number): string {
+  if (!bps || bps <= 0) return '0 B/s';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+  let v = bps;
   let i = 0;
   while (v >= 1024 && i < units.length - 1) {
     v /= 1024;
@@ -182,6 +195,64 @@ function NodeEvents({
   );
 }
 
+// 容器详情展开面板：以四格方块展示 CPU/内存/磁盘 IO/网络 IO 用量（行内看不到的采集数据）。
+// stats 为 null 表示尚未取到（加载中或采集失败），error 为失败原因。
+function ContainerDetail({
+  stats, error, t,
+}: {
+  stats: CMContainerStats | null;
+  error: string;
+  t: TFn;
+}) {
+  const memPct = stats?.mem_percent ?? 0;
+  const card = 'rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800';
+  const cardLabel = 'mb-2 text-xs text-slate-500 dark:text-slate-400';
+  const cardValue = 'font-mono text-sm text-slate-700 dark:text-slate-200';
+  const cardSub = 'mt-1 font-mono text-xs text-slate-400';
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.detailUsage')}</p>
+      {error ? (
+        <p className="py-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>
+      ) : !stats ? (
+        <p className="py-1 text-xs text-slate-400">{t('runtime.metricsLoading')}</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div className={card}>
+            <p className={cardLabel}>{t('runtime.cpu')}</p>
+            <UsageBar label="" pct={stats.cpu_percent} />
+          </div>
+          <div className={card}>
+            <p className={cardLabel}>{t('runtime.memory')}</p>
+            <UsageBar label="" pct={memPct} />
+            <p className={cardSub}>
+              {fmtBytes(stats.mem_usage)}{stats.mem_limit > 0 ? ` / ${fmtBytes(stats.mem_limit)}` : ''}
+            </p>
+          </div>
+          <div className={card}>
+            <p className={cardLabel}>{t('runtime.disk')}</p>
+            <p className={cardValue}>
+              ↓ {fmtRate(stats.blk_read_bps)} · ↑ {fmtRate(stats.blk_write_bps)}
+            </p>
+            <p className={cardSub}>
+              ↓ {fmtBytes(stats.blk_read_bytes)} · ↑ {fmtBytes(stats.blk_write_bytes)}
+            </p>
+          </div>
+          <div className={card}>
+            <p className={cardLabel}>{t('runtime.network')}</p>
+            <p className={cardValue}>
+              ↓ {fmtRate(stats.net_rx_bps)} · ↑ {fmtRate(stats.net_tx_bps)}
+            </p>
+            <p className={cardSub}>
+              ↓ {fmtBytes(stats.net_rx_bytes)} · ↑ {fmtBytes(stats.net_tx_bytes)}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RuntimePage() {
   const { t } = useTranslation('admin');
   const [overview, setOverview] = useState<CMOverview | null>(null);
@@ -206,6 +277,10 @@ export default function RuntimePage() {
   // 详情内任务表分页（按节点名记录当前页，1-based）；事件表仍用「展开更多」。
   const [taskPages, setTaskPages] = useState<Record<string, number>>({});
   const [moreEvents, setMoreEvents] = useState<Set<string>>(new Set());
+  // 展开详情的容器（按 instance_id）；展开即按需轮询其资源用量，收起即停。
+  const [expandedContainers, setExpandedContainers] = useState<Set<string>>(new Set());
+  const [containerStats, setContainerStats] = useState<Record<string, CMContainerStats>>({});
+  const [containerStatsErr, setContainerStatsErr] = useState<Record<string, string>>({});
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, name: string) =>
     setter((prev) => {
       const next = new Set(prev);
@@ -257,6 +332,25 @@ export default function RuntimePage() {
       // 单个节点任务拉取失败不阻断整页刷新（如 CM 未接入）。
     }
   }, []);
+
+  // 拉取单个容器的资源用量（详情面板按需轮询）。
+  const loadContainerStats = useCallback(async (instanceId: string) => {
+    try {
+      const st = await api.get<CMContainerStats>(`/api/admin/cm/instances/${instanceId}/stats`);
+      setContainerStats((prev) => ({ ...prev, [instanceId]: st }));
+      setContainerStatsErr((prev) => {
+        if (!prev[instanceId]) return prev;
+        const next = { ...prev };
+        delete next[instanceId];
+        return next;
+      });
+    } catch (e) {
+      setContainerStatsErr((prev) => ({
+        ...prev,
+        [instanceId]: e instanceof Error ? e.message : t('common.loadFailed'),
+      }));
+    }
+  }, [t]);
 
   // 容器操作：启/停/重启，复用 CM 人工控制端点。
   const act = async (id: string, a: string) => {
@@ -377,6 +471,19 @@ export default function RuntimePage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, taskPages, nodes, last]);
+
+  // 已展开的容器详情：进入即拉一次，其后每 3s 轮询刷新用量（速率需连续采样）。
+  // 收起后不再展开，effect 清理即停轮询，无人查看时零开销。
+  useEffect(() => {
+    if (expandedContainers.size === 0) return;
+    const ids = Array.from(expandedContainers);
+    ids.forEach((id) => void loadContainerStats(id));
+    const timer = setInterval(() => {
+      ids.forEach((id) => void loadContainerStats(id));
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [expandedContainers, loadContainerStats]);
+
   const metricByName = useMemo(() => {
     const m = new Map<string, NodeMetric>();
     Object.values(metrics).forEach((v) => m.set(v.node_name, v));
@@ -582,6 +689,7 @@ export default function RuntimePage() {
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
+              <th className="w-8 px-2 py-2"></th>
               <th className="px-4 py-2">{t('runtime.colInstance')}</th>
               <th className="px-4 py-2">{t('runtime.colContainerId')}</th>
               <th className="px-4 py-2">{t('runtime.colName')}</th>
@@ -597,34 +705,52 @@ export default function RuntimePage() {
           <tbody>
             {sortedContainers.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
+                <td colSpan={11} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
               </tr>
             )}
             {sortedContainers.map((ct) => {
               const inst = instanceById.get(ct.instance_id);
               const version = inst?.version ?? '';
               const running = ct.state === 'running';
+              const open = expandedContainers.has(ct.instance_id);
               return (
-                <tr key={ct.container_id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
-                  <td className="px-4 py-2 font-mono text-xs">{ct.instance_id.slice(0, 8)}</td>
-                  <td className="px-4 py-2 font-mono text-xs" title={ct.container_id}>{ct.container_id.slice(0, 12)}</td>
-                  <td className="px-4 py-2">{ct.name || ct.container_id.slice(0, 12)}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{ct.image}</td>
-                  <td className="px-4 py-2">{version || '-'}</td>
-                  <td className="px-4 py-2"><StatusBadge value={ct.state} raw label={ct.state === 'running' ? t('runtime.statusRunning') : undefined} /></td>
-                  <td className="px-4 py-2">{ct.node_name}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{ct.ip || '-'}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{fmtPortPair(ct.host_port, ct.container_port)}</td>
-                  <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <ActionBtn onClick={() => openLogs(ct.instance_id)}>{t('deployments.logs')}</ActionBtn>
-                      <ActionBtn onClick={() => act(ct.instance_id, 'restart')}>{t('deployments.restart')}</ActionBtn>
-                      {running
-                        ? <ActionBtn onClick={() => act(ct.instance_id, 'stop')}>{t('deployments.stop')}</ActionBtn>
-                        : <ActionBtn onClick={() => act(ct.instance_id, 'start')}>{t('deployments.start')}</ActionBtn>}
-                    </div>
-                  </td>
-                </tr>
+                <Fragment key={ct.container_id}>
+                  <tr
+                    onClick={() => toggleSet(setExpandedContainers, ct.instance_id)}
+                    className="cursor-pointer border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
+                  >
+                    <td className="px-2 py-2 text-center text-slate-400">{open ? '▾' : '▸'}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{ct.instance_id.slice(0, 8)}</td>
+                    <td className="px-4 py-2 font-mono text-xs" title={ct.container_id}>{ct.container_id.slice(0, 12)}</td>
+                    <td className="px-4 py-2">{ct.name || ct.container_id.slice(0, 12)}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{ct.image}</td>
+                    <td className="px-4 py-2">{version || '-'}</td>
+                    <td className="px-4 py-2"><StatusBadge value={ct.state} raw label={ct.state === 'running' ? t('runtime.statusRunning') : undefined} /></td>
+                    <td className="px-4 py-2">{ct.node_name}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{ct.ip || '-'}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{fmtPortPair(ct.host_port, ct.container_port)}</td>
+                    <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-wrap gap-1">
+                        <ActionBtn onClick={() => openLogs(ct.instance_id)}>{t('deployments.logs')}</ActionBtn>
+                        <ActionBtn onClick={() => act(ct.instance_id, 'restart')}>{t('deployments.restart')}</ActionBtn>
+                        {running
+                          ? <ActionBtn onClick={() => act(ct.instance_id, 'stop')}>{t('deployments.stop')}</ActionBtn>
+                          : <ActionBtn onClick={() => act(ct.instance_id, 'start')}>{t('deployments.start')}</ActionBtn>}
+                      </div>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr className="border-b border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/30">
+                      <td colSpan={11} className="px-6 py-4">
+                        <ContainerDetail
+                          stats={containerStats[ct.instance_id] ?? null}
+                          error={containerStatsErr[ct.instance_id] ?? ''}
+                          t={t}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>

@@ -111,6 +111,12 @@ func (r *Runtime) DiskUsage(ctx context.Context) (docker.DiskUsage, error) {
 	return r.docker.DiskUsage(ctx)
 }
 
+// Stats 采集单个容器的资源用量（CPU/内存/网络/磁盘 IO）。
+// id 可为容器 ID 或 instance_id；网络与磁盘 IO 速率为两次采样差分（首次为 0）。
+func (r *Runtime) Stats(ctx context.Context, id string) (docker.ContainerStats, error) {
+	return r.docker.Stats(ctx, id)
+}
+
 // PullImage 拉取镜像（受允许清单约束）。
 func (r *Runtime) PullImage(ctx context.Context, ref string) error {
 	return r.docker.Pull(ctx, ref, r.allowedImages)
