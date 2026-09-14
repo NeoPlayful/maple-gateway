@@ -44,6 +44,11 @@ func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.R
 	return nil, nil
 }
 
+// Probe 同为请求/响应通道；对账测试不区分记录与否，行为与 Call 一致。
+func (f *fakeCommander) Probe(ctx context.Context, _, action string, _ any) (json.RawMessage, error) {
+	return f.Call(ctx, "", action, nil)
+}
+
 // SenderFor 实现 agentregistry.Commander：测试中不投递单向消息。
 func (f *fakeCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
 

@@ -507,7 +507,7 @@
     "noContainers": "暂无受管容器",
     "capacity": "容量",
     "yes": "是",
-    "tasks": "下发任务",
+    "tasks": "任务列表",
     "noTasks": "暂无任务",
     "taskDetail": "详情",
     "retry": "重试",
@@ -524,7 +524,6 @@
     "payload": "请求载荷 Payload",
     "result": "执行结果 Result",
     "moreCount": "展开其余 {{count}} 条",
-    "orphanHint": "另有 {{tasks}} 条任务、{{events}} 条事件未归属到节点（节点未注册或已删除）",
     "nodeNotRegistered": "该节点尚未注册（无 Gateway 节点 ID），暂无归属的任务与事件"
   },
   "settings": {

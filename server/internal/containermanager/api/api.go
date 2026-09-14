@@ -40,7 +40,7 @@ func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats Sta
 	if tokens != nil {
 		registerEnrollment(app, cfg.CM.Token, tokens)
 	}
-	if tasks.List != nil {
+	if tasks.Page != nil {
 		registerTasks(app, cfg.CM.Token, tasks)
 	}
 	if apps.List != nil {

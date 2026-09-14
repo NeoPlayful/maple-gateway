@@ -57,6 +57,9 @@ type Task struct {
 	mu         *sync.Mutex   `json:"-"`
 	done       chan struct{} `json:"-"` // 终态时关闭，供同步等待者唤醒
 	finished   bool          `json:"-"` // 是否已关闭 done（保证只关一次）
+	// ephemeral 表示临时任务：不经 Probe 之外的方式下发时恒为 false。
+	// 置位后不落库、终态即从内存表移除，仅供观测探测等系统动作取结果用。
+	ephemeral bool `json:"-"`
 }
 
 // newTask 构造任务并初始化其锁与终态信号。

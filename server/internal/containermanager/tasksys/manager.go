@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -81,9 +82,9 @@ func (m *Manager) Load(ctx context.Context) error {
 	return nil
 }
 
-// persist 把任务当前快照写穿到存储；store 为空时无操作。
+// persist 把任务当前快照写穿到存储；store 为空或任务为临时（观测探测）时无操作。
 func (m *Manager) persist(t *Task) {
-	if m.store != nil {
+	if m.store != nil && !t.ephemeral {
 		m.store.Save(t)
 	}
 }
@@ -96,6 +97,11 @@ func (m *Manager) Dispatch(nodeID, action string, params any) (*Task, error) {
 
 // DispatchBy 同 Dispatch，额外记录创建人（管理端触发的任务）。
 func (m *Manager) DispatchBy(nodeID, action string, params any, createdBy string) (*Task, error) {
+	return m.dispatch(nodeID, action, params, createdBy, false)
+}
+
+// dispatch 创建任务并下发；ephemeral 为 true 时不落库、不进可查列表。
+func (m *Manager) dispatch(nodeID, action string, params any, createdBy string, ephemeral bool) (*Task, error) {
 	if !agentprotocol.IsAllowedAction(action) {
 		return nil, fmt.Errorf("action %q not allowed", action)
 	}
@@ -121,11 +127,42 @@ func (m *Manager) DispatchBy(nodeID, action string, params any, createdBy string
 	t.CreatedBy = createdBy
 	t.CreatedMs = time.Now().UnixMilli()
 	t.DeadlineMs = time.Now().Add(m.timeout).UnixMilli()
+	t.ephemeral = ephemeral
 	m.mu.Lock()
 	m.tasks[id] = t
 	m.mu.Unlock()
 	m.persist(t)
 	return m.deliver(t, nodeID)
+}
+
+// Probe 下发一次系统探测：与 Call 一样等待终态并返回结果，但不产生任务记录——
+// 不落库、不进可查列表，终态后即从内存表移除。供观测循环等系统动作取数据用，
+// 避免每轮探测都留下任务记录。
+func (m *Manager) Probe(ctx context.Context, nodeID, action string, params any) (json.RawMessage, error) {
+	t, err := m.dispatch(nodeID, action, params, "", true)
+	if err != nil {
+		m.dropEphemeral(t)
+		return nil, err
+	}
+	// dispatch 返回快照；取回内存表中的活指针，以便等待终态并读取其结果。
+	m.mu.RLock()
+	live, ok := m.tasks[t.ID]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, ErrUnknownTask
+	}
+	defer m.dropEphemeral(live)
+	return m.await(ctx, nodeID, live)
+}
+
+// dropEphemeral 从内存表移除临时任务；非临时任务为无操作。
+func (m *Manager) dropEphemeral(t *Task) {
+	if t == nil || !t.ephemeral {
+		return
+	}
+	m.mu.Lock()
+	delete(m.tasks, t.ID)
+	m.mu.Unlock()
 }
 
 // deliver 向节点投递一个已创建的任务，并在投递结果上收敛状态。
@@ -202,19 +239,20 @@ func (m *Manager) SenderFor(nodeID string) (Sender, bool) {
 	return m.router.SenderFor(nodeID)
 }
 
-// Get 取任务快照。
+// Get 取任务快照。临时任务（观测探测）对管理端不可见，一律视为不存在。
 func (m *Manager) Get(id string) (*Task, bool) {
 	m.mu.RLock()
 	t, ok := m.tasks[id]
 	m.mu.RUnlock()
-	if !ok {
+	if !ok || t.ephemeral {
 		return nil, false
 	}
 	return t.Snapshot(), true
 }
 
 // Call 同步下发一次任务并等待其终态，返回结果的原始载荷。
-// 用于请求/响应式操作（探测、列表、人工启停）。超时或失败返回已定型的错误。
+// 用于请求/响应式操作（人工启停、列表等）；任务的记录与列表可见性由 dispatch 决定。
+// 超时或失败返回已定型的错误。
 func (m *Manager) Call(ctx context.Context, nodeID, action string, params any) (json.RawMessage, error) {
 	t, err := m.Dispatch(nodeID, action, params)
 	if err != nil {
@@ -227,14 +265,20 @@ func (m *Manager) Call(ctx context.Context, nodeID, action string, params any) (
 	if !ok {
 		return nil, ErrUnknownTask
 	}
+	return m.await(ctx, nodeID, live)
+}
+
+// await 等待一个已下发任务到达终态并返回其结果。
+// 上下文取消时尽力下发 task.cancel 做补偿，并返回上下文错误。
+func (m *Manager) await(ctx context.Context, nodeID string, live *Task) (json.RawMessage, error) {
 	select {
 	case <-live.done:
 	case <-ctx.Done():
-		// 上下文取消：尽力取消任务，返回上下文错误。
-		m.Cancel(nodeID, t.ID, "context canceled")
+		m.Cancel(nodeID, live.ID, "context canceled")
 		return nil, ctx.Err()
 	}
-	got, _ := m.Get(t.ID)
+	// 直接读持有的任务快照：探测类临时任务对管理端 Get 已过滤，不能经其取回。
+	got := live.Snapshot()
 	if got.Status != StatusSuccess {
 		if got.Error != "" {
 			return nil, fmt.Errorf("task %s: %s", got.Status, got.Error)
@@ -244,11 +288,14 @@ func (m *Manager) Call(ctx context.Context, nodeID, action string, params any) (
 	return got.Result, nil
 }
 
-// List 返回全部任务快照。
+// List 返回全部任务快照。临时任务（观测探测）对管理端不可见，不纳入结果。
 func (m *Manager) List() []*Task {
 	m.mu.RLock()
 	ts := make([]*Task, 0, len(m.tasks))
 	for _, t := range m.tasks {
+		if t.ephemeral {
+			continue
+		}
 		ts = append(ts, t)
 	}
 	m.mu.RUnlock()
@@ -257,6 +304,52 @@ func (m *Manager) List() []*Task {
 		out = append(out, t.Snapshot())
 	}
 	return out
+}
+
+// Page 返回一页任务快照与匹配总数：按创建时间倒序（最新在前）截取 [offset, offset+limit)。
+// nodeID 非空时仅统计/返回该节点的任务；nodeID 为空则返回全部节点的任务。
+// 任务表无界增长，管理端一律走本方法取数，避免整表外发撑爆响应体。
+func (m *Manager) Page(nodeID string, limit, offset int) ([]*Task, int) {
+	m.mu.RLock()
+	ts := make([]*Task, 0, len(m.tasks))
+	for _, t := range m.tasks {
+		if t.ephemeral {
+			continue
+		}
+		ts = append(ts, t)
+	}
+	m.mu.RUnlock()
+	if nodeID != "" {
+		filtered := ts[:0]
+		for _, t := range ts {
+			if t.NodeID == nodeID {
+				filtered = append(filtered, t)
+			}
+		}
+		ts = filtered
+	}
+	sort.Slice(ts, func(i, j int) bool {
+		if ts[i].CreatedMs != ts[j].CreatedMs {
+			return ts[i].CreatedMs > ts[j].CreatedMs
+		}
+		return ts[i].ID > ts[j].ID
+	})
+	total := len(ts)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if limit <= 0 || end > total {
+		end = total
+	}
+	out := make([]*Task, 0, end-offset)
+	for _, t := range ts[offset:end] {
+		out = append(out, t.Snapshot())
+	}
+	return out, total
 }
 
 // OnAck 处理 Agent 接收：dispatching → running。幂等：非 dispatching 忽略。

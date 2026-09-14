@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api, ApiError, getToken } from '../../lib/client';
 import { list } from '../../lib/modules';
-import type { CMOverview, CMNodeStatus, NodeMetric, CMRuntimeError, CMContainer, CMDockerEvent, CMTask, Instance } from '../../types';
+import type { CMOverview, CMNodeStatus, NodeMetric, CMRuntimeError, CMContainer, CMDockerEvent, CMTask, CMTaskPage, Instance } from '../../types';
 import { PageHeader } from '../../themes';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
@@ -55,13 +55,15 @@ function UsageBar({ label, pct }: { label: string; pct: number }) {
   );
 }
 
-// 节点详情内「最近下发任务」内联小表：分页展示，每页 PAGE_SIZE 条。
+// 节点详情内「最近下发任务」内联小表：服务端分页，每页 PAGE_SIZE 条。
+// 后端已按节点过滤并截取当页，前端直接渲染 tasks，分页条按 total 计算页数。
 const TASK_PAGE_SIZE = 10;
 
 function NodeTasks({
-  tasks, page, onPage, t, onOpen, onRetry, onCancel,
+  tasks, total, page, onPage, t, onOpen, onRetry, onCancel,
 }: {
   tasks: CMTask[];
+  total: number;
   page: number;
   onPage: (page: number) => void;
   t: TFn;
@@ -69,9 +71,8 @@ function NodeTasks({
   onRetry: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
-  const totalPages = Math.max(1, Math.ceil(tasks.length / TASK_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / TASK_PAGE_SIZE));
   const cur = Math.min(Math.max(page, 1), totalPages);
-  const shown = tasks.slice((cur - 1) * TASK_PAGE_SIZE, cur * TASK_PAGE_SIZE);
   return (
     <div className="mt-3">
       <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.tasks')}</p>
@@ -90,7 +91,7 @@ function NodeTasks({
           <tbody>
             {tasks.length === 0 ? (
               <tr><td colSpan={6} className="px-3 py-4 text-center text-slate-400 dark:text-slate-500">{t('runtime.noTasks')}</td></tr>
-            ) : shown.map((tk) => (
+            ) : tasks.map((tk) => (
               <tr key={tk.id} className="border-b border-slate-200 last:border-b-0 dark:border-slate-700">
                 <td className="px-3 py-1.5 font-mono">
                   <button onClick={() => onOpen(tk.id)} className="text-sky-600 hover:underline dark:text-sky-400">{tk.id.slice(0, 12)}</button>
@@ -118,7 +119,7 @@ function NodeTasks({
           </tbody>
         </table>
       </div>
-      <Pagination page={cur} pageSize={TASK_PAGE_SIZE} total={tasks.length} onChange={onPage} />
+      <Pagination page={cur} pageSize={TASK_PAGE_SIZE} total={total} onChange={onPage} />
     </div>
   );
 }
@@ -158,7 +159,7 @@ function NodeEvents({
                 <td className="px-3 py-1.5">
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-700 dark:text-slate-200">{e.action}</span>
                 </td>
-                <td className="px-3 py-1.5 font-mono">{(e.instance_id || e.container_id || '').slice(0, 12) || '-'}</td>
+                <td className="px-3 py-1.5 font-mono">{(e.instance_id || e.container_id || '').slice(0, 8) || '-'}</td>
                 <td className="px-3 py-1.5 font-mono">{e.image || '-'}</td>
                 <td className="px-3 py-1.5 font-mono">{e.exit_code ?? '-'}</td>
               </tr>
@@ -182,7 +183,9 @@ export default function RuntimePage() {
   const [errors, setErrors] = useState<CMRuntimeError[]>([]);
   const [containers, setContainers] = useState<CMContainer[]>([]);
   const [events, setEvents] = useState<CMDockerEvent[]>([]);
-  const [tasks, setTasks] = useState<CMTask[]>([]);
+  // 任务按节点分页：仅对已展开节点按需拉取当页，避免整表外发撑爆响应体。
+  const [tasksByNode, setTasksByNode] = useState<Record<string, CMTask[]>>({});
+  const [taskTotals, setTaskTotals] = useState<Record<string, number>>({});
   const [instances, setInstances] = useState<Instance[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [err, setErr] = useState('');
@@ -208,13 +211,12 @@ export default function RuntimePage() {
 
   const load = useCallback(async () => {
     try {
-      const [ov, mt, er, ct, ev, tk, ins] = await Promise.all([
+      const [ov, mt, er, ct, ev, ins] = await Promise.all([
         api.get<CMOverview>('/api/admin/cm/overview'),
         api.get<Record<string, NodeMetric>>('/api/admin/cm/metrics'),
         api.get<CMRuntimeError[]>('/api/admin/cm/errors'),
         api.get<CMContainer[]>('/api/admin/cm/containers'),
         api.get<CMDockerEvent[]>('/api/admin/cm/events'),
-        api.get<CMTask[]>('/api/admin/cm/tasks').catch(() => [] as CMTask[]),
         list<Instance>('/api/admin/instances').catch(() => [] as Instance[]),
       ]);
       setOverview(ov);
@@ -222,7 +224,6 @@ export default function RuntimePage() {
       setErrors(er ?? []);
       setContainers(ct ?? []);
       setEvents(ev ?? []);
-      setTasks(tk ?? []);
       // Gateway 实例列表：用 instance_id 关联出 服务/版本，补全容器行。
       setInstances(ins ?? []);
       setEnabled(true);
@@ -237,6 +238,19 @@ export default function RuntimePage() {
       }
     }
   }, [t]);
+
+  // 拉取某节点某页任务（服务端过滤 + 分页）。
+  const loadTasks = useCallback(async (nodeId: string, page: number) => {
+    const offset = (Math.max(page, 1) - 1) * TASK_PAGE_SIZE;
+    try {
+      const res = await api.get<CMTaskPage>(
+        `/api/admin/cm/tasks?node_id=${encodeURIComponent(nodeId)}&limit=${TASK_PAGE_SIZE}&offset=${offset}`);
+      setTasksByNode((prev) => ({ ...prev, [nodeId]: res.tasks ?? [] }));
+      setTaskTotals((prev) => ({ ...prev, [nodeId]: res.total ?? 0 }));
+    } catch {
+      // 单个节点任务拉取失败不阻断整页刷新（如 CM 未接入）。
+    }
+  }, []);
 
   // 容器操作：启/停/重启，复用 CM 人工控制端点。
   const act = async (id: string, a: string) => {
@@ -347,6 +361,16 @@ export default function RuntimePage() {
   }, [load]);
 
   const nodes: CMNodeStatus[] = useMemo(() => overview?.nodes ?? [], [overview]);
+
+  // 已展开节点：进入或切页时按需拉取当页任务；10s 轮询（last 变化）时一并刷新。
+  useEffect(() => {
+    const nodeIdByName = new Map(nodes.map((n) => [n.name, n.gateway_id]));
+    expanded.forEach((name) => {
+      const gid = nodeIdByName.get(name);
+      if (gid) void loadTasks(gid, taskPages[name] ?? 1);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, taskPages, nodes, last]);
   const metricByName = useMemo(() => {
     const m = new Map<string, NodeMetric>();
     Object.values(metrics).forEach((v) => m.set(v.node_name, v));
@@ -371,20 +395,7 @@ export default function RuntimePage() {
     });
   }, [containers]);
 
-  // 任务 / 事件按节点分组：以 gateway_id 关联，供节点详情内展示。
-  // 分组后分别按时间倒序（最新在前）。
-  const tasksByNode = useMemo(() => {
-    const m = new Map<string, CMTask[]>();
-    tasks.forEach((tk) => {
-      if (!tk.node_id) return;
-      const arr = m.get(tk.node_id);
-      if (arr) arr.push(tk);
-      else m.set(tk.node_id, [tk]);
-    });
-    m.forEach((arr) => arr.sort((a, b) => b.created_at_ms - a.created_at_ms));
-    return m;
-  }, [tasks]);
-
+  // 事件按节点分组：以 gateway_id 关联，供节点详情内展示；分组后按时间倒序（最新在前）。
   const eventsByNode = useMemo(() => {
     const m = new Map<string, CMDockerEvent[]>();
     events.forEach((e) => {
@@ -396,25 +407,6 @@ export default function RuntimePage() {
     m.forEach((arr) => arr.sort((a, b) => b.at - a.at));
     return m;
   }, [events]);
-
-  // 未归属记录计数：节点未注册（gateway_id 为空）或节点已删除时，其任务/事件无宿主行。
-  // 完全移入节点详情后这些记录不会展示，故给出计数提示，避免"数量凭空变少"的困惑。
-  const nodeIdSet = useMemo(() => {
-    const s = new Set<string>();
-    nodes.forEach((n) => { if (n.gateway_id) s.add(n.gateway_id); });
-    return s;
-  }, [nodes]);
-  const orphan = useMemo(() => {
-    // 归属到已不存在的节点 id 的记录（node_id 非空但不在当前节点集内），累加记录数。
-    let taskCount = 0;
-    tasksByNode.forEach((arr, nodeId) => { if (!nodeIdSet.has(nodeId)) taskCount += arr.length; });
-    let eventCount = 0;
-    eventsByNode.forEach((arr, nodeId) => { if (!nodeIdSet.has(nodeId)) eventCount += arr.length; });
-    // node_id 为空的记录不进入分组，同样无宿主行，计入未归属。
-    taskCount += tasks.filter((tk) => !tk.node_id).length;
-    eventCount += events.filter((e) => !e.node_id).length;
-    return { tasks: taskCount, events: eventCount };
-  }, [tasksByNode, eventsByNode, nodeIdSet, tasks, events]);
 
   const stats = overview?.stats;
   const lastReport = stats?.last_report_at ? new Date(stats.last_report_at).toLocaleString() : '-';
@@ -550,7 +542,8 @@ export default function RuntimePage() {
                           <>
                             {/* 最近任务 */}
                             <NodeTasks
-                              tasks={tasksByNode.get(n.gateway_id) ?? []}
+                              tasks={tasksByNode[n.gateway_id] ?? []}
+                              total={taskTotals[n.gateway_id] ?? 0}
                               page={taskPages[n.name] ?? 1}
                               onPage={(p) => setTaskPages((prev) => ({ ...prev, [n.name]: p }))}
                               t={t}
@@ -576,13 +569,6 @@ export default function RuntimePage() {
           </tbody>
         </table>
       </div>
-
-      {/* 未归属记录提示：节点未注册或已删除时，其任务/事件不会出现在任何节点详情内。 */}
-      {(orphan.tasks > 0 || orphan.events > 0) && (
-        <p className="-mt-4 mb-6 text-xs text-slate-400 dark:text-slate-500">
-          {t('runtime.orphanHint', { tasks: orphan.tasks, events: orphan.events })}
-        </p>
-      )}
 
       {/* 受管容器清单 */}
       <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.containerList')}</h2>

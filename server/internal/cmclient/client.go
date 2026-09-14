@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -213,9 +214,10 @@ func (c *Client) RevokeEnrollmentToken(ctx context.Context, id string) error {
 		fmt.Sprintf("/api/mgmt/enrollment-tokens/%s", id), nil, nil)
 }
 
-// MgmtTasks 列出全部下发任务：GET {cm}/api/mgmt/tasks。
-func (c *Client) MgmtTasks(ctx context.Context) (json.RawMessage, error) {
-	return c.mgmtGet(ctx, "/api/mgmt/tasks")
+// MgmtTasks 分页列出发下任务：GET {cm}/api/mgmt/tasks?node_id=&limit=&offset=。
+func (c *Client) MgmtTasks(ctx context.Context, nodeID string, limit, offset int) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, fmt.Sprintf("/api/mgmt/tasks?node_id=%s&limit=%d&offset=%d",
+		url.QueryEscape(nodeID), limit, offset))
 }
 
 // TaskDetail 查看单个任务详情：GET {cm}/api/mgmt/tasks/{id}。

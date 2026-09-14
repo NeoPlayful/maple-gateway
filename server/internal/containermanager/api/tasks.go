@@ -1,13 +1,21 @@
 package api
 
 import (
+	"strconv"
+
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
 	"github.com/gofiber/fiber/v3"
 )
 
-// TaskSource 提供任务列表与按 ID 查询（由 tasksys.Manager 装配）。
+// 任务列表分页缺省与上限：任务表随观测循环无界增长，必须分页取数。
+const (
+	defaultTaskLimit = 20
+	maxTaskLimit     = 200
+)
+
+// TaskSource 提供任务分页列表与按 ID 查询（由 tasksys.Manager 装配）。
 type TaskSource struct {
-	List   func() []*tasksys.Task
+	Page   func(nodeID string, limit, offset int) ([]*tasksys.Task, int)
 	Get    func(id string) (*tasksys.Task, bool)
 	Retry  func(id string) (*tasksys.Task, error)
 	Cancel func(id string, reason string) error
@@ -18,12 +26,26 @@ type TaskSource struct {
 func registerTasks(app *fiber.App, token string, t TaskSource) {
 	g := app.Group("/api/mgmt/tasks", gatewayAuth(token))
 
-	// GET /api/mgmt/tasks 列出全部任务（最多 1000 条，最新在前）。
+	// GET /api/mgmt/tasks?node_id=&limit=&offset= 分页列出任务（最新在前）。
+	// 返回 {tasks:[...], total:N}：total 为过滤后的总数，供前端计算页码。
 	g.Get("/", func(c fiber.Ctx) error {
-		if t.List == nil {
-			return c.JSON([]*tasksys.Task{})
+		if t.Page == nil {
+			return c.JSON(fiber.Map{"tasks": []*tasksys.Task{}, "total": 0})
 		}
-		return c.JSON(t.List())
+		nodeID := c.Query("node_id")
+		limit, _ := strconv.Atoi(c.Query("limit", strconv.Itoa(defaultTaskLimit)))
+		if limit <= 0 {
+			limit = defaultTaskLimit
+		}
+		if limit > maxTaskLimit {
+			limit = maxTaskLimit
+		}
+		offset, _ := strconv.Atoi(c.Query("offset", "0"))
+		if offset < 0 {
+			offset = 0
+		}
+		tasks, total := t.Page(nodeID, limit, offset)
+		return c.JSON(fiber.Map{"tasks": tasks, "total": total})
 	})
 
 	// GET /api/mgmt/tasks/:id 查看任务详情（含 payload/result）。
