@@ -26,7 +26,7 @@ export default function AppearanceSettings() {
         )}
       </div>
 
-      {/* 主题卡片：每主题一行（labelKey 优先，缺省用 label），色板取 theme.json colors */}
+      {/* 主题卡片：每主题一行，主题名取 theme.json 的 label，色板取 theme.json colors */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {themeNames.map((name) => {
           const meta = getThemeMeta(name) ?? { label: name, colors: ['#cccccc', '#999999', '#666666'] };
@@ -49,7 +49,7 @@ export default function AppearanceSettings() {
               </span>
               <span className="flex items-center justify-between bg-white px-3 py-2 dark:bg-slate-800">
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  {meta.labelKey ? t(meta.labelKey) : meta.label}
+                  {meta.label}
                 </span>
                 {isActive && (
                   <span className="rounded-full bg-th-accent-soft-bg px-2 py-0.5 text-xs font-medium text-th-accent-soft-text">
