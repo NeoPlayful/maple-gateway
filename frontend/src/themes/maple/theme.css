@@ -1,0 +1,54 @@
+/* ============================================
+   Theme: maple — 枫叶绿 · 扁平化
+   Description: 控件与卡片直角、去投影；层级以 1px 实边表达；emerald 品牌强调色
+   ============================================ */
+
+/* 亮色 */
+[data-theme="maple"] {
+  --th-accent: #059669;        /* emerald-600 */
+  --th-accent-hover: #047857;  /* emerald-700 */
+  --th-accent-text: #047857;   /* emerald-700 on light */
+  --th-accent-soft-bg: #d1fae5;/* emerald-100 */
+  --th-accent-soft-text: #047857;/* emerald-700 */
+  --th-accent-focus: #10b981;  /* emerald-500 focus border */
+  --th-brand-text: #059669;    /* logo emerald-600 */
+  --th-nav-active-bg: #ecfdf5; /* emerald-50 */
+  --th-nav-active-text: #047857;/* emerald-700 */
+
+  /* shape / elevation —— 扁平：直角 + 无阴影（层级改由 1px 实边表达）*/
+  --th-radius-card: 0rem;          /* 卡片直角 */
+  --th-radius-control: 0rem;       /* 控件直角 */
+  --th-radius-sm: 0rem;            /* 小控件直角 */
+  --th-radius-pill: 0rem;
+  --th-shadow-card: none;          /* 去投影 */
+  --th-shadow-md: none;
+  --th-shadow-xl: none;
+  --th-glow: none;
+  --th-border-card: #cbd5e1;       /* slate-300：直角下边框需更清晰 */
+  --th-active-bar-bg: #ecfdf5;     /* emerald-50 */
+}
+
+/* 暗色 */
+[data-theme="maple"][data-mode="dark"] {
+  --th-accent: #10b981;        /* emerald-500: 白字按钮可用 */
+  --th-accent-hover: #059669;  /* emerald-600 */
+  --th-accent-text: #6ee7b7;   /* emerald-300 */
+  --th-accent-soft-bg: rgba(16, 185, 129, 0.25); /* emerald-900/50-ish */
+  --th-accent-soft-text: #6ee7b7;
+  --th-accent-focus: #34d399;
+  --th-brand-text: #34d399;    /* emerald-400 */
+  --th-nav-active-bg: rgba(16, 185, 129, 0.2);
+  --th-nav-active-text: #6ee7b7;
+
+  /* shape / elevation —— 扁平：直角 + 无阴影 */
+  --th-radius-card: 0rem;
+  --th-radius-control: 0rem;
+  --th-radius-sm: 0rem;
+  --th-radius-pill: 0rem;
+  --th-shadow-card: none;
+  --th-shadow-md: none;
+  --th-shadow-xl: none;
+  --th-glow: none;
+  --th-border-card: #475569;       /* slate-600：暗色下直角边框需更清晰 */
+  --th-active-bar-bg: rgba(16, 185, 129, 0.2);
+}

@@ -16,9 +16,13 @@
   --th-nav-active-text: #047857;/* emerald-700 */
 
   /* shape / elevation */
-  --th-radius-card: 0.75rem;       /* rounded-xl */
+  --th-radius-card: 0.75rem;       /* rounded-th-card = rounded-xl */
+  --th-radius-control: 0.5rem;     /* rounded-th-control = rounded-lg */
+  --th-radius-sm: 0.375rem;        /* rounded-th-sm = rounded-md */
   --th-radius-pill: 0.5rem;        /* 紧凑胶囊 */
-  --th-shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --th-shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); /* = shadow-sm */
+  --th-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* = shadow-md */
+  --th-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* = shadow-xl */
   --th-glow: none;                 /* default 不用辉光 */
   --th-border-card: #e2e8f0;       /* slate-200 */
   --th-active-bar-bg: #ecfdf5;     /* emerald-50 */
@@ -38,8 +42,12 @@
 
   /* shape / elevation */
   --th-radius-card: 0.75rem;
+  --th-radius-control: 0.5rem;
+  --th-radius-sm: 0.375rem;
   --th-radius-pill: 0.5rem;
-  --th-shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --th-shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --th-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --th-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --th-glow: none;
   --th-border-card: #334155;       /* slate-700 */
   --th-active-bar-bg: rgba(16, 185, 129, 0.2);

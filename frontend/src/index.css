@@ -12,6 +12,16 @@
   --color-th-brand-text: var(--th-brand-text);
   --color-th-nav-active-bg: var(--th-nav-active-bg);
   --color-th-nav-active-text: var(--th-nav-active-text);
+
+  /* 形状令牌：圆角与阴影由主题决定（生成 rounded-th-* / shadow-th-* 工具类）。
+     各主题在自身 theme.css 里覆盖 --th-*，:root 提供与 Tailwind 默认等价的兜底。
+     default/cyber 取值与原硬编码类完全一致（外观不变），maple 覆盖为直角 + 无阴影。 */
+  --radius-th-card: var(--th-radius-card);
+  --radius-th-control: var(--th-radius-control);
+  --radius-th-sm: var(--th-radius-sm);
+  --shadow-th-card: var(--th-shadow-card);
+  --shadow-th-md: var(--th-shadow-md);
+  --shadow-th-xl: var(--th-shadow-xl);
 }
 
 :root {
@@ -24,6 +34,14 @@
   --th-brand-text: #059669;
   --th-nav-active-bg: #ecfdf5;
   --th-nav-active-text: #047857;
+
+  /* 形状令牌兜底：与 Tailwind 默认工具类等价（防 FOUC）。 */
+  --th-radius-card: 0.75rem;   /* = rounded-xl */
+  --th-radius-control: 0.5rem; /* = rounded-lg */
+  --th-radius-sm: 0.375rem;    /* = rounded-md */
+  --th-shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); /* = shadow-sm */
+  --th-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* = shadow-md */
+  --th-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* = shadow-xl */
 }
 
 @layer base {

@@ -30,7 +30,7 @@ export default function LoginPage() {
     <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
       <form
         onSubmit={submit}
-        className="w-80 rounded-xl border border-slate-200 bg-white p-8 shadow-md dark:border-slate-700 dark:bg-slate-800"
+        className="w-80 rounded-th-card border border-slate-200 bg-white p-8 shadow-th-md dark:border-slate-700 dark:bg-slate-800"
       >
         <h1 className="mb-6 text-center text-xl font-bold text-slate-800 dark:text-slate-100">
           {t('app.name')}

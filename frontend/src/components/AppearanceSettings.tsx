@@ -35,9 +35,9 @@ export default function AppearanceSettings() {
             <button
               key={name}
               onClick={() => setTheme(name)}
-              className={`overflow-hidden rounded-lg border-2 text-left transition-all ${
+              className={`overflow-hidden rounded-th-control border-2 text-left transition-all ${
                 isActive
-                  ? 'border-th-accent shadow-sm'
+                  ? 'border-th-accent shadow-th-card'
                   : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600'
               }`}
             >
@@ -69,7 +69,7 @@ export default function AppearanceSettings() {
           <button
             key={m}
             onClick={() => setMode(m)}
-            className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+            className={`rounded-th-sm border px-3 py-1 text-sm transition-colors ${
               mode === m
                 ? 'border-th-accent bg-th-accent-soft-bg text-th-accent-soft-text font-medium'
                 : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'

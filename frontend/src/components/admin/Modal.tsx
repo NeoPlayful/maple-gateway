@@ -43,7 +43,7 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className={`w-full ${maxWidth} rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800`}
+        className={`w-full ${maxWidth} rounded-th-card border border-slate-200 bg-white shadow-th-xl dark:border-slate-700 dark:bg-slate-800`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-700">

@@ -95,7 +95,7 @@ export default function DashboardPage() {
   const p95Pts: Pt[] = latency.map((p) => ({ value: Math.round(p.p95_ms) }));
 
   if (err) {
-    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-red-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-rose-400">{err}</div>;
+    return <div className="rounded-th-card border border-slate-200 bg-white p-6 text-sm text-red-600 shadow-th-card dark:border-slate-700 dark:bg-slate-800 dark:text-rose-400">{err}</div>;
   }
   if (!ov) {
     return <div className="text-sm text-slate-400 dark:text-slate-500">{t('app.loading')}</div>;
@@ -143,7 +143,7 @@ export default function DashboardPage() {
 
       {/* 运行状态 */}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.instanceHealth')}</p>
           <div className="flex items-center gap-3">
             <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
@@ -167,7 +167,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.nodesTitle')}</p>
           <div className="grid grid-cols-2 gap-2 text-center text-xs">
             <div className="rounded bg-emerald-50 py-2 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -185,7 +185,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.runningCanary')}</p>
           {!ov.running_canary?.length ? (
             <p className="text-sm text-slate-400">{t('dashboard.noRunning')}</p>
@@ -212,15 +212,15 @@ export default function DashboardPage() {
 
       {/* 流量趋势（进程内时间桶，重启清零） */}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.trendRequests')}</p>
           <Sparkline data={reqPts} color="#0d9488" />
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.trendErrors')}</p>
           <Sparkline data={errPts} color="#e11d48" />
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.trendLatency')}</p>
           <Sparkline data={p95Pts} color="#6366f1" suffix=" ms" />
         </div>
