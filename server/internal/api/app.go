@@ -105,6 +105,8 @@ func New(d Deps) *fiber.App {
 	us := admin.Group("/users")
 	us.Get("/", usersH.List)
 	us.Post("/", usersH.Create)
+	us.Patch("/:id", usersH.Update)
+	us.Delete("/:id", usersH.Delete)
 	us.Patch("/:id/role", usersH.SetRole)
 	us.Patch("/:id/status", usersH.ToggleStatus)
 

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { list, create, remove, statusAction } from '../../lib/modules';
+import { list, create, update, remove, statusAction } from '../../lib/modules';
 import { api, ApiError } from '../../lib/client';
 import type { Node, CMNodeStatus, NodeMetric } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
+import { Field } from '../../components/admin/Field';
+import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { PageHeader } from '../../themes';
 
@@ -41,21 +43,25 @@ export default function NodesPage() {
   const [cmNodes, setCmNodes] = useState<Record<string, CMNodeStatus>>({});
   const [cmMetrics, setCmMetrics] = useState<Record<string, NodeMetric>>({});
   const [cmEnabled, setCmEnabled] = useState(true);
-  const [err, setErr] = useState('');
-  const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // 创建表单
+  // 表单弹窗：editing 非空=编辑，空=新建。
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Node | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState('');
+
+  // 表单字段
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [region, setRegion] = useState('');
+  const [weight, setWeight] = useState('0');
 
   const load = useCallback(async () => {
     try {
       setRows(await list<Node>('/api/admin/nodes'));
-      setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
+      toast.error(e instanceof Error ? e.message : t('common.loadFailed'));
     }
   }, [t]);
 
@@ -88,22 +94,67 @@ export default function NodesPage() {
     return m;
   }, [cmMetrics]);
 
+  // 打开新建弹窗：清空表单。
+  const openCreate = () => {
+    setEditing(null);
+    setFormErr('');
+    setName('');
+    setHost('');
+    setRegion('');
+    setWeight('0');
+    setFormOpen(true);
+  };
+
+  // 打开编辑弹窗：回填可改字段；name 只读（后端 Update 不支持改名称）。
+  const openEdit = (r: Node) => {
+    setEditing(r);
+    setFormErr('');
+    setName(r.name);
+    setHost(r.host);
+    setRegion(r.region ?? '');
+    setWeight(String(r.weight ?? 0));
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditing(null);
+  };
+
   const submit = async () => {
-    setErr('');
-    if (!name || !host) {
-      setErr(t('nodes.errFill'));
+    setFormErr('');
+    if (!editing && !name) {
+      setFormErr(t('nodes.errFill'));
       return;
     }
+    if (!host.trim()) {
+      setFormErr(t('nodes.errFill'));
+      return;
+    }
+    setBusy(true);
     try {
-      await create('/api/admin/nodes', { name, host, region });
-      toast.success(t('common.createSuccess'));
-      setOpen(false);
-      setName('');
-      setHost('');
-      setRegion('');
+      if (editing) {
+        await update('/api/admin/nodes', editing.id, {
+          host: host.trim(),
+          region,
+          weight: Number(weight) || 0,
+        });
+        toast.success(t('common.updateSuccess'));
+      } else {
+        await create('/api/admin/nodes', {
+          name,
+          host: host.trim(),
+          region,
+          weight: Number(weight) || 0,
+        });
+        toast.success(t('common.createSuccess'));
+      }
+      closeForm();
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.createFailed'));
+      setFormErr(e instanceof Error ? e.message : editing ? t('common.updateFailed') : t('common.createFailed'));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -130,7 +181,7 @@ export default function NodesPage() {
   };
 
   const inputCls =
-    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
   const activeStates = ['active', 'enabled', 'online', 'healthy'];
   const inactiveStates = ['disabled', 'suspended', 'offline', 'maintenance', 'paused'];
@@ -141,41 +192,70 @@ export default function NodesPage() {
         title={t('nodes.title')}
         right={
           <button
-            onClick={() => setOpen((v) => !v)}
+            onClick={openCreate}
             className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
           >
-            {open ? t('common.collapse') : `+ ${t('common.new')}${t('nodes.title')}`}
+            {`+ ${t('nodes.newTitle')}`}
           </button>
         }
       />
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
       {!cmEnabled && (
         <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
           {t('runtime.notEnabled')}
         </p>
       )}
 
-      {open && (
-        <div className="mb-5 rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.nodeName')}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('nodes.namePh')} className={inputCls} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.host')}</label>
-              <input value={host} onChange={(e) => setHost(e.target.value)} placeholder={t('nodes.hostPh')} className={inputCls} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.region')}</label>
-              <input value={region} onChange={(e) => setRegion(e.target.value)} className={inputCls} />
-            </div>
-          </div>
-          <button onClick={submit} className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">
-            {t('common.create')}
-          </button>
+      <Modal
+        open={formOpen}
+        title={editing ? t('nodes.editTitle') : t('nodes.newTitle')}
+        onClose={closeForm}
+        footer={
+          <>
+            <button
+              onClick={closeForm}
+              className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={submit}
+              disabled={busy}
+              className="rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              {busy ? t('common.saving') : editing ? t('common.save') : t('common.create')}
+            </button>
+          </>
+        }
+      >
+        {formErr && (
+          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+            {formErr}
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label={t('fields.nodeName')}>
+            <input
+              value={name}
+              disabled={!!editing}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('nodes.namePh')}
+              className={inputCls}
+            />
+          </Field>
+          <Field label={t('fields.host')}>
+            <input value={host} onChange={(e) => setHost(e.target.value)} placeholder={t('nodes.hostPh')} className={inputCls} />
+          </Field>
+          <Field label={t('fields.region')}>
+            <input value={region} onChange={(e) => setRegion(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label={t('fields.weight')}>
+            <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls} />
+          </Field>
         </div>
-      )}
+        {editing && (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t('nodes.ownershipHint')}</p>
+        )}
+      </Modal>
 
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
@@ -240,6 +320,7 @@ export default function NodesPage() {
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-1">
+                      <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
                       {inactiveStates.includes(r.status)
                         ? <ActionBtn onClick={() => act(r.id, 'enable')}>{t('common.enable')}</ActionBtn>
                         : null}

@@ -108,6 +108,90 @@ type setRoleInput struct {
 	Role string `json:"role" validate:"required"`
 }
 
+// updateUserInput 编辑用户入参（name/role 可改，email 不可改）。
+type updateUserInput struct {
+	Name string `json:"name"`
+	Role string `json:"role"`
+}
+
+// Update PATCH /api/admin/users/:id 编辑用户名称与角色。
+// 降级最后一名超管时拒绝（与 SetRole 同护栏）。
+func (h *userHandler) Update(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("无效的 id"))
+	}
+	var in updateUserInput
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	target, err := h.ent.User.Get(c.Context(), id)
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("用户不存在"))
+	}
+	if in.Role != "" {
+		if !auth.ValidRole(in.Role) {
+			return pkg.Err(c, pkg.ErrValidation("role 须为 super_admin / operator / viewer"))
+		}
+		// 降级最后一名 active 超管：先数超管数。
+		if target.Role == auth.RoleSuperAdmin && in.Role != auth.RoleSuperAdmin {
+			n, err := h.ent.User.Query().Where(entuser.RoleEQ(auth.RoleSuperAdmin), entuser.StatusEQ("active")).Count(c.Context())
+			if err != nil {
+				return pkg.Err(c, pkg.ErrSystem("查询用户失败"))
+			}
+			if n <= 1 {
+				return pkg.Err(c, pkg.ErrValidation("至少保留一名超管"))
+			}
+		}
+	}
+	upd := h.ent.User.UpdateOneID(id).
+		SetNillableName(nilName(in.Name)).
+		SetUpdatedAt(time.Now())
+	if in.Role != "" {
+		upd = upd.SetRole(in.Role)
+	}
+	e, err := upd.Save(c.Context())
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.Err(c, pkg.ErrValidation("用户不存在"))
+		}
+		return pkg.Err(c, pkg.ErrSystem("更新用户失败"))
+	}
+	return pkg.OK(c, userRowFrom(e))
+}
+
+// Delete DELETE /api/admin/users/:id 删除用户账号。
+// 护栏：禁止删除自己（自锁）；禁止删除最后一名 active 超管（锁死系统）。
+func (h *userHandler) Delete(c fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("无效的 id"))
+	}
+	if id.String() == auth.AdminID(c) {
+		return pkg.Err(c, pkg.ErrValidation("不能删除自己"))
+	}
+	target, err := h.ent.User.Get(c.Context(), id)
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("用户不存在"))
+	}
+	if target.Role == auth.RoleSuperAdmin && target.Status == "active" {
+		n, err := h.ent.User.Query().Where(entuser.RoleEQ(auth.RoleSuperAdmin), entuser.StatusEQ("active")).Count(c.Context())
+		if err != nil {
+			return pkg.Err(c, pkg.ErrSystem("查询用户失败"))
+		}
+		if n <= 1 {
+			return pkg.Err(c, pkg.ErrValidation("至少保留一名超管"))
+		}
+	}
+	if err := h.ent.User.DeleteOneID(id).Exec(c.Context()); err != nil {
+		if ent.IsNotFound(err) {
+			return pkg.Err(c, pkg.ErrValidation("用户不存在"))
+		}
+		return pkg.Err(c, pkg.ErrSystem("删除用户失败"))
+	}
+	return pkg.OK(c, fiber.Map{"deleted": true})
+}
+
 // SetRole PATCH /api/admin/users/:id/role 改角色。
 // 禁止把最后一个超管降级（防止锁死系统）。
 func (h *userHandler) SetRole(c fiber.Ctx) error {

@@ -4,13 +4,14 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { list } from '../../lib/modules';
+import { list, remove } from '../../lib/modules';
 import { api } from '../../lib/client';
 import { useAuth } from '../../stores/auth';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
+import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { DetailGrid } from '../../components/admin/DetailGrid';
 import { IdCell } from '../../components/admin/IdCell';
 import { PageHeader } from '../../themes';
@@ -55,6 +56,14 @@ export default function UsersPage() {
   const [name, setName] = useState('');
   const [role, setRole] = useState<string>('operator');
 
+  // 编辑弹窗：editing 非空=编辑（改 name/role，email 只读）。
+  const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('operator');
+
+  // 待删除用户 id：非空时显示确认弹窗。
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       setRows(await list<AdminUser>('/api/admin/users'));
@@ -97,14 +106,41 @@ export default function UsersPage() {
     }
   };
 
-  const changeRole = async (id: string, next: string) => {
+  const openEdit = (u: AdminUser) => {
+    setEditing(u);
+    setEditName(u.name ?? '');
+    setEditRole(u.role);
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+  };
+
+  const doEdit = async () => {
+    if (!editing) return;
+    setBusy(true);
     try {
-      await api.patch(`/api/admin/users/${id}/role`, { role: next });
-      toast.success(t('common.operateSuccess'));
+      await api.patch(`/api/admin/users/${editing.id}`, { name: editName, role: editRole });
+      toast.success(t('common.updateSuccess'));
+      setEditing(null);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('common.operateFailed'));
-      await load(); // 失败（如最后一个超管）回滚到实际值
+      // 失败（如降级最后一名超管）保持弹窗打开并提示原因。
+      toast.error(e instanceof Error ? e.message : t('common.updateFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await remove('/api/admin/users', deleteId);
+      toast.success(t('common.deleteSuccess'));
+      setDeleteId(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('common.deleteFailed'));
     }
   };
 
@@ -191,6 +227,48 @@ export default function UsersPage() {
         </div>
       </Modal>
 
+      <Modal
+        open={editing !== null}
+        title={t('users.editTitle')}
+        onClose={closeEdit}
+        footer={
+          <>
+            <button
+              onClick={closeEdit}
+              className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={doEdit}
+              disabled={busy}
+              className="rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              {busy ? t('common.saving') : t('common.save')}
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label={t('fields.email')}>
+            <input value={editing?.email ?? ''} readOnly disabled className={inputCls} />
+          </Field>
+          <Field label={t('fields.name')}>
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label={t('fields.role')}>
+            <select value={editRole} onChange={(e) => setEditRole(e.target.value)} className={inputCls}>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {t(`users.role.${r}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t('users.editHint')}</p>
+      </Modal>
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -236,27 +314,13 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-2">{u.name || '-'}</td>
                     <td className="px-4 py-2">
-                      {isSuper ? (
-                        <select
-                          value={u.role}
-                          onChange={(e) => changeRole(u.id, e.target.value)}
-                          className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                        >
-                          {ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {t(`users.role.${r}`)}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span
-                          className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                            roleColor[u.role] ?? roleColor.viewer
-                          }`}
-                        >
-                          {t(`users.role.${u.role}`, { defaultValue: u.role })}
-                        </span>
-                      )}
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                          roleColor[u.role] ?? roleColor.viewer
+                        }`}
+                      >
+                        {t(`users.role.${u.role}`, { defaultValue: u.role })}
+                      </span>
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge value={u.status} />
@@ -266,9 +330,15 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-2">
                       {isSuper && (
-                        <ActionBtn onClick={() => toggleStatus(u)} disabled={isSelf}>
-                          {u.status === 'active' ? t('common.disable') : t('common.enable')}
-                        </ActionBtn>
+                        <div className="flex flex-wrap gap-1">
+                          <ActionBtn onClick={() => openEdit(u)}>{t('common.edit')}</ActionBtn>
+                          <ActionBtn onClick={() => toggleStatus(u)} disabled={isSelf}>
+                            {u.status === 'active' ? t('common.disable') : t('common.enable')}
+                          </ActionBtn>
+                          <ActionBtn danger onClick={() => setDeleteId(u.id)} disabled={isSelf}>
+                            {t('common.delete')}
+                          </ActionBtn>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -297,6 +367,14 @@ export default function UsersPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title={t('common.confirmTitle')}
+        message={t('users.confirmDelete')}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
