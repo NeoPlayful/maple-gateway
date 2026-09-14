@@ -215,6 +215,7 @@ func New(d Deps) *fiber.App {
 		cg.Post("/instances/:id/start", cmH.StartInstance)
 		cg.Get("/instances/:id/logs", cmH.InstanceLogs)
 		cg.Get("/instances/:id/logs/stream", cmH.InstanceLogsStream)
+		cg.Get("/instances/:id/stats", cmH.InstanceStats)
 		cg.Get("/enrollment-tokens", cmH.EnrollmentTokens)
 		cg.Post("/enrollment-tokens", cmH.IssueEnrollmentToken)
 		cg.Delete("/enrollment-tokens/:id", cmH.RevokeEnrollmentToken)

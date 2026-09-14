@@ -23,6 +23,30 @@ type Container struct {
 	FinishedAt string `json:"finished_at,omitempty"`
 }
 
+// ContainerStats 是 Agent 上报的单容器资源用量视图（与 nodeagent/docker.ContainerStats 对应）。
+// 速率类字段（*_bps）由 Agent 两次采样差分得出。
+type ContainerStats struct {
+	ContainerID string `json:"container_id"`
+
+	CPUPercent float64 `json:"cpu_percent"`
+
+	MemUsage   int64   `json:"mem_usage"`
+	MemLimit   int64   `json:"mem_limit"`
+	MemPercent float64 `json:"mem_percent"`
+
+	NetRxBytes uint64  `json:"net_rx_bytes"`
+	NetTxBytes uint64  `json:"net_tx_bytes"`
+	NetRxBps   float64 `json:"net_rx_bps"`
+	NetTxBps   float64 `json:"net_tx_bps"`
+
+	BlkReadBytes  uint64  `json:"blk_read_bytes"`
+	BlkWriteBytes uint64  `json:"blk_write_bytes"`
+	BlkReadBps    float64 `json:"blk_read_bps"`
+	BlkWriteBps   float64 `json:"blk_write_bps"`
+
+	PidsCurrent uint64 `json:"pids_current"`
+}
+
 // CreateSpec 是容器创建规格（与 nodeagent/docker.CreateSpec 对应），
 // 作为 container.create 的任务参数下发。
 type CreateSpec struct {

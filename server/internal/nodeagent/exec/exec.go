@@ -120,6 +120,17 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		}
 		return json.Marshal(list)
 
+	case agentprotocol.ActionContainerStats:
+		id, err := idParam(params)
+		if err != nil {
+			return nil, err
+		}
+		st, err := e.rt.Stats(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(st)
+
 	case agentprotocol.ActionContainerCreate:
 		var spec docker.CreateSpec
 		if err := decode(params, &spec); err != nil {

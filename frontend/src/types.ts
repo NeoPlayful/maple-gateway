@@ -279,6 +279,25 @@ export interface CMContainer {
   finished_at?: string;
 }
 
+// 单容器资源用量（CM 经 /api/admin/cm/instances/:id/stats 透出）。
+// 速率类字段（*_bps）由 Agent 两次采样差分得出，首次采样为 0。
+export interface CMContainerStats {
+  container_id: string;
+  cpu_percent: number;
+  mem_usage: number;
+  mem_limit: number;
+  mem_percent: number;
+  net_rx_bytes: number;
+  net_tx_bytes: number;
+  net_rx_bps: number;
+  net_tx_bps: number;
+  blk_read_bytes: number;
+  blk_write_bytes: number;
+  blk_read_bps: number;
+  blk_write_bps: number;
+  pids_current: number;
+}
+
 // 一次下发给 Agent 的任务（CM 任务系统经 /api/admin/cm/tasks 透出）。
 export interface CMTask {
   id: string;

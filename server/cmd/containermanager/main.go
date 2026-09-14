@@ -190,6 +190,9 @@ func run(configPath string) error {
 			}
 			return st.Chunks(), st.Done(), st.Overflow, nil
 		},
+		InstanceStats: func(cctx context.Context, id string) (gwclient.ContainerStats, error) {
+			return ctrl.Stats(cctx, id)
+		},
 		Events:  obs.Events,
 		Containers: func() []api.ContainerStatus {
 			snap := obs.Snapshot()
