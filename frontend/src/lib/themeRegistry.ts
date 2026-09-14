@@ -66,7 +66,6 @@ export function getThemeComponent<P = Record<string, never>>(
 
 export interface ThemeMeta {
   label: string;
-  labelKey?: string;
   description?: string;
   colors: string[];
 }
