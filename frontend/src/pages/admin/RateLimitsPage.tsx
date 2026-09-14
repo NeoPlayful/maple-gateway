@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { api } from '../../lib/client';
-import { create, remove, statusAction } from '../../lib/modules';
+import { create, update, remove, statusAction } from '../../lib/modules';
 import type { Domain, RateLimit, Service, Tenant } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
+import { Field } from '../../components/admin/Field';
+import { Modal } from '../../components/admin/Modal';
+import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { PageHeader } from '../../themes';
 
 const scopes = [
@@ -21,11 +25,15 @@ export default function RateLimitsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [open, setOpen] = useState(false);
-  const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
 
-  // 创建表单。
+  // 表单弹窗：editing 非空=编辑，空=新建。
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<RateLimit | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState('');
+  // 待删除规则 id：非空时显示确认弹窗。
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const [scope, setScope] = useState('service');
   const [tenantId, setTenantId] = useState('');
   const [domainId, setDomainId] = useState('');
@@ -39,9 +47,8 @@ export default function RateLimitsPage() {
   const load = useCallback(async () => {
     try {
       setRows(await api.get<RateLimit[]>('/api/admin/rate-limits?limit=200'));
-      setErr('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
+      toast.error(e instanceof Error ? e.message : t('common.loadFailed'));
     }
   }, [t]);
 
@@ -73,117 +80,206 @@ export default function RateLimitsPage() {
   };
 
   const act = async (id: string, a: string) => {
-    setErr('');
-    setMsg('');
     try {
       await statusAction('/api/admin/rate-limits', id, a);
-      setMsg(t('common.operateSuccess'));
+      toast.success(t('common.operateSuccess'));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.operateFailed'));
+      toast.error(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
-  const submit = async () => {
-    setErr('');
-    const body: Record<string, unknown> = {
-      scope,
-      name,
-      limit: Number(limit),
-      window_seconds: Number(windowSec),
-      response_code: Number(code),
-    };
-    if (burst !== '') body.burst = Number(burst);
-    if (scope === 'tenant' && tenantId) body.tenant_id = tenantId;
-    if (scope === 'domain' && domainId) body.domain_id = domainId;
-    if (scope === 'service' && serviceId) body.service_id = serviceId;
+  const doDelete = async () => {
+    if (!deleteId) return;
     try {
-      await create('/api/admin/rate-limits', body);
-      setMsg(t('common.createSuccess'));
-      setOpen(false);
-      setName('');
+      await remove('/api/admin/rate-limits', deleteId);
+      toast.success(t('common.deleteSuccess'));
+      setDeleteId(null);
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('common.createFailed'));
+      toast.error(e instanceof Error ? e.message : t('common.deleteFailed'));
+    }
+  };
+
+  // 打开新建弹窗：清空表单。
+  const openCreate = () => {
+    setEditing(null);
+    setFormErr('');
+    setScope('service');
+    setTenantId('');
+    setDomainId('');
+    setServiceId('');
+    setName('');
+    setLimit('100');
+    setWindowSec('60');
+    setBurst('');
+    setCode('429');
+    setFormOpen(true);
+  };
+
+  // 打开编辑弹窗：回填可改字段；scope 与目标只读（后端不支持改）。
+  const openEdit = (r: RateLimit) => {
+    setEditing(r);
+    setFormErr('');
+    setScope(r.scope);
+    setTenantId(r.tenant_id ?? '');
+    setDomainId(r.domain_id ?? '');
+    setServiceId(r.service_id ?? '');
+    setName(r.name);
+    setLimit(String(r.limit));
+    setWindowSec(String(r.window_seconds));
+    setBurst(r.burst ? String(r.burst) : '');
+    setCode(String(r.response_code ?? 429));
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditing(null);
+  };
+
+  const submit = async () => {
+    setFormErr('');
+    if (!name || !limit) {
+      setFormErr(t('ratelimit.errFill'));
+      return;
+    }
+    setBusy(true);
+    try {
+      if (editing) {
+        // 编辑仅改运行参数；scope 与目标经创建后不可改，此处不动。
+        const body: Record<string, unknown> = {
+          name,
+          limit: Number(limit),
+          window_seconds: Number(windowSec),
+          response_code: Number(code),
+        };
+        if (burst !== '') body.burst = Number(burst);
+        await update('/api/admin/rate-limits', editing.id, body);
+        toast.success(t('common.updateSuccess'));
+      } else {
+        const body: Record<string, unknown> = {
+          scope,
+          name,
+          limit: Number(limit),
+          window_seconds: Number(windowSec),
+          response_code: Number(code),
+        };
+        if (burst !== '') body.burst = Number(burst);
+        if (scope === 'tenant' && tenantId) body.tenant_id = tenantId;
+        if (scope === 'domain' && domainId) body.domain_id = domainId;
+        if (scope === 'service' && serviceId) body.service_id = serviceId;
+        await create('/api/admin/rate-limits', body);
+        toast.success(t('common.createSuccess'));
+      }
+      closeForm();
+      await load();
+    } catch (e) {
+      setFormErr(e instanceof Error ? e.message : editing ? t('common.updateFailed') : t('common.createFailed'));
+    } finally {
+      setBusy(false);
     }
   };
 
   const inputCls =
-    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
   return (
     <div>
       <PageHeader
         title={t('ratelimit.title')}
         right={
-          <button onClick={() => setOpen((v) => !v)} className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover">
-            {open ? t('common.collapse') : `+ ${t('ratelimit.newRule')}`}
+          <button
+            onClick={openCreate}
+            className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
+          >
+            {`+ ${t('ratelimit.newRule')}`}
           </button>
         }
       />
-      {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
-      {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
-      {open && (
-        <div className="mb-5 rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('ratelimit.scope')}</label>
-              <select value={scope} onChange={(e) => { setScope(e.target.value); setTenantId(''); setDomainId(''); setServiceId(''); }} className={inputCls}>
-                {scopes.map((s) => <option key={s.value} value={s.value}>{t(s.labelKey)}</option>)}
+      <Modal
+        open={formOpen}
+        title={editing ? t('ratelimit.editTitle') : t('ratelimit.newRule')}
+        onClose={closeForm}
+        footer={
+          <>
+            <button
+              onClick={closeForm}
+              className="rounded bg-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={submit}
+              disabled={busy}
+              className="rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              {busy ? t('common.saving') : editing ? t('common.save') : t('common.create')}
+            </button>
+          </>
+        }
+      >
+        {formErr && (
+          <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+            {formErr}
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label={t('ratelimit.scope')}>
+            <select
+              value={scope}
+              disabled={!!editing}
+              onChange={(e) => { setScope(e.target.value); setTenantId(''); setDomainId(''); setServiceId(''); }}
+              className={inputCls}
+            >
+              {scopes.map((s) => <option key={s.value} value={s.value}>{t(s.labelKey)}</option>)}
+            </select>
+          </Field>
+          <Field label={t('fields.name')}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('ratelimit.namePh')} className={inputCls} />
+          </Field>
+          {scope === 'tenant' && (
+            <Field label={t('fields.tenant')}>
+              <select value={tenantId} disabled={!!editing} onChange={(e) => setTenantId(e.target.value)} className={inputCls}>
+                <option value="">{t('ratelimit.selectTenant')}</option>
+                {tenants.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.name')}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('ratelimit.namePh')} className={inputCls} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('ratelimit.limit')}</label>
-              <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('ratelimit.windowSec')}</label>
-              <input type="number" min={1} value={windowSec} onChange={(e) => setWindowSec(e.target.value)} className={inputCls} />
-            </div>
-            {scope === 'tenant' && (
-              <div>
-                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.tenant')}</label>
-                <select value={tenantId} onChange={(e) => setTenantId(e.target.value)} className={inputCls}>
-                  <option value="">{t('ratelimit.selectTenant')}</option>
-                  {tenants.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                </select>
-              </div>
-            )}
-            {scope === 'domain' && (
-              <div>
-                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.hostname')}</label>
-                <select value={domainId} onChange={(e) => setDomainId(e.target.value)} className={inputCls}>
-                  <option value="">{t('ratelimit.selectDomain')}</option>
-                  {domains.map((d) => <option key={d.id} value={d.id}>{d.hostname}</option>)}
-                </select>
-              </div>
-            )}
-            {scope === 'service' && (
-              <div>
-                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.service')}</label>
-                <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={inputCls}>
-                  <option value="">{t('ratelimit.selectService')}</option>
-                  {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-            )}
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('ratelimit.burst')}</label>
-              <input type="number" value={burst} onChange={(e) => setBurst(e.target.value)} placeholder={t('ratelimit.optional')} className={inputCls} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('ratelimit.responseCode')}</label>
-              <input type="number" value={code} onChange={(e) => setCode(e.target.value)} className={inputCls} />
-            </div>
-          </div>
-          <button onClick={submit} className="mt-4 rounded bg-slate-800 px-4 py-1.5 text-sm text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">{t('common.create')}</button>
+            </Field>
+          )}
+          {scope === 'domain' && (
+            <Field label={t('fields.hostname')}>
+              <select value={domainId} disabled={!!editing} onChange={(e) => setDomainId(e.target.value)} className={inputCls}>
+                <option value="">{t('ratelimit.selectDomain')}</option>
+                {domains.map((d) => <option key={d.id} value={d.id}>{d.hostname}</option>)}
+              </select>
+            </Field>
+          )}
+          {scope === 'service' && (
+            <Field label={t('fields.service')}>
+              <select value={serviceId} disabled={!!editing} onChange={(e) => setServiceId(e.target.value)} className={inputCls}>
+                <option value="">{t('ratelimit.selectService')}</option>
+                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label={t('ratelimit.limit')}>
+            <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label={t('ratelimit.windowSec')}>
+            <input type="number" min={1} value={windowSec} onChange={(e) => setWindowSec(e.target.value)} className={inputCls} />
+          </Field>
+          <Field label={t('ratelimit.burst')}>
+            <input type="number" value={burst} onChange={(e) => setBurst(e.target.value)} placeholder={t('ratelimit.optional')} className={inputCls} />
+          </Field>
+          <Field label={t('ratelimit.responseCode')}>
+            <input type="number" value={code} onChange={(e) => setCode(e.target.value)} className={inputCls} />
+          </Field>
         </div>
-      )}
+        {editing && (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t('ratelimit.ownershipHint')}</p>
+        )}
+      </Modal>
 
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
@@ -214,9 +310,10 @@ export default function RateLimitsPage() {
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
+                    <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
                     {r.status === 'disabled' && <ActionBtn onClick={() => act(r.id, 'enable')}>{t('common.enable')}</ActionBtn>}
                     {r.status === 'enabled' && <ActionBtn onClick={() => act(r.id, 'disable')}>{t('common.disable')}</ActionBtn>}
-                    <ActionBtn danger onClick={async () => { if (!window.confirm(t('ratelimit.confirmDelete'))) return; await remove('/api/admin/rate-limits', r.id); await load(); }}>{t('common.delete')}</ActionBtn>
+                    <ActionBtn danger onClick={() => setDeleteId(r.id)}>{t('common.delete')}</ActionBtn>
                   </div>
                 </td>
               </tr>
@@ -224,6 +321,14 @@ export default function RateLimitsPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title={t('common.confirmTitle')}
+        message={t('ratelimit.confirmDelete')}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
