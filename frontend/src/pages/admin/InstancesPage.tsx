@@ -8,6 +8,12 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { PageHeader } from '../../themes';
 
+// 端口映射展示为「主机端口:容器内部端口」，如 8101:80；无映射则回退为 '-'。
+function fmtPortPair(host: number, container: number): string {
+  if (!host) return '-';
+  return container ? `${host}:${container}` : String(host);
+}
+
 export default function InstancesPage() {
   const { t } = useTranslation('admin');
   const [rows, setRows] = useState<Inst[]>([]);
@@ -90,6 +96,8 @@ export default function InstancesPage() {
 
   const svcName = (id: string) => services.find((s) => s.id === id)?.name ?? id.slice(0, 8);
   const nodeName = (id?: string | null) => nodes.find((n) => n.id === id)?.name ?? id?.slice(0, 8) ?? '-';
+  // 节点名优先取 CM 观测的容器节点名（与运行时页同源），回退到实例 node_id 匹配节点表。
+  const nodeLabel = (r: Inst) => containers[r.id]?.node_name || (r.node_id ? nodeName(r.node_id) : '-');
 
   const act = async (id: string, a: string) => {
     setErr('');
@@ -210,6 +218,8 @@ export default function InstancesPage() {
               <th className="px-4 py-2">{t('fields.service')}</th>
               <th className="px-4 py-2">{t('fields.address')}</th>
               <th className="px-4 py-2">{t('fields.node')}</th>
+              <th className="px-4 py-2">{t('runtime.colIp')}</th>
+              <th className="px-4 py-2">{t('runtime.colPort')}</th>
               <th className="px-4 py-2">{t('fields.health')}</th>
               <th className="px-4 py-2">{t('fields.status')}</th>
               <th className="px-4 py-2">{t('instances.container')}</th>
@@ -220,7 +230,7 @@ export default function InstancesPage() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
               </tr>
             )}
             {rows.map((r) => {
@@ -232,12 +242,16 @@ export default function InstancesPage() {
                   <span className="ml-1 text-xs text-slate-400">{r.version}</span>
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{r.address}:{r.port}</td>
-                <td className="px-4 py-2">{nodeName(r.node_id)}</td>
+                <td className="px-4 py-2">{nodeLabel(r)}</td>
+                <td className="px-4 py-2 font-mono text-xs">
+                  {cmEnabled && ct?.ip ? ct.ip : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs">{ct ? fmtPortPair(ct.host_port, ct.container_port) : (r.port || '-')}</td>
                 <td className="px-4 py-2"><StatusBadge value={r.health} /></td>
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">
                   {cmEnabled && ct
-                    ? <StatusBadge value={ct.state} raw />
+                    ? <StatusBadge value={ct.state} raw label={ct.state === 'running' ? t('runtime.statusRunning') : undefined} />
                     : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">

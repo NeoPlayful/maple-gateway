@@ -13,6 +13,12 @@ import { Pagination } from '../../components/admin/Pagination';
 // 子组件共用的翻译函数签名（来自 useTranslation('admin')）。
 type TFn = (key: string, opts?: Record<string, unknown>) => string;
 
+// 端口映射展示为「主机端口:容器内部端口」，如 8101:80；无映射则回退为 '-'。
+function fmtPortPair(host: number, container: number): string {
+  if (!host) return '-';
+  return container ? `${host}:${container}` : String(host);
+}
+
 // 把字节数格式化为易读单位。
 function fmtBytes(n: number): string {
   if (!n || n <= 0) return '-';
@@ -583,6 +589,7 @@ export default function RuntimePage() {
               <th className="px-4 py-2">{t('runtime.colVersion')}</th>
               <th className="px-4 py-2">{t('runtime.colState')}</th>
               <th className="px-4 py-2">{t('runtime.colNode')}</th>
+              <th className="px-4 py-2">{t('runtime.colIp')}</th>
               <th className="px-4 py-2">{t('runtime.colPort')}</th>
               <th className="px-4 py-2">{t('common.action')}</th>
             </tr>
@@ -590,7 +597,7 @@ export default function RuntimePage() {
           <tbody>
             {sortedContainers.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('runtime.noContainers')}</td>
               </tr>
             )}
             {sortedContainers.map((ct) => {
@@ -604,9 +611,10 @@ export default function RuntimePage() {
                   <td className="px-4 py-2">{ct.name || ct.container_id.slice(0, 12)}</td>
                   <td className="px-4 py-2 font-mono text-xs">{ct.image}</td>
                   <td className="px-4 py-2">{version || '-'}</td>
-                  <td className="px-4 py-2"><StatusBadge value={ct.state} raw /></td>
+                  <td className="px-4 py-2"><StatusBadge value={ct.state} raw label={ct.state === 'running' ? t('runtime.statusRunning') : undefined} /></td>
                   <td className="px-4 py-2">{ct.node_name}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{ct.host_port || '-'}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{ct.ip || '-'}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{fmtPortPair(ct.host_port, ct.container_port)}</td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-1">
                       <ActionBtn onClick={() => openLogs(ct.instance_id)}>{t('deployments.logs')}</ActionBtn>

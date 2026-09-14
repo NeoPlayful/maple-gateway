@@ -272,6 +272,8 @@ export interface CMContainer {
   labels?: Record<string, string>;
   node_name: string;
   host_port: number;
+  container_port: number;
+  ip: string;
   exit_code: number;
   oom_killed: boolean;
   finished_at?: string;

@@ -524,7 +524,7 @@ func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, n
 
 // reportInstance 上报单个容器对应的实例：优先心跳（已注册），失败则注册。
 func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, nodeID string, ct gwclient.Container) {
-	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID); err == nil {
+	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID, nodeID); err == nil {
 		return
 	}
 	rep := gwclient.InstanceReport{
