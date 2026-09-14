@@ -256,11 +256,29 @@ func (r *Repository) SetHealth(ctx context.Context, id uuid.UUID, h Health) (*In
 
 // Heartbeat 刷新实例"最后被 CM 看见"时间（last_seen_at），不改变状态与健康。
 func (r *Repository) Heartbeat(ctx context.Context, id uuid.UUID) (*Instance, error) {
+	return r.HeartbeatWithNode(ctx, id, nil)
+}
+
+// HeartbeatWithNode 刷新心跳，并在实例尚无节点归属时回填 nodeID（仅补空，不覆盖已有归属）。
+// 观测侧容器上报会带上当前节点，实例早期入库漏填 node_id 时借此补齐。
+func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID *uuid.UUID) (*Instance, error) {
 	now := time.Now()
-	e, err := r.ent.Instance.UpdateOneID(id).
+	upd := r.ent.Instance.UpdateOneID(id).
 		SetLastSeenAt(now).
-		SetUpdatedAt(now).
-		Save(ctx)
+		SetUpdatedAt(now)
+	if nodeID != nil {
+		cur, err := r.ent.Instance.Get(ctx, id)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return nil, pkg.ErrNotFound("实例不存在")
+			}
+			return nil, fmt.Errorf("get instance for heartbeat: %w", err)
+		}
+		if cur.NodeID == nil {
+			upd = upd.SetNillableNodeID(nodeID)
+		}
+	}
+	e, err := upd.Save(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
 			return nil, pkg.ErrNotFound("实例不存在")

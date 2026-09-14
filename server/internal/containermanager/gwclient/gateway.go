@@ -72,9 +72,11 @@ func (c *GatewayClient) RegisterInstance(ctx context.Context, in InstanceReport)
 	return out.Data.ID, nil
 }
 
-// HeartbeatInstance 上报实例心跳（刷新 last_seen）。
-func (c *GatewayClient) HeartbeatInstance(ctx context.Context, instanceID string) error {
-	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/internal/instances/%s/heartbeat", instanceID), nil, nil)
+// HeartbeatInstance 上报实例心跳（刷新 last_seen），并带上所在节点 UUID：
+// 实例早期入库漏填 node_id 时，Gateway 侧会在实例尚无归属时回填。
+func (c *GatewayClient) HeartbeatInstance(ctx context.Context, instanceID, nodeID string) error {
+	in := map[string]string{"node_id": nodeID}
+	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/internal/instances/%s/heartbeat", instanceID), in, nil)
 }
 
 // DeleteInstance 注销实例（容器消失）。

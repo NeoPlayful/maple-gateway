@@ -36,8 +36,10 @@ type ContainerStatus struct {
 	State       string            `json:"state"`
 	Status      string            `json:"status"`
 	Labels      map[string]string `json:"labels,omitempty"`
-	NodeName    string            `json:"node_name"`
-	HostPort    int               `json:"host_port"`
+	NodeName      string            `json:"node_name"`
+	HostPort      int               `json:"host_port"`
+	ContainerPort int               `json:"container_port"`
+	IP            string            `json:"ip"`
 	ExitCode    int               `json:"exit_code"`
 	OOMKilled   bool              `json:"oom_killed"`
 	FinishedAt  string            `json:"finished_at,omitempty"`

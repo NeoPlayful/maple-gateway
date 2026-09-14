@@ -96,8 +96,10 @@ type Container struct {
 	State      string            `json:"state"`  // created / running / exited / …
 	Status     string            `json:"status"` // 人类可读状态
 	Labels     map[string]string `json:"labels"`
-	InstanceID string            `json:"instance_id"`
-	HostPort   int               `json:"host_port"` // 本机映射端口（从端口映射解析）
+	InstanceID    string            `json:"instance_id"`
+	HostPort      int               `json:"host_port"`      // 本机映射端口（从端口映射解析）
+	ContainerPort int               `json:"container_port"` // 容器内部监听端口（同一条端口映射的 PrivatePort）
+	IP            string            `json:"ip"`             // 容器网络 IP（按网络名排序取首个非空）
 	// 退出信息：非 running 容器的诊断线索（exited/dead 时填充）。
 	ExitCode   int    `json:"exit_code"`
 	OOMKilled  bool   `json:"oom_killed"`
@@ -484,15 +486,18 @@ func fromSummary(s types.Container) Container {
 	if len(s.Names) > 0 {
 		name = strings.TrimPrefix(s.Names[0], "/")
 	}
+	hostPort, containerPort := portPairFromPorts(s.Ports)
 	c := Container{
-		ID:         s.ID,
-		Name:       name,
-		Image:      s.Image,
-		State:      s.State,
-		Status:     s.Status,
-		Labels:     s.Labels,
-		InstanceID: s.Labels[LabelInstanceID],
-		HostPort:   hostPortFromPorts(s.Ports),
+		ID:            s.ID,
+		Name:          name,
+		Image:         s.Image,
+		State:         s.State,
+		Status:        s.Status,
+		Labels:        s.Labels,
+		InstanceID:    s.Labels[LabelInstanceID],
+		HostPort:      hostPort,
+		ContainerPort: containerPort,
+		IP:            containerIP(s.NetworkSettings),
 	}
 	// 退出码藏在 Status 文本里（如 "Exited (137) 3 minutes ago"）：列表接口无专门字段，
 	// 从文本解析是拿到退出码 / OOM 线索的低成本方式，避免逐容器 Inspect。
@@ -516,14 +521,34 @@ func parseExit(status string) (int, bool) {
 	return code, code == 137
 }
 
-// hostPortFromPorts 从端口映射中取首个本机端口。
-func hostPortFromPorts(ports []types.Port) int {
+// portPairFromPorts 从端口映射取首个本机映射端口及其对应的容器内部端口。
+// 二者取自同一条映射（PrivatePort ↔ PublicPort），保证前端展示成对不串。
+func portPairFromPorts(ports []types.Port) (host, container int) {
 	for _, p := range ports {
 		if p.PublicPort > 0 {
-			return int(p.PublicPort)
+			return int(p.PublicPort), int(p.PrivatePort)
 		}
 	}
-	return 0
+	return 0, 0
+}
+
+// containerIP 从摘要的网络设置取容器 IP。Networks 是 map，遍历顺序随机，
+// 故按网络名排序后取首个非空地址，保证同一容器每次展示的 IP 稳定。
+func containerIP(ns *types.SummaryNetworkSettings) string {
+	if ns == nil || len(ns.Networks) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(ns.Networks))
+	for name := range ns.Networks {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if ep := ns.Networks[name]; ep != nil && ep.IPAddress != "" {
+			return ep.IPAddress
+		}
+	}
+	return ""
 }
 
 // hostPortFromInspect 从 Inspect 结果取指定容器端口对应的本机端口。

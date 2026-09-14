@@ -13,8 +13,10 @@ type Container struct {
 	State      string            `json:"state"`
 	Status     string            `json:"status"`
 	Labels     map[string]string `json:"labels"`
-	InstanceID string            `json:"instance_id"`
-	HostPort   int               `json:"host_port"`
+	InstanceID    string            `json:"instance_id"`
+	HostPort      int               `json:"host_port"`
+	ContainerPort int               `json:"container_port"`
+	IP            string            `json:"ip"`
 	// 退出信息：非 running 容器的诊断线索。
 	ExitCode   int    `json:"exit_code"`
 	OOMKilled  bool   `json:"oom_killed"`
