@@ -72,7 +72,7 @@ export default function LogsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-th-card border border-slate-200 bg-white p-4 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <div>
           <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Host</label>
           <input
@@ -101,7 +101,7 @@ export default function LogsPage() {
 
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         {tab === 'access' && (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">

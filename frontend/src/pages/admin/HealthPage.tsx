@@ -73,31 +73,31 @@ export default function HealthPage() {
 
       {/* 健康汇总 */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-emerald-600">{counts.healthy}</p>
           <p className="text-xs text-slate-500">{t('health.healthySummary')}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-rose-600">{counts.unhealthy}</p>
           <p className="text-xs text-slate-500">{t('health.unhealthySummary')}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-amber-500">{counts.recovering}</p>
           <p className="text-xs text-slate-500">{t('health.recoveringSummary')}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-slate-500">{counts.unknown}</p>
           <p className="text-xs text-slate-500">{t('health.unknownSummary')}</p>
         </div>
       </div>
 
       {groups.length === 0 && (
-        <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">{t('instances.none')}</p>
+        <p className="rounded-th-card border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">{t('instances.none')}</p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {groups.map(([serviceId, insts]) => (
-          <div key={serviceId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div key={serviceId} className="rounded-th-card border border-slate-200 bg-white p-4 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{svcName(serviceId)}</p>
               <p className="text-xs text-slate-400">{t('health.instanceCount', { count: insts.length })}</p>
@@ -106,7 +106,7 @@ export default function HealthPage() {
               {insts.map((inst) => (
                 <div
                   key={inst.id}
-                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
+                  className={`flex items-center gap-2 rounded-th-control border px-2.5 py-1.5 text-xs ${
                     inst.health === 'healthy'
                       ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30'
                       : inst.health === 'unhealthy'

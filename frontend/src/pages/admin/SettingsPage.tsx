@@ -89,11 +89,11 @@ export default function SettingsPage() {
         ))}
       </div>
       {section === 'appearance' ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <AppearanceSettings />
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           {Object.keys(draft).length === 0 && (
             <p className="py-4 text-sm text-slate-400 dark:text-slate-500">{t('settings.emptyHint')}</p>
           )}

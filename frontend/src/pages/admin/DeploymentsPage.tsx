@@ -23,7 +23,7 @@ function InstanceRow({
 }) {
   const { t } = useTranslation('admin');
   return (
-    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800">
+    <div className="flex items-center justify-between rounded-th-control border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800">
       <div className="flex min-w-0 items-center gap-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${inst.health === 'healthy' ? 'bg-emerald-500' : inst.health === 'unhealthy' ? 'bg-rose-500' : 'bg-slate-400'}`} />
         <span className="font-mono text-slate-600 dark:text-slate-300">{inst.id.slice(0, 8)}</span>
@@ -51,7 +51,7 @@ function PhaseFlow({ phase }: { phase: string }) {
   const terminal = phase === 'failed' || phase === 'stopped';
   const idx = DEPLOY_STEPS.indexOf(phase as (typeof DEPLOY_STEPS)[number]);
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900/40">
+    <div className="flex flex-wrap items-center gap-3 rounded-th-control border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900/40">
       <span className="text-slate-500 dark:text-slate-400">{t('deployments.phase')}:</span>
       {terminal ? (
         <StatusBadge value={phase} raw />

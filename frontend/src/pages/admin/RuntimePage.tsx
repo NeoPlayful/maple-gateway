@@ -95,7 +95,7 @@ function NodeTasks({
   return (
     <div className="mt-3">
       <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.tasks')}</p>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+      <div className="overflow-x-auto rounded-th-control border border-slate-200 dark:border-slate-700">
         <table className="w-full text-xs">
           <thead className="border-b border-slate-200 bg-slate-100 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
             <tr>
@@ -158,7 +158,7 @@ function NodeEvents({
   return (
     <div className="mt-3">
       <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.events')}</p>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+      <div className="overflow-x-auto rounded-th-control border border-slate-200 dark:border-slate-700">
         <table className="w-full text-xs">
           <thead className="border-b border-slate-200 bg-slate-100 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
             <tr>
@@ -205,7 +205,7 @@ function ContainerDetail({
   t: TFn;
 }) {
   const memPct = stats?.mem_percent ?? 0;
-  const card = 'rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800';
+  const card = 'rounded-th-control border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800';
   const cardLabel = 'mb-2 text-xs text-slate-500 dark:text-slate-400';
   const cardValue = 'font-mono text-sm text-slate-700 dark:text-slate-200';
   const cardSub = 'mt-1 font-mono text-xs text-slate-400';
@@ -528,7 +528,7 @@ export default function RuntimePage() {
     return (
       <div>
         <PageHeader title={t('runtime.title')} />
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+        <p className="rounded-th-card border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
           {t('runtime.notEnabled')}
         </p>
       </div>
@@ -550,15 +550,15 @@ export default function RuntimePage() {
 
       {/* 观测概览 */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-emerald-600">{stats?.node_up ?? 0}</p>
           <p className="text-xs text-slate-500">{t('runtime.nodeUp')}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-2xl font-bold text-sky-600">{stats?.containers ?? 0}</p>
           <p className="text-xs text-slate-500">{t('runtime.containers')}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{lastReport}</p>
           <p className="text-xs text-slate-500">{t('runtime.lastReport')}</p>
         </div>
@@ -572,7 +572,7 @@ export default function RuntimePage() {
 
       {/* 节点与 Agent 状态 */}
       <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.nodes')}</h2>
-      <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-6 overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
@@ -685,7 +685,7 @@ export default function RuntimePage() {
 
       {/* 受管容器清单 */}
       <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.containerList')}</h2>
-      <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-6 overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
@@ -759,7 +759,7 @@ export default function RuntimePage() {
 
       {/* 运行时错误 */}
       <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('runtime.errors')}</h2>
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>

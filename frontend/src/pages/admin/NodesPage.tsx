@@ -156,7 +156,7 @@ export default function NodesPage() {
       )}
 
       {open && (
-        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="mb-5 rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.nodeName')}</label>
@@ -177,7 +177,7 @@ export default function NodesPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
