@@ -21,6 +21,8 @@ import (
 // Commander 是向某节点下发一次命令并等待结果的通道（由 tasksys.Manager 实现）。
 type Commander interface {
 	Call(ctx context.Context, nodeID, action string, params any) (json.RawMessage, error)
+	// Probe 下发一次系统探测并等待结果，但不产生任务记录（供观测循环取数据用）。
+	Probe(ctx context.Context, nodeID, action string, params any) (json.RawMessage, error)
 	// SenderFor 返回向某节点单向投递消息的通道（用于日志流等异步指令）。
 	SenderFor(nodeID string) (tasksys.Sender, bool)
 }
@@ -66,6 +68,11 @@ func (n *Node) Online() bool {
 // Call 经 WS 任务通道向本节点下发一次命令并等待结果。
 func (n *Node) Call(ctx context.Context, action string, params any) (json.RawMessage, error) {
 	return n.cmd.Call(ctx, n.ID(), action, params)
+}
+
+// Probe 经 WS 任务通道向本节点下发一次系统探测并等待结果，不产生任务记录。
+func (n *Node) Probe(ctx context.Context, action string, params any) (json.RawMessage, error) {
+	return n.cmd.Probe(ctx, n.ID(), action, params)
 }
 
 // Sender 返回向本节点单向投递消息的通道（节点无活跃会话时返回 nil）。

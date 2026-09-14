@@ -298,6 +298,12 @@ export interface CMTask {
   attempts: number;
 }
 
+// 任务分页结果（GET /api/admin/cm/tasks 透出 CM 的 {tasks,total}）。
+export interface CMTaskPage {
+  tasks: CMTask[];
+  total: number;
+}
+
 // 一个 Compose 应用（CM 应用模型经 /api/admin/cm/applications 透出）。
 export interface CMApplication {
   id: string;

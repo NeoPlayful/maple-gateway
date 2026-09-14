@@ -47,6 +47,16 @@ func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.R
 	return nil, nil
 }
 
+// Probe 同 Call：观测循环经此通道下达只读探测。
+func (f *fakeCommander) Probe(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r, ok := f.results[action]; ok {
+		return r, nil
+	}
+	return nil, nil
+}
+
 // SenderFor 实现 agentregistry.Commander：测试中不投递单向消息。
 func (f *fakeCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
 
@@ -57,6 +67,14 @@ type failingCommander struct {
 }
 
 func (f *failingCommander) Call(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+	return f.fail(action)
+}
+
+func (f *failingCommander) Probe(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+	return f.fail(action)
+}
+
+func (f *failingCommander) fail(action string) (json.RawMessage, error) {
 	if action == agentprotocol.ActionContainerList {
 		f.mu.Lock()
 		f.calls++

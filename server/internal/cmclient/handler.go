@@ -31,7 +31,7 @@ type Proxier interface {
 	EnrollmentTokens(ctx context.Context) (json.RawMessage, error)
 	IssueEnrollmentToken(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	RevokeEnrollmentToken(ctx context.Context, id string) error
-	MgmtTasks(ctx context.Context) (json.RawMessage, error)
+	MgmtTasks(ctx context.Context, nodeID string, limit, offset int) (json.RawMessage, error)
 	TaskDetail(ctx context.Context, id string) (json.RawMessage, error)
 	RetryTask(ctx context.Context, id string) (json.RawMessage, error)
 	CancelTask(ctx context.Context, id string, body json.RawMessage) error
@@ -232,12 +232,15 @@ func (h *Handler) RevokeEnrollmentToken(c fiber.Ctx) error {
 	return pkg.OK(c, fiber.Map{"revoked": true})
 }
 
-// Tasks GET /api/admin/cm/tasks
+// Tasks GET /api/admin/cm/tasks?node_id=&limit=&offset=
+// 任务表无界增长，前端按节点分页取数；透传 CM 返回的 {tasks:[...], total:N}。
 func (h *Handler) Tasks(c fiber.Ctx) error {
 	if err := h.enabled(); err != nil {
 		return pkg.Err(c, err)
 	}
-	out, err := h.cm.MgmtTasks(c.Context())
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	offset, _ := strconv.Atoi(c.Query("offset", "0"))
+	out, err := h.cm.MgmtTasks(c.Context(), c.Query("node_id"), limit, offset)
 	if err != nil {
 		return pkg.Err(c, pkg.ErrSystem("拉取任务列表失败: "+err.Error()))
 	}

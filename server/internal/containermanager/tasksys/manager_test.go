@@ -1,6 +1,7 @@
 package tasksys
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -176,6 +177,168 @@ func TestRetryLineage(t *testing.T) {
 	}
 	if retried.Status != StatusDispatching {
 		t.Fatalf("want dispatching, got %s", retried.Status)
+	}
+}
+
+// 探测走 Probe：仍下发并取回结果，但不产生任务记录。
+func TestProbeLeavesNoRecord(t *testing.T) {
+	r := newFakeRouter()
+	m := newMgr(t, r)
+
+	// 另起一路等待 Probe 的结果（默认 fakeRouter 只记录发送、不回执）。
+	go func() {
+		// 等待 task.execute 到达后回一条成功结果，唤醒等待者。
+		for r.count(agentprotocol.TypeTaskExecute) == 0 {
+			time.Sleep(time.Millisecond)
+		}
+		r.mu.Lock()
+		var taskID string
+		for _, e := range r.sent {
+			if e.Type == agentprotocol.TypeTaskExecute {
+				var p agentprotocol.TaskExecutePayload
+				_ = e.DecodePayload(&p)
+				taskID = p.TaskID
+			}
+		}
+		r.mu.Unlock()
+		m.OnAck("node-1", taskID)
+		m.OnResult("node-1", taskID, string(StatusSuccess), "", json.RawMessage(`{"ok":true}`))
+	}()
+
+	res, err := m.Probe(context.Background(), "node-1", agentprotocol.ActionContainerList, nil)
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if string(res) != `{"ok":true}` {
+		t.Fatalf("probe result = %s, want {\"ok\":true}", res)
+	}
+	// 探测不留痕：可查列表与分页均为空。
+	if got := m.List(); len(got) != 0 {
+		t.Fatalf("List after probe = %d tasks, want 0", len(got))
+	}
+	if _, total := m.Page("", 10, 0); total != 0 {
+		t.Fatalf("Page total after probe = %d, want 0", total)
+	}
+
+	// 正常下发仍留记录（对照）。
+	running, err := m.Dispatch("node-1", agentprotocol.ActionImagePull, map[string]string{"image": "nginx"})
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if _, ok := m.Get(running.ID); !ok {
+		t.Fatal("dispatched task should remain visible")
+	}
+	if _, total := m.Page("", 10, 0); total != 1 {
+		t.Fatalf("Page total after dispatch = %d, want 1", total)
+	}
+}
+
+// 在途探测（已下发、尚未返回结果）对管理端不可见：列表/分页/详情都不应出现。
+func TestInflightProbeInvisible(t *testing.T) {
+	r := newFakeRouter()
+	m := newMgr(t, r)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := m.Probe(context.Background(), "node-1", agentprotocol.ActionContainerList, nil)
+		done <- err
+	}()
+
+	// 等到探测已下发（此刻阻塞在 await 内）。
+	var taskID string
+	for i := 0; i < 3000 && taskID == ""; i++ {
+		r.mu.Lock()
+		for _, e := range r.sent {
+			if e.Type == agentprotocol.TypeTaskExecute {
+				var p agentprotocol.TaskExecutePayload
+				_ = e.DecodePayload(&p)
+				taskID = p.TaskID
+			}
+		}
+		r.mu.Unlock()
+		if taskID == "" {
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if taskID == "" {
+		t.Fatal("probe was not dispatched")
+	}
+
+	// 在途期间：对外三路均不可见。
+	if got := m.List(); len(got) != 0 {
+		t.Fatalf("in-flight probe visible in List: %d", len(got))
+	}
+	if _, total := m.Page("", 10, 0); total != 0 {
+		t.Fatalf("in-flight probe counted in Page total: %d", total)
+	}
+	if _, ok := m.Get(taskID); ok {
+		t.Fatal("in-flight probe visible via Get")
+	}
+
+	// 放行探测，确认过滤不影响结果取回。
+	m.OnAck("node-1", taskID)
+	m.OnResult("node-1", taskID, string(StatusSuccess), "", json.RawMessage(`{"ok":1}`))
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("probe: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("probe did not complete")
+	}
+}
+
+func TestPageFiltersByNodeAndSlices(t *testing.T) {
+	r := newFakeRouter()
+	m := newMgr(t, r)
+
+	// node-1 下发 3 条、node-2 下发 1 条（node-2 需在线，先补登记）。
+	r.mu.Lock()
+	r.online["node-2"] = true
+	r.mu.Unlock()
+	for i := 0; i < 3; i++ {
+		if _, err := m.Dispatch("node-1", agentprotocol.ActionSystemInfo, nil); err != nil {
+			t.Fatalf("dispatch node-1 #%d: %v", i, err)
+		}
+	}
+	if _, err := m.Dispatch("node-2", agentprotocol.ActionContainerList, nil); err != nil {
+		t.Fatalf("dispatch node-2: %v", err)
+	}
+
+	// 全量：total 为两节点合计，limit/offset 截取当页。
+	all, total := m.Page("", 2, 0)
+	if total != 4 {
+		t.Fatalf("all total = %d, want 4", total)
+	}
+	if len(all) != 2 {
+		t.Fatalf("all page len = %d, want 2", len(all))
+	}
+	// 按创建时间倒序（同毫秒按 ID 倒序）：相邻项不得升序。
+	full, _ := m.Page("", 10, 0)
+	for i := 1; i < len(full); i++ {
+		prev, cur := full[i-1], full[i]
+		if prev.CreatedMs < cur.CreatedMs ||
+			(prev.CreatedMs == cur.CreatedMs && prev.ID < cur.ID) {
+			t.Fatalf("page not ordered desc at %d: (%d,%s) then (%d,%s)",
+				i, prev.CreatedMs, prev.ID, cur.CreatedMs, cur.ID)
+		}
+	}
+
+	// 按节点过滤：仅统计 node-1 的 3 条。
+	n1, total1 := m.Page("node-1", 10, 0)
+	if total1 != 3 {
+		t.Fatalf("node-1 total = %d, want 3", total1)
+	}
+	for _, tk := range n1 {
+		if tk.NodeID != "node-1" {
+			t.Fatalf("filtered task node = %s, want node-1", tk.NodeID)
+		}
+	}
+
+	// 越界 offset 返回空页但仍给出 total。
+	empty, total2 := m.Page("node-1", 10, 99)
+	if len(empty) != 0 || total2 != 3 {
+		t.Fatalf("out-of-range page = (len %d, total %d), want (0, 3)", len(empty), total2)
 	}
 }
 

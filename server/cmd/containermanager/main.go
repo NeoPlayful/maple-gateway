@@ -226,7 +226,7 @@ func run(configPath string) error {
 		},
 	}
 	app := api.New(cfg, logger, store, obs, mgmt, tokenStore, api.TaskSource{
-		List:   tasks.List,
+		Page:   tasks.Page,
 		Get:    tasks.Get,
 		Retry:  tasks.Retry,
 		Cancel: tasks.AdminCancel,

@@ -507,7 +507,7 @@
     "noContainers": "No managed containers",
     "capacity": "Capacity",
     "yes": "Yes",
-    "tasks": "Tasks",
+    "tasks": "Task List",
     "noTasks": "No tasks",
     "taskDetail": "Details",
     "retry": "Retry",
@@ -524,7 +524,6 @@
     "payload": "Payload",
     "result": "Result",
     "moreCount": "Show {{count}} more",
-    "orphanHint": "{{tasks}} task(s) and {{events}} event(s) are not attributed to any node (unregistered or deleted)",
     "nodeNotRegistered": "This node is not registered yet (no Gateway node ID); no tasks or events attributed"
   },
   "settings": {

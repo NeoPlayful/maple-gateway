@@ -3,8 +3,9 @@
 // 职责（状态上行）：节点注册/心跳 → 容器发现 → 实例注册/心跳/注销。
 // 容器 maple.instance_id 标签 = Gateway instances.id（同 UUID），保证一一对应。
 //
-// 采集经 WS 任务通道下发（container.list / system.info / node.metrics），
-// 节点在线状态来自统一节点模型（有活跃 WS 会话才尝试采集），不再依赖 HTTP 探测。
+// 采集经 WS 任务通道下发（container.list / system.info / node.metrics），走 Probe
+// 通道只取数据、不产生任务记录；节点在线状态来自统一节点模型（有活跃 WS 会话才
+// 尝试采集），不再依赖 HTTP 探测。
 package observer
 
 import (
@@ -461,11 +462,12 @@ func (o *Observer) observeNode(ctx context.Context, n *agentregistry.Node) ([]gw
 // callTimeout 是单次只读命令的等待上限：节点卡死时不拖垮整轮观测。
 const callTimeout = 20 * time.Second
 
-// call 经 WS 任务通道下发一次只读命令。
+// call 经 WS 任务通道下发一次只读探测。走 Probe 通道：仍取回探测数据，
+// 但不产生任务记录，避免每轮观测的三项探测在任务列表里累积。
 func (o *Observer) call(ctx context.Context, n *agentregistry.Node, action string) (json.RawMessage, error) {
 	cctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	return n.Call(cctx, action, nil)
+	return n.Probe(cctx, action, nil)
 }
 
 // reportNode 上报节点注册/心跳，并把该节点上的容器作为实例上报。
