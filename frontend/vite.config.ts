@@ -2,12 +2,14 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+// dev server 与构建/预览的 base 取值不同：
+//   - 构建态 base='/admin'：资产引用 /admin/assets/...，与后端 mountUI 挂载的 /admin、/login 两前缀一致。
+//   - 开发态 base='/'：vite baseMiddleware 在 base='/admin' 时只放行以 /admin 开头的路径，
+//     顶层 /login 会被它 404。改回 / 后 /login、/admin、深层路由都能回退 index.html 交给 React Router。
+// isPreview 亦为 command='serve'，故需一并排除，否则 vite preview 会错误回退成 '/'。
+export default defineConfig(({ command, isPreview }) => ({
   plugins: [react(), tailwindcss()],
-  // base 与后端托管一致：后台挂在 /admin 下，构建资产引用 /admin/assets/...。
-  // 用无尾斜杠 /admin：vite baseMiddleware 按 startsWith 前缀匹配，
-  // 这样访问裸 /admin（不带 /）也能命中并进入 dashboard，而非被 404 提示加斜杠。
-  base: '/admin',
+  base: command === 'serve' && !isPreview ? '/' : '/admin',
   resolve: {
     alias: { '@': '/src' },
   },
@@ -19,4 +21,4 @@ export default defineConfig({
       '/api': { target: 'http://localhost:8090', changeOrigin: true },
     },
   },
-});
+}));
