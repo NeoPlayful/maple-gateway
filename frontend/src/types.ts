@@ -184,20 +184,6 @@ export interface RateLimit {
   created_at: string;
 }
 
-export interface BlueGreenDeployment {
-  id: string;
-  deployment_id: string;
-  blue_version_id: string;
-  green_version_id: string;
-  active_version_id?: string | null;
-  previous_active_id?: string | null;
-  deployment_name?: string;
-  blue_version?: string;
-  green_version?: string;
-  active_version?: string;
-  created_at: string;
-}
-
 // ---- Container Manager 运行时运维数据（经 Gateway /api/admin/cm/* 代理）----
 
 export interface HostMetrics {

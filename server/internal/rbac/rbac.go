@@ -32,8 +32,7 @@ var operatorWritable = []string{
 	"/api/admin/nodes",
 	"/api/admin/deployments",
 	"/api/admin/versions",
-	"/api/admin/canary",
-	"/api/admin/blue-green",
+	"/api/admin/releases",
 	"/api/admin/rate-limits",
 	"/api/admin/traffic",
 	"/api/admin/cm", // CM 运行时运维代理：实例 start/stop/restart

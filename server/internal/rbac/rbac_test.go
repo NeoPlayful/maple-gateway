@@ -32,8 +32,8 @@ func TestAuthorize_OperatorWrites(t *testing.T) {
 		"/api/admin/deployments",
 		"/api/admin/deployments/1/versions",
 		"/api/admin/versions/2",
-		"/api/admin/canary/3/start",
-		"/api/admin/blue-green",
+		"/api/admin/releases/3/start",
+		"/api/admin/releases",
 		"/api/admin/rate-limits",
 		"/api/admin/traffic",
 	} {
@@ -68,7 +68,7 @@ func TestAuthorize_ViewerDeniedOnAllWrites(t *testing.T) {
 	for _, p := range []string{
 		"/api/admin/tenants",
 		"/api/admin/deployments",
-		"/api/admin/canary/1/start",
+		"/api/admin/releases/1/start",
 		"/api/admin/settings/logging",
 		"/api/admin/rate-limits",
 	} {
@@ -84,7 +84,7 @@ func TestAuthorize_SuperAdminEverything(t *testing.T) {
 	for _, p := range []string{
 		"/api/admin/settings/logging",
 		"/api/admin/users",
-		"/api/admin/canary/1/rollback",
+		"/api/admin/releases/1/rollback",
 		"/api/admin/cache/rebuild",
 		"/api/admin/tenants",
 		"/api/admin/logs/audit",
