@@ -16,11 +16,10 @@ import VersionsPage from './pages/admin/VersionsPage';
 import InstancesPage from './pages/admin/InstancesPage';
 import NodesPage from './pages/admin/NodesPage';
 import TrafficPage from './pages/admin/TrafficPage';
-import CanaryPage from './pages/admin/CanaryPage';
+import ReleasesPage from './pages/admin/ReleasesPage';
 import LogsPage from './pages/admin/LogsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import RateLimitsPage from './pages/admin/RateLimitsPage';
-import BlueGreenPage from './pages/admin/BlueGreenPage';
 import HealthPage from './pages/admin/HealthPage';
 import RuntimePage from './pages/admin/RuntimePage';
 import ApplicationsPage from './pages/admin/ApplicationsPage';
@@ -65,9 +64,8 @@ export default function App() {
           <Route path="instances" element={<InstancesPage />} />
           <Route path="nodes" element={<NodesPage />} />
           <Route path="traffic" element={<TrafficPage />} />
-          <Route path="canary" element={<CanaryPage />} />
+          <Route path="releases" element={<ReleasesPage />} />
           <Route path="rate-limits" element={<RateLimitsPage />} />
-          <Route path="blue-green" element={<BlueGreenPage />} />
           <Route path="health" element={<HealthPage />} />
           <Route path="runtime" element={<RuntimePage />} />
           <Route path="applications" element={<ApplicationsPage />} />

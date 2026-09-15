@@ -101,18 +101,36 @@ export interface TrafficPolicy {
   created_at: string;
 }
 
-export interface CanaryRelease {
+// 统一发布：金丝雀与蓝绿收敛到同一资源，strategy 判别。
+// primary=基准版本（canary 的 stable / bluegreen 的 active）；
+// secondary=挑战版本（canary 的 canary / bluegreen 的另一色）。
+export interface Release {
   id: string;
-  service_id: string;
+  strategy: 'canary' | 'bluegreen';
+  deployment_id: string;
+  service_id?: string | null;
   name: string;
-  stable_version_id: string;
-  canary_version_id: string;
   phase: string;
-  canary_weight: number;
-  target_weight: number;
-  step_weight: number;
+  primary_version_id: string;
+  secondary_version_id: string;
+  primary_weight: number;
+  secondary_weight: number;
+  previous_primary_id?: string | null;
+  config: Record<string, unknown>;
   started_at?: string | null;
   finished_at?: string | null;
+  created_at: string;
+}
+
+export interface ReleaseEvent {
+  id: string;
+  release_id: string;
+  action: string;
+  from_weight?: number | null;
+  to_weight?: number | null;
+  from_version?: string | null;
+  to_version?: string | null;
+  detail: string;
   created_at: string;
 }
 

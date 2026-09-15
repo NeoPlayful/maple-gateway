@@ -14,10 +14,6 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
@@ -27,6 +23,8 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
+	"github.com/NeoPlayful/maple-gateway/server/ent/release"
+	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
@@ -95,10 +93,6 @@ func checkColumn(table, column string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			acmeaccount.Table:          acmeaccount.ValidColumn,
 			auditlog.Table:             auditlog.ValidColumn,
-			bluegreendeployment.Table:  bluegreendeployment.ValidColumn,
-			bluegreenevent.Table:       bluegreenevent.ValidColumn,
-			canaryevent.Table:          canaryevent.ValidColumn,
-			canaryrelease.Table:        canaryrelease.ValidColumn,
 			certificate.Table:          certificate.ValidColumn,
 			certificateoperation.Table: certificateoperation.ValidColumn,
 			deployment.Table:           deployment.ValidColumn,
@@ -108,6 +102,8 @@ func checkColumn(table, column string) error {
 			instance.Table:             instance.ValidColumn,
 			node.Table:                 node.ValidColumn,
 			ratelimit.Table:            ratelimit.ValidColumn,
+			release.Table:              release.ValidColumn,
+			releaseevent.Table:         releaseevent.ValidColumn,
 			service.Table:              service.ValidColumn,
 			setting.Table:              setting.ValidColumn,
 			settinghistory.Table:       settinghistory.ValidColumn,

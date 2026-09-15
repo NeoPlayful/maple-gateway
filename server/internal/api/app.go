@@ -9,9 +9,7 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
-	"github.com/NeoPlayful/maple-gateway/server/internal/bluegreen"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
-	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cmclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/dashboard"
@@ -25,6 +23,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/node"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/internal/rbac"
+	"github.com/NeoPlayful/maple-gateway/server/internal/release"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
 	"github.com/NeoPlayful/maple-gateway/server/internal/settings"
 	"github.com/NeoPlayful/maple-gateway/server/internal/system"
@@ -264,20 +263,23 @@ func New(d Deps) *fiber.App {
 	tf.Post("/:id/enable", trafficH.Enable)
 	tf.Post("/:id/disable", trafficH.Disable)
 
-	// Canary 发布控制。
-	canaryH := canary.NewHandler(canary.NewService(canary.NewRepository(d.Ent)))
-	cn := admin.Group("/canary")
-	cn.Get("/", canaryH.List)
-	cn.Post("/", canaryH.Create)
-	cn.Get("/:id", canaryH.Get)
-	cn.Patch("/:id", canaryH.Update)
-	cn.Delete("/:id", canaryH.Delete)
-	cn.Post("/:id/start", canaryH.Start)
-	cn.Post("/:id/pause", canaryH.Pause)
-	cn.Post("/:id/resume", canaryH.Resume)
-	cn.Post("/:id/weight", canaryH.SetWeight)
-	cn.Post("/:id/promote", canaryH.Promote)
-	cn.Post("/:id/rollback", canaryH.Rollback)
+	// 统一发布：金丝雀与蓝绿收敛到同一资源，由 strategy 判别 + 动作校验。
+	relSvc := release.NewService(release.NewRepository(d.Ent))
+	relH := release.NewHandler(relSvc)
+	rel := admin.Group("/releases")
+	rel.Get("/", relH.List)
+	rel.Post("/", relH.Create)
+	rel.Get("/:id", relH.Get)
+	rel.Patch("/:id", relH.Update)
+	rel.Delete("/:id", relH.Delete)
+	rel.Get("/:id/events", relH.Events)
+	rel.Post("/:id/start", relH.Start)
+	rel.Post("/:id/pause", relH.Pause)
+	rel.Post("/:id/resume", relH.Resume)
+	rel.Post("/:id/weight", relH.SetWeight)
+	rel.Post("/:id/promote", relH.Promote)
+	rel.Post("/:id/rollback", relH.Rollback)
+	rel.Post("/:id/switch", relH.Switch)
 
 	// 限流规则。
 	rlH := ratelimit.NewHandler(ratelimit.NewRepository(d.Ent))
@@ -309,16 +311,6 @@ func New(d Deps) *fiber.App {
 		admin.Get("/settings/:section/history", setH.History)
 		admin.Patch("/settings/:section/rollback", setH.Rollback)
 	}
-
-	// Blue/Green 双版本切换。
-	bgH := bluegreen.NewHandler(bluegreen.NewService(bluegreen.NewRepository(d.Ent)))
-	bg := admin.Group("/blue-green")
-	bg.Get("/", bgH.List)
-	bg.Post("/", bgH.Create)
-	bg.Get("/:id", bgH.Get)
-	bg.Delete("/:id", bgH.Delete)
-	bg.Post("/:id/switch", bgH.Switch)
-	bg.Post("/:id/rollback", bgH.Rollback)
 
 	// Direct TLS 证书管理（可选：需 MAPLE_CERT_ENC_KEY 才能构造）。
 	if d.Certificates != nil {

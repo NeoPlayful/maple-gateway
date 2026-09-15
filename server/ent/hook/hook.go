@@ -33,54 +33,6 @@ func (f AuditLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuditLogMutation", m)
 }
 
-// The BluegreenDeploymentFunc type is an adapter to allow the use of ordinary
-// function as BluegreenDeployment mutator.
-type BluegreenDeploymentFunc func(context.Context, *ent.BluegreenDeploymentMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f BluegreenDeploymentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.BluegreenDeploymentMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BluegreenDeploymentMutation", m)
-}
-
-// The BluegreenEventFunc type is an adapter to allow the use of ordinary
-// function as BluegreenEvent mutator.
-type BluegreenEventFunc func(context.Context, *ent.BluegreenEventMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f BluegreenEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.BluegreenEventMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BluegreenEventMutation", m)
-}
-
-// The CanaryEventFunc type is an adapter to allow the use of ordinary
-// function as CanaryEvent mutator.
-type CanaryEventFunc func(context.Context, *ent.CanaryEventMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f CanaryEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.CanaryEventMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CanaryEventMutation", m)
-}
-
-// The CanaryReleaseFunc type is an adapter to allow the use of ordinary
-// function as CanaryRelease mutator.
-type CanaryReleaseFunc func(context.Context, *ent.CanaryReleaseMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f CanaryReleaseFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.CanaryReleaseMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CanaryReleaseMutation", m)
-}
-
 // The CertificateFunc type is an adapter to allow the use of ordinary
 // function as Certificate mutator.
 type CertificateFunc func(context.Context, *ent.CertificateMutation) (ent.Value, error)
@@ -187,6 +139,30 @@ func (f RateLimitFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, e
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RateLimitMutation", m)
+}
+
+// The ReleaseFunc type is an adapter to allow the use of ordinary
+// function as Release mutator.
+type ReleaseFunc func(context.Context, *ent.ReleaseMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ReleaseFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ReleaseMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ReleaseMutation", m)
+}
+
+// The ReleaseEventFunc type is an adapter to allow the use of ordinary
+// function as ReleaseEvent mutator.
+type ReleaseEventFunc func(context.Context, *ent.ReleaseEventMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ReleaseEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ReleaseEventMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ReleaseEventMutation", m)
 }
 
 // The ServiceFunc type is an adapter to allow the use of ordinary

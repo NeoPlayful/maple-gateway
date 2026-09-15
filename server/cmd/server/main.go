@@ -15,7 +15,6 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	"github.com/NeoPlayful/maple-gateway/server/internal/api"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
-	"github.com/NeoPlayful/maple-gateway/server/internal/canary"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/acme"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cmclient"
@@ -31,6 +30,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/node"
 	"github.com/NeoPlayful/maple-gateway/server/internal/proxy"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
+	"github.com/NeoPlayful/maple-gateway/server/internal/release"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/router"
 	"github.com/NeoPlayful/maple-gateway/server/internal/service"
@@ -168,11 +168,11 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			Logger:   logger,
 		})
 	}
-	// 自动 Canary：指标驱动自动推进/回滚（需 db + 指标时间桶；默认关闭）。
+	// 自动 Canary：指标驱动自动推进/止损（需 db + 指标时间桶；默认关闭）。
 	if db != nil && cfg.CanaryAuto.Enabled {
-		canaryRepo := canary.NewRepository(entClient)
-		autoRunner := canary.NewAuto(canary.NewService(canaryRepo), canaryRepo,
-			canary.NewVersionMetricReader(series), logger, canary.AutoConfig{
+		relRepo := release.NewRepository(entClient)
+		autoRunner := release.NewAuto(release.NewService(relRepo), relRepo,
+			release.NewVersionMetricReader(series), logger, release.AutoConfig{
 				Enabled:      cfg.CanaryAuto.Enabled,
 				Interval:     cfg.CanaryAuto.Interval,
 				ErrRateMax:   cfg.CanaryAuto.ErrRateMax,

@@ -16,14 +16,6 @@ type Tx struct {
 	ACMEAccount *ACMEAccountClient
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
-	// BluegreenDeployment is the client for interacting with the BluegreenDeployment builders.
-	BluegreenDeployment *BluegreenDeploymentClient
-	// BluegreenEvent is the client for interacting with the BluegreenEvent builders.
-	BluegreenEvent *BluegreenEventClient
-	// CanaryEvent is the client for interacting with the CanaryEvent builders.
-	CanaryEvent *CanaryEventClient
-	// CanaryRelease is the client for interacting with the CanaryRelease builders.
-	CanaryRelease *CanaryReleaseClient
 	// Certificate is the client for interacting with the Certificate builders.
 	Certificate *CertificateClient
 	// CertificateOperation is the client for interacting with the CertificateOperation builders.
@@ -42,6 +34,10 @@ type Tx struct {
 	Node *NodeClient
 	// RateLimit is the client for interacting with the RateLimit builders.
 	RateLimit *RateLimitClient
+	// Release is the client for interacting with the Release builders.
+	Release *ReleaseClient
+	// ReleaseEvent is the client for interacting with the ReleaseEvent builders.
+	ReleaseEvent *ReleaseEventClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
 	// Setting is the client for interacting with the Setting builders.
@@ -187,10 +183,6 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.ACMEAccount = NewACMEAccountClient(tx.config)
 	tx.AuditLog = NewAuditLogClient(tx.config)
-	tx.BluegreenDeployment = NewBluegreenDeploymentClient(tx.config)
-	tx.BluegreenEvent = NewBluegreenEventClient(tx.config)
-	tx.CanaryEvent = NewCanaryEventClient(tx.config)
-	tx.CanaryRelease = NewCanaryReleaseClient(tx.config)
 	tx.Certificate = NewCertificateClient(tx.config)
 	tx.CertificateOperation = NewCertificateOperationClient(tx.config)
 	tx.Deployment = NewDeploymentClient(tx.config)
@@ -200,6 +192,8 @@ func (tx *Tx) init() {
 	tx.Instance = NewInstanceClient(tx.config)
 	tx.Node = NewNodeClient(tx.config)
 	tx.RateLimit = NewRateLimitClient(tx.config)
+	tx.Release = NewReleaseClient(tx.config)
+	tx.ReleaseEvent = NewReleaseEventClient(tx.config)
 	tx.Service = NewServiceClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
 	tx.SettingHistory = NewSettingHistoryClient(tx.config)
