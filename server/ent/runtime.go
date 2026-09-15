@@ -7,10 +7,6 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
@@ -20,6 +16,8 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
+	"github.com/NeoPlayful/maple-gateway/server/ent/release"
+	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/schema"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
@@ -78,66 +76,6 @@ func init() {
 	auditlogDescID := auditlogFields[0].Descriptor()
 	// auditlog.DefaultID holds the default value on creation for the id field.
 	auditlog.DefaultID = auditlogDescID.Default.(func() uuid.UUID)
-	bluegreendeploymentFields := schema.BluegreenDeployment{}.Fields()
-	_ = bluegreendeploymentFields
-	// bluegreendeploymentDescID is the schema descriptor for id field.
-	bluegreendeploymentDescID := bluegreendeploymentFields[0].Descriptor()
-	// bluegreendeployment.DefaultID holds the default value on creation for the id field.
-	bluegreendeployment.DefaultID = bluegreendeploymentDescID.Default.(func() uuid.UUID)
-	bluegreeneventFields := schema.BluegreenEvent{}.Fields()
-	_ = bluegreeneventFields
-	// bluegreeneventDescAction is the schema descriptor for action field.
-	bluegreeneventDescAction := bluegreeneventFields[2].Descriptor()
-	// bluegreenevent.ActionValidator is a validator for the "action" field. It is called by the builders before save.
-	bluegreenevent.ActionValidator = bluegreeneventDescAction.Validators[0].(func(string) error)
-	// bluegreeneventDescDetail is the schema descriptor for detail field.
-	bluegreeneventDescDetail := bluegreeneventFields[5].Descriptor()
-	// bluegreenevent.DefaultDetail holds the default value on creation for the detail field.
-	bluegreenevent.DefaultDetail = bluegreeneventDescDetail.Default.(string)
-	// bluegreeneventDescID is the schema descriptor for id field.
-	bluegreeneventDescID := bluegreeneventFields[0].Descriptor()
-	// bluegreenevent.DefaultID holds the default value on creation for the id field.
-	bluegreenevent.DefaultID = bluegreeneventDescID.Default.(func() uuid.UUID)
-	canaryeventFields := schema.CanaryEvent{}.Fields()
-	_ = canaryeventFields
-	// canaryeventDescPhase is the schema descriptor for phase field.
-	canaryeventDescPhase := canaryeventFields[2].Descriptor()
-	// canaryevent.PhaseValidator is a validator for the "phase" field. It is called by the builders before save.
-	canaryevent.PhaseValidator = canaryeventDescPhase.Validators[0].(func(string) error)
-	// canaryeventDescDetail is the schema descriptor for detail field.
-	canaryeventDescDetail := canaryeventFields[5].Descriptor()
-	// canaryevent.DefaultDetail holds the default value on creation for the detail field.
-	canaryevent.DefaultDetail = canaryeventDescDetail.Default.(string)
-	// canaryeventDescID is the schema descriptor for id field.
-	canaryeventDescID := canaryeventFields[0].Descriptor()
-	// canaryevent.DefaultID holds the default value on creation for the id field.
-	canaryevent.DefaultID = canaryeventDescID.Default.(func() uuid.UUID)
-	canaryreleaseFields := schema.CanaryRelease{}.Fields()
-	_ = canaryreleaseFields
-	// canaryreleaseDescName is the schema descriptor for name field.
-	canaryreleaseDescName := canaryreleaseFields[2].Descriptor()
-	// canaryrelease.NameValidator is a validator for the "name" field. It is called by the builders before save.
-	canaryrelease.NameValidator = canaryreleaseDescName.Validators[0].(func(string) error)
-	// canaryreleaseDescPhase is the schema descriptor for phase field.
-	canaryreleaseDescPhase := canaryreleaseFields[5].Descriptor()
-	// canaryrelease.DefaultPhase holds the default value on creation for the phase field.
-	canaryrelease.DefaultPhase = canaryreleaseDescPhase.Default.(string)
-	// canaryreleaseDescCanaryWeight is the schema descriptor for canary_weight field.
-	canaryreleaseDescCanaryWeight := canaryreleaseFields[6].Descriptor()
-	// canaryrelease.DefaultCanaryWeight holds the default value on creation for the canary_weight field.
-	canaryrelease.DefaultCanaryWeight = canaryreleaseDescCanaryWeight.Default.(int)
-	// canaryreleaseDescTargetWeight is the schema descriptor for target_weight field.
-	canaryreleaseDescTargetWeight := canaryreleaseFields[7].Descriptor()
-	// canaryrelease.DefaultTargetWeight holds the default value on creation for the target_weight field.
-	canaryrelease.DefaultTargetWeight = canaryreleaseDescTargetWeight.Default.(int)
-	// canaryreleaseDescStepWeight is the schema descriptor for step_weight field.
-	canaryreleaseDescStepWeight := canaryreleaseFields[8].Descriptor()
-	// canaryrelease.DefaultStepWeight holds the default value on creation for the step_weight field.
-	canaryrelease.DefaultStepWeight = canaryreleaseDescStepWeight.Default.(int)
-	// canaryreleaseDescID is the schema descriptor for id field.
-	canaryreleaseDescID := canaryreleaseFields[0].Descriptor()
-	// canaryrelease.DefaultID holds the default value on creation for the id field.
-	canaryrelease.DefaultID = canaryreleaseDescID.Default.(func() uuid.UUID)
 	certificateFields := schema.Certificate{}.Fields()
 	_ = certificateFields
 	// certificateDescHostname is the schema descriptor for hostname field.
@@ -396,6 +334,50 @@ func init() {
 	ratelimitDescID := ratelimitFields[0].Descriptor()
 	// ratelimit.DefaultID holds the default value on creation for the id field.
 	ratelimit.DefaultID = ratelimitDescID.Default.(func() uuid.UUID)
+	releaseFields := schema.Release{}.Fields()
+	_ = releaseFields
+	// releaseDescStrategy is the schema descriptor for strategy field.
+	releaseDescStrategy := releaseFields[1].Descriptor()
+	// release.StrategyValidator is a validator for the "strategy" field. It is called by the builders before save.
+	release.StrategyValidator = releaseDescStrategy.Validators[0].(func(string) error)
+	// releaseDescName is the schema descriptor for name field.
+	releaseDescName := releaseFields[4].Descriptor()
+	// release.DefaultName holds the default value on creation for the name field.
+	release.DefaultName = releaseDescName.Default.(string)
+	// releaseDescPhase is the schema descriptor for phase field.
+	releaseDescPhase := releaseFields[5].Descriptor()
+	// release.DefaultPhase holds the default value on creation for the phase field.
+	release.DefaultPhase = releaseDescPhase.Default.(string)
+	// releaseDescPrimaryWeight is the schema descriptor for primary_weight field.
+	releaseDescPrimaryWeight := releaseFields[8].Descriptor()
+	// release.DefaultPrimaryWeight holds the default value on creation for the primary_weight field.
+	release.DefaultPrimaryWeight = releaseDescPrimaryWeight.Default.(int)
+	// releaseDescSecondaryWeight is the schema descriptor for secondary_weight field.
+	releaseDescSecondaryWeight := releaseFields[9].Descriptor()
+	// release.DefaultSecondaryWeight holds the default value on creation for the secondary_weight field.
+	release.DefaultSecondaryWeight = releaseDescSecondaryWeight.Default.(int)
+	// releaseDescConfig is the schema descriptor for config field.
+	releaseDescConfig := releaseFields[11].Descriptor()
+	// release.DefaultConfig holds the default value on creation for the config field.
+	release.DefaultConfig = releaseDescConfig.Default.(json.RawMessage)
+	// releaseDescID is the schema descriptor for id field.
+	releaseDescID := releaseFields[0].Descriptor()
+	// release.DefaultID holds the default value on creation for the id field.
+	release.DefaultID = releaseDescID.Default.(func() uuid.UUID)
+	releaseeventFields := schema.ReleaseEvent{}.Fields()
+	_ = releaseeventFields
+	// releaseeventDescAction is the schema descriptor for action field.
+	releaseeventDescAction := releaseeventFields[2].Descriptor()
+	// releaseevent.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	releaseevent.ActionValidator = releaseeventDescAction.Validators[0].(func(string) error)
+	// releaseeventDescDetail is the schema descriptor for detail field.
+	releaseeventDescDetail := releaseeventFields[7].Descriptor()
+	// releaseevent.DefaultDetail holds the default value on creation for the detail field.
+	releaseevent.DefaultDetail = releaseeventDescDetail.Default.(string)
+	// releaseeventDescID is the schema descriptor for id field.
+	releaseeventDescID := releaseeventFields[0].Descriptor()
+	// releaseevent.DefaultID holds the default value on creation for the id field.
+	releaseevent.DefaultID = releaseeventDescID.Default.(func() uuid.UUID)
 	serviceFields := schema.Service{}.Fields()
 	_ = serviceFields
 	// serviceDescName is the schema descriptor for name field.

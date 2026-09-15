@@ -14,10 +14,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
@@ -28,6 +24,8 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/predicate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
+	"github.com/NeoPlayful/maple-gateway/server/ent/release"
+	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
@@ -48,10 +46,6 @@ const (
 	// Node types.
 	TypeACMEAccount          = "ACMEAccount"
 	TypeAuditLog             = "AuditLog"
-	TypeBluegreenDeployment  = "BluegreenDeployment"
-	TypeBluegreenEvent       = "BluegreenEvent"
-	TypeCanaryEvent          = "CanaryEvent"
-	TypeCanaryRelease        = "CanaryRelease"
 	TypeCertificate          = "Certificate"
 	TypeCertificateOperation = "CertificateOperation"
 	TypeDeployment           = "Deployment"
@@ -61,6 +55,8 @@ const (
 	TypeInstance             = "Instance"
 	TypeNode                 = "Node"
 	TypeRateLimit            = "RateLimit"
+	TypeRelease              = "Release"
+	TypeReleaseEvent         = "ReleaseEvent"
 	TypeService              = "Service"
 	TypeSetting              = "Setting"
 	TypeSettingHistory       = "SettingHistory"
@@ -1589,3148 +1585,6 @@ func (m *AuditLogMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *AuditLogMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown AuditLog edge %s", name)
-}
-
-// BluegreenDeploymentMutation represents an operation that mutates the BluegreenDeployment nodes in the graph.
-type BluegreenDeploymentMutation struct {
-	config
-	op                 Op
-	typ                string
-	id                 *uuid.UUID
-	deployment_id      *uuid.UUID
-	blue_version_id    *uuid.UUID
-	green_version_id   *uuid.UUID
-	active_version_id  *uuid.UUID
-	previous_active_id *uuid.UUID
-	created_at         *time.Time
-	updated_at         *time.Time
-	clearedFields      map[string]struct{}
-	done               bool
-	oldValue           func(context.Context) (*BluegreenDeployment, error)
-	predicates         []predicate.BluegreenDeployment
-}
-
-var _ ent.Mutation = (*BluegreenDeploymentMutation)(nil)
-
-// bluegreendeploymentOption allows management of the mutation configuration using functional options.
-type bluegreendeploymentOption func(*BluegreenDeploymentMutation)
-
-// newBluegreenDeploymentMutation creates new mutation for the BluegreenDeployment entity.
-func newBluegreenDeploymentMutation(c config, op Op, opts ...bluegreendeploymentOption) *BluegreenDeploymentMutation {
-	m := &BluegreenDeploymentMutation{
-		config:        c,
-		op:            op,
-		typ:           TypeBluegreenDeployment,
-		clearedFields: make(map[string]struct{}),
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	return m
-}
-
-// withBluegreenDeploymentID sets the ID field of the mutation.
-func withBluegreenDeploymentID(id uuid.UUID) bluegreendeploymentOption {
-	return func(m *BluegreenDeploymentMutation) {
-		var (
-			err   error
-			once  sync.Once
-			value *BluegreenDeployment
-		)
-		m.oldValue = func(ctx context.Context) (*BluegreenDeployment, error) {
-			once.Do(func() {
-				if m.done {
-					err = errors.New("querying old values post mutation is not allowed")
-				} else {
-					value, err = m.Client().BluegreenDeployment.Get(ctx, id)
-				}
-			})
-			return value, err
-		}
-		m.id = &id
-	}
-}
-
-// withBluegreenDeployment sets the old BluegreenDeployment of the mutation.
-func withBluegreenDeployment(node *BluegreenDeployment) bluegreendeploymentOption {
-	return func(m *BluegreenDeploymentMutation) {
-		m.oldValue = func(context.Context) (*BluegreenDeployment, error) {
-			return node, nil
-		}
-		m.id = &node.ID
-	}
-}
-
-// Client returns a new `ent.Client` from the mutation. If the mutation was
-// executed in a transaction (ent.Tx), a transactional client is returned.
-func (m BluegreenDeploymentMutation) Client() *Client {
-	client := &Client{config: m.config}
-	client.init()
-	return client
-}
-
-// Tx returns an `ent.Tx` for mutations that were executed in transactions;
-// it returns an error otherwise.
-func (m BluegreenDeploymentMutation) Tx() (*Tx, error) {
-	if _, ok := m.driver.(*txDriver); !ok {
-		return nil, errors.New("ent: mutation is not running in a transaction")
-	}
-	tx := &Tx{config: m.config}
-	tx.init()
-	return tx, nil
-}
-
-// SetID sets the value of the id field. Note that this
-// operation is only accepted on creation of BluegreenDeployment entities.
-func (m *BluegreenDeploymentMutation) SetID(id uuid.UUID) {
-	m.id = &id
-}
-
-// ID returns the ID value in the mutation. Note that the ID is only available
-// if it was provided to the builder or after it was returned from the database.
-func (m *BluegreenDeploymentMutation) ID() (id uuid.UUID, exists bool) {
-	if m.id == nil {
-		return
-	}
-	return *m.id, true
-}
-
-// IDs queries the database and returns the entity ids that match the mutation's predicate.
-// That means, if the mutation is applied within a transaction with an isolation level such
-// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
-// or updated by the mutation.
-func (m *BluegreenDeploymentMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
-	switch {
-	case m.op.Is(OpUpdateOne | OpDeleteOne):
-		id, exists := m.ID()
-		if exists {
-			return []uuid.UUID{id}, nil
-		}
-		fallthrough
-	case m.op.Is(OpUpdate | OpDelete):
-		return m.Client().BluegreenDeployment.Query().Where(m.predicates...).IDs(ctx)
-	default:
-		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
-	}
-}
-
-// SetDeploymentID sets the "deployment_id" field.
-func (m *BluegreenDeploymentMutation) SetDeploymentID(u uuid.UUID) {
-	m.deployment_id = &u
-}
-
-// DeploymentID returns the value of the "deployment_id" field in the mutation.
-func (m *BluegreenDeploymentMutation) DeploymentID() (r uuid.UUID, exists bool) {
-	v := m.deployment_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldDeploymentID returns the old "deployment_id" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldDeploymentID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldDeploymentID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldDeploymentID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldDeploymentID: %w", err)
-	}
-	return oldValue.DeploymentID, nil
-}
-
-// ResetDeploymentID resets all changes to the "deployment_id" field.
-func (m *BluegreenDeploymentMutation) ResetDeploymentID() {
-	m.deployment_id = nil
-}
-
-// SetBlueVersionID sets the "blue_version_id" field.
-func (m *BluegreenDeploymentMutation) SetBlueVersionID(u uuid.UUID) {
-	m.blue_version_id = &u
-}
-
-// BlueVersionID returns the value of the "blue_version_id" field in the mutation.
-func (m *BluegreenDeploymentMutation) BlueVersionID() (r uuid.UUID, exists bool) {
-	v := m.blue_version_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldBlueVersionID returns the old "blue_version_id" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldBlueVersionID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldBlueVersionID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldBlueVersionID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldBlueVersionID: %w", err)
-	}
-	return oldValue.BlueVersionID, nil
-}
-
-// ResetBlueVersionID resets all changes to the "blue_version_id" field.
-func (m *BluegreenDeploymentMutation) ResetBlueVersionID() {
-	m.blue_version_id = nil
-}
-
-// SetGreenVersionID sets the "green_version_id" field.
-func (m *BluegreenDeploymentMutation) SetGreenVersionID(u uuid.UUID) {
-	m.green_version_id = &u
-}
-
-// GreenVersionID returns the value of the "green_version_id" field in the mutation.
-func (m *BluegreenDeploymentMutation) GreenVersionID() (r uuid.UUID, exists bool) {
-	v := m.green_version_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldGreenVersionID returns the old "green_version_id" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldGreenVersionID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldGreenVersionID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldGreenVersionID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldGreenVersionID: %w", err)
-	}
-	return oldValue.GreenVersionID, nil
-}
-
-// ResetGreenVersionID resets all changes to the "green_version_id" field.
-func (m *BluegreenDeploymentMutation) ResetGreenVersionID() {
-	m.green_version_id = nil
-}
-
-// SetActiveVersionID sets the "active_version_id" field.
-func (m *BluegreenDeploymentMutation) SetActiveVersionID(u uuid.UUID) {
-	m.active_version_id = &u
-}
-
-// ActiveVersionID returns the value of the "active_version_id" field in the mutation.
-func (m *BluegreenDeploymentMutation) ActiveVersionID() (r uuid.UUID, exists bool) {
-	v := m.active_version_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldActiveVersionID returns the old "active_version_id" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldActiveVersionID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldActiveVersionID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldActiveVersionID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldActiveVersionID: %w", err)
-	}
-	return oldValue.ActiveVersionID, nil
-}
-
-// ResetActiveVersionID resets all changes to the "active_version_id" field.
-func (m *BluegreenDeploymentMutation) ResetActiveVersionID() {
-	m.active_version_id = nil
-}
-
-// SetPreviousActiveID sets the "previous_active_id" field.
-func (m *BluegreenDeploymentMutation) SetPreviousActiveID(u uuid.UUID) {
-	m.previous_active_id = &u
-}
-
-// PreviousActiveID returns the value of the "previous_active_id" field in the mutation.
-func (m *BluegreenDeploymentMutation) PreviousActiveID() (r uuid.UUID, exists bool) {
-	v := m.previous_active_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPreviousActiveID returns the old "previous_active_id" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldPreviousActiveID(ctx context.Context) (v *uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPreviousActiveID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPreviousActiveID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPreviousActiveID: %w", err)
-	}
-	return oldValue.PreviousActiveID, nil
-}
-
-// ClearPreviousActiveID clears the value of the "previous_active_id" field.
-func (m *BluegreenDeploymentMutation) ClearPreviousActiveID() {
-	m.previous_active_id = nil
-	m.clearedFields[bluegreendeployment.FieldPreviousActiveID] = struct{}{}
-}
-
-// PreviousActiveIDCleared returns if the "previous_active_id" field was cleared in this mutation.
-func (m *BluegreenDeploymentMutation) PreviousActiveIDCleared() bool {
-	_, ok := m.clearedFields[bluegreendeployment.FieldPreviousActiveID]
-	return ok
-}
-
-// ResetPreviousActiveID resets all changes to the "previous_active_id" field.
-func (m *BluegreenDeploymentMutation) ResetPreviousActiveID() {
-	m.previous_active_id = nil
-	delete(m.clearedFields, bluegreendeployment.FieldPreviousActiveID)
-}
-
-// SetCreatedAt sets the "created_at" field.
-func (m *BluegreenDeploymentMutation) SetCreatedAt(t time.Time) {
-	m.created_at = &t
-}
-
-// CreatedAt returns the value of the "created_at" field in the mutation.
-func (m *BluegreenDeploymentMutation) CreatedAt() (r time.Time, exists bool) {
-	v := m.created_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCreatedAt returns the old "created_at" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
-	}
-	return oldValue.CreatedAt, nil
-}
-
-// ResetCreatedAt resets all changes to the "created_at" field.
-func (m *BluegreenDeploymentMutation) ResetCreatedAt() {
-	m.created_at = nil
-}
-
-// SetUpdatedAt sets the "updated_at" field.
-func (m *BluegreenDeploymentMutation) SetUpdatedAt(t time.Time) {
-	m.updated_at = &t
-}
-
-// UpdatedAt returns the value of the "updated_at" field in the mutation.
-func (m *BluegreenDeploymentMutation) UpdatedAt() (r time.Time, exists bool) {
-	v := m.updated_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldUpdatedAt returns the old "updated_at" field's value of the BluegreenDeployment entity.
-// If the BluegreenDeployment object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenDeploymentMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
-	}
-	return oldValue.UpdatedAt, nil
-}
-
-// ResetUpdatedAt resets all changes to the "updated_at" field.
-func (m *BluegreenDeploymentMutation) ResetUpdatedAt() {
-	m.updated_at = nil
-}
-
-// Where appends a list predicates to the BluegreenDeploymentMutation builder.
-func (m *BluegreenDeploymentMutation) Where(ps ...predicate.BluegreenDeployment) {
-	m.predicates = append(m.predicates, ps...)
-}
-
-// WhereP appends storage-level predicates to the BluegreenDeploymentMutation builder. Using this method,
-// users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *BluegreenDeploymentMutation) WhereP(ps ...func(*sql.Selector)) {
-	p := make([]predicate.BluegreenDeployment, len(ps))
-	for i := range ps {
-		p[i] = ps[i]
-	}
-	m.Where(p...)
-}
-
-// Op returns the operation name.
-func (m *BluegreenDeploymentMutation) Op() Op {
-	return m.op
-}
-
-// SetOp allows setting the mutation operation.
-func (m *BluegreenDeploymentMutation) SetOp(op Op) {
-	m.op = op
-}
-
-// Type returns the node type of this mutation (BluegreenDeployment).
-func (m *BluegreenDeploymentMutation) Type() string {
-	return m.typ
-}
-
-// Fields returns all fields that were changed during this mutation. Note that in
-// order to get all numeric fields that were incremented/decremented, call
-// AddedFields().
-func (m *BluegreenDeploymentMutation) Fields() []string {
-	fields := make([]string, 0, 7)
-	if m.deployment_id != nil {
-		fields = append(fields, bluegreendeployment.FieldDeploymentID)
-	}
-	if m.blue_version_id != nil {
-		fields = append(fields, bluegreendeployment.FieldBlueVersionID)
-	}
-	if m.green_version_id != nil {
-		fields = append(fields, bluegreendeployment.FieldGreenVersionID)
-	}
-	if m.active_version_id != nil {
-		fields = append(fields, bluegreendeployment.FieldActiveVersionID)
-	}
-	if m.previous_active_id != nil {
-		fields = append(fields, bluegreendeployment.FieldPreviousActiveID)
-	}
-	if m.created_at != nil {
-		fields = append(fields, bluegreendeployment.FieldCreatedAt)
-	}
-	if m.updated_at != nil {
-		fields = append(fields, bluegreendeployment.FieldUpdatedAt)
-	}
-	return fields
-}
-
-// Field returns the value of a field with the given name. The second boolean
-// return value indicates that this field was not set, or was not defined in the
-// schema.
-func (m *BluegreenDeploymentMutation) Field(name string) (ent.Value, bool) {
-	switch name {
-	case bluegreendeployment.FieldDeploymentID:
-		return m.DeploymentID()
-	case bluegreendeployment.FieldBlueVersionID:
-		return m.BlueVersionID()
-	case bluegreendeployment.FieldGreenVersionID:
-		return m.GreenVersionID()
-	case bluegreendeployment.FieldActiveVersionID:
-		return m.ActiveVersionID()
-	case bluegreendeployment.FieldPreviousActiveID:
-		return m.PreviousActiveID()
-	case bluegreendeployment.FieldCreatedAt:
-		return m.CreatedAt()
-	case bluegreendeployment.FieldUpdatedAt:
-		return m.UpdatedAt()
-	}
-	return nil, false
-}
-
-// OldField returns the old value of the field from the database. An error is
-// returned if the mutation operation is not UpdateOne, or the query to the
-// database failed.
-func (m *BluegreenDeploymentMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
-	switch name {
-	case bluegreendeployment.FieldDeploymentID:
-		return m.OldDeploymentID(ctx)
-	case bluegreendeployment.FieldBlueVersionID:
-		return m.OldBlueVersionID(ctx)
-	case bluegreendeployment.FieldGreenVersionID:
-		return m.OldGreenVersionID(ctx)
-	case bluegreendeployment.FieldActiveVersionID:
-		return m.OldActiveVersionID(ctx)
-	case bluegreendeployment.FieldPreviousActiveID:
-		return m.OldPreviousActiveID(ctx)
-	case bluegreendeployment.FieldCreatedAt:
-		return m.OldCreatedAt(ctx)
-	case bluegreendeployment.FieldUpdatedAt:
-		return m.OldUpdatedAt(ctx)
-	}
-	return nil, fmt.Errorf("unknown BluegreenDeployment field %s", name)
-}
-
-// SetField sets the value of a field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *BluegreenDeploymentMutation) SetField(name string, value ent.Value) error {
-	switch name {
-	case bluegreendeployment.FieldDeploymentID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetDeploymentID(v)
-		return nil
-	case bluegreendeployment.FieldBlueVersionID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetBlueVersionID(v)
-		return nil
-	case bluegreendeployment.FieldGreenVersionID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetGreenVersionID(v)
-		return nil
-	case bluegreendeployment.FieldActiveVersionID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetActiveVersionID(v)
-		return nil
-	case bluegreendeployment.FieldPreviousActiveID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetPreviousActiveID(v)
-		return nil
-	case bluegreendeployment.FieldCreatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCreatedAt(v)
-		return nil
-	case bluegreendeployment.FieldUpdatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetUpdatedAt(v)
-		return nil
-	}
-	return fmt.Errorf("unknown BluegreenDeployment field %s", name)
-}
-
-// AddedFields returns all numeric fields that were incremented/decremented during
-// this mutation.
-func (m *BluegreenDeploymentMutation) AddedFields() []string {
-	return nil
-}
-
-// AddedField returns the numeric value that was incremented/decremented on a field
-// with the given name. The second boolean return value indicates that this field
-// was not set, or was not defined in the schema.
-func (m *BluegreenDeploymentMutation) AddedField(name string) (ent.Value, bool) {
-	return nil, false
-}
-
-// AddField adds the value to the field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *BluegreenDeploymentMutation) AddField(name string, value ent.Value) error {
-	switch name {
-	}
-	return fmt.Errorf("unknown BluegreenDeployment numeric field %s", name)
-}
-
-// ClearedFields returns all nullable fields that were cleared during this
-// mutation.
-func (m *BluegreenDeploymentMutation) ClearedFields() []string {
-	var fields []string
-	if m.FieldCleared(bluegreendeployment.FieldPreviousActiveID) {
-		fields = append(fields, bluegreendeployment.FieldPreviousActiveID)
-	}
-	return fields
-}
-
-// FieldCleared returns a boolean indicating if a field with the given name was
-// cleared in this mutation.
-func (m *BluegreenDeploymentMutation) FieldCleared(name string) bool {
-	_, ok := m.clearedFields[name]
-	return ok
-}
-
-// ClearField clears the value of the field with the given name. It returns an
-// error if the field is not defined in the schema.
-func (m *BluegreenDeploymentMutation) ClearField(name string) error {
-	switch name {
-	case bluegreendeployment.FieldPreviousActiveID:
-		m.ClearPreviousActiveID()
-		return nil
-	}
-	return fmt.Errorf("unknown BluegreenDeployment nullable field %s", name)
-}
-
-// ResetField resets all changes in the mutation for the field with the given name.
-// It returns an error if the field is not defined in the schema.
-func (m *BluegreenDeploymentMutation) ResetField(name string) error {
-	switch name {
-	case bluegreendeployment.FieldDeploymentID:
-		m.ResetDeploymentID()
-		return nil
-	case bluegreendeployment.FieldBlueVersionID:
-		m.ResetBlueVersionID()
-		return nil
-	case bluegreendeployment.FieldGreenVersionID:
-		m.ResetGreenVersionID()
-		return nil
-	case bluegreendeployment.FieldActiveVersionID:
-		m.ResetActiveVersionID()
-		return nil
-	case bluegreendeployment.FieldPreviousActiveID:
-		m.ResetPreviousActiveID()
-		return nil
-	case bluegreendeployment.FieldCreatedAt:
-		m.ResetCreatedAt()
-		return nil
-	case bluegreendeployment.FieldUpdatedAt:
-		m.ResetUpdatedAt()
-		return nil
-	}
-	return fmt.Errorf("unknown BluegreenDeployment field %s", name)
-}
-
-// AddedEdges returns all edge names that were set/added in this mutation.
-func (m *BluegreenDeploymentMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// AddedIDs returns all IDs (to other nodes) that were added for the given edge
-// name in this mutation.
-func (m *BluegreenDeploymentMutation) AddedIDs(name string) []ent.Value {
-	return nil
-}
-
-// RemovedEdges returns all edge names that were removed in this mutation.
-func (m *BluegreenDeploymentMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
-// the given name in this mutation.
-func (m *BluegreenDeploymentMutation) RemovedIDs(name string) []ent.Value {
-	return nil
-}
-
-// ClearedEdges returns all edge names that were cleared in this mutation.
-func (m *BluegreenDeploymentMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// EdgeCleared returns a boolean which indicates if the edge with the given name
-// was cleared in this mutation.
-func (m *BluegreenDeploymentMutation) EdgeCleared(name string) bool {
-	return false
-}
-
-// ClearEdge clears the value of the edge with the given name. It returns an error
-// if that edge is not defined in the schema.
-func (m *BluegreenDeploymentMutation) ClearEdge(name string) error {
-	return fmt.Errorf("unknown BluegreenDeployment unique edge %s", name)
-}
-
-// ResetEdge resets all changes to the edge with the given name in this mutation.
-// It returns an error if the edge is not defined in the schema.
-func (m *BluegreenDeploymentMutation) ResetEdge(name string) error {
-	return fmt.Errorf("unknown BluegreenDeployment edge %s", name)
-}
-
-// BluegreenEventMutation represents an operation that mutates the BluegreenEvent nodes in the graph.
-type BluegreenEventMutation struct {
-	config
-	op            Op
-	typ           string
-	id            *uuid.UUID
-	bg_id         *uuid.UUID
-	action        *string
-	from_active   *uuid.UUID
-	to_active     *uuid.UUID
-	detail        *string
-	created_at    *time.Time
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*BluegreenEvent, error)
-	predicates    []predicate.BluegreenEvent
-}
-
-var _ ent.Mutation = (*BluegreenEventMutation)(nil)
-
-// bluegreeneventOption allows management of the mutation configuration using functional options.
-type bluegreeneventOption func(*BluegreenEventMutation)
-
-// newBluegreenEventMutation creates new mutation for the BluegreenEvent entity.
-func newBluegreenEventMutation(c config, op Op, opts ...bluegreeneventOption) *BluegreenEventMutation {
-	m := &BluegreenEventMutation{
-		config:        c,
-		op:            op,
-		typ:           TypeBluegreenEvent,
-		clearedFields: make(map[string]struct{}),
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	return m
-}
-
-// withBluegreenEventID sets the ID field of the mutation.
-func withBluegreenEventID(id uuid.UUID) bluegreeneventOption {
-	return func(m *BluegreenEventMutation) {
-		var (
-			err   error
-			once  sync.Once
-			value *BluegreenEvent
-		)
-		m.oldValue = func(ctx context.Context) (*BluegreenEvent, error) {
-			once.Do(func() {
-				if m.done {
-					err = errors.New("querying old values post mutation is not allowed")
-				} else {
-					value, err = m.Client().BluegreenEvent.Get(ctx, id)
-				}
-			})
-			return value, err
-		}
-		m.id = &id
-	}
-}
-
-// withBluegreenEvent sets the old BluegreenEvent of the mutation.
-func withBluegreenEvent(node *BluegreenEvent) bluegreeneventOption {
-	return func(m *BluegreenEventMutation) {
-		m.oldValue = func(context.Context) (*BluegreenEvent, error) {
-			return node, nil
-		}
-		m.id = &node.ID
-	}
-}
-
-// Client returns a new `ent.Client` from the mutation. If the mutation was
-// executed in a transaction (ent.Tx), a transactional client is returned.
-func (m BluegreenEventMutation) Client() *Client {
-	client := &Client{config: m.config}
-	client.init()
-	return client
-}
-
-// Tx returns an `ent.Tx` for mutations that were executed in transactions;
-// it returns an error otherwise.
-func (m BluegreenEventMutation) Tx() (*Tx, error) {
-	if _, ok := m.driver.(*txDriver); !ok {
-		return nil, errors.New("ent: mutation is not running in a transaction")
-	}
-	tx := &Tx{config: m.config}
-	tx.init()
-	return tx, nil
-}
-
-// SetID sets the value of the id field. Note that this
-// operation is only accepted on creation of BluegreenEvent entities.
-func (m *BluegreenEventMutation) SetID(id uuid.UUID) {
-	m.id = &id
-}
-
-// ID returns the ID value in the mutation. Note that the ID is only available
-// if it was provided to the builder or after it was returned from the database.
-func (m *BluegreenEventMutation) ID() (id uuid.UUID, exists bool) {
-	if m.id == nil {
-		return
-	}
-	return *m.id, true
-}
-
-// IDs queries the database and returns the entity ids that match the mutation's predicate.
-// That means, if the mutation is applied within a transaction with an isolation level such
-// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
-// or updated by the mutation.
-func (m *BluegreenEventMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
-	switch {
-	case m.op.Is(OpUpdateOne | OpDeleteOne):
-		id, exists := m.ID()
-		if exists {
-			return []uuid.UUID{id}, nil
-		}
-		fallthrough
-	case m.op.Is(OpUpdate | OpDelete):
-		return m.Client().BluegreenEvent.Query().Where(m.predicates...).IDs(ctx)
-	default:
-		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
-	}
-}
-
-// SetBgID sets the "bg_id" field.
-func (m *BluegreenEventMutation) SetBgID(u uuid.UUID) {
-	m.bg_id = &u
-}
-
-// BgID returns the value of the "bg_id" field in the mutation.
-func (m *BluegreenEventMutation) BgID() (r uuid.UUID, exists bool) {
-	v := m.bg_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldBgID returns the old "bg_id" field's value of the BluegreenEvent entity.
-// If the BluegreenEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenEventMutation) OldBgID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldBgID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldBgID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldBgID: %w", err)
-	}
-	return oldValue.BgID, nil
-}
-
-// ResetBgID resets all changes to the "bg_id" field.
-func (m *BluegreenEventMutation) ResetBgID() {
-	m.bg_id = nil
-}
-
-// SetAction sets the "action" field.
-func (m *BluegreenEventMutation) SetAction(s string) {
-	m.action = &s
-}
-
-// Action returns the value of the "action" field in the mutation.
-func (m *BluegreenEventMutation) Action() (r string, exists bool) {
-	v := m.action
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldAction returns the old "action" field's value of the BluegreenEvent entity.
-// If the BluegreenEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenEventMutation) OldAction(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldAction is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldAction requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldAction: %w", err)
-	}
-	return oldValue.Action, nil
-}
-
-// ResetAction resets all changes to the "action" field.
-func (m *BluegreenEventMutation) ResetAction() {
-	m.action = nil
-}
-
-// SetFromActive sets the "from_active" field.
-func (m *BluegreenEventMutation) SetFromActive(u uuid.UUID) {
-	m.from_active = &u
-}
-
-// FromActive returns the value of the "from_active" field in the mutation.
-func (m *BluegreenEventMutation) FromActive() (r uuid.UUID, exists bool) {
-	v := m.from_active
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldFromActive returns the old "from_active" field's value of the BluegreenEvent entity.
-// If the BluegreenEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenEventMutation) OldFromActive(ctx context.Context) (v *uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldFromActive is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldFromActive requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldFromActive: %w", err)
-	}
-	return oldValue.FromActive, nil
-}
-
-// ClearFromActive clears the value of the "from_active" field.
-func (m *BluegreenEventMutation) ClearFromActive() {
-	m.from_active = nil
-	m.clearedFields[bluegreenevent.FieldFromActive] = struct{}{}
-}
-
-// FromActiveCleared returns if the "from_active" field was cleared in this mutation.
-func (m *BluegreenEventMutation) FromActiveCleared() bool {
-	_, ok := m.clearedFields[bluegreenevent.FieldFromActive]
-	return ok
-}
-
-// ResetFromActive resets all changes to the "from_active" field.
-func (m *BluegreenEventMutation) ResetFromActive() {
-	m.from_active = nil
-	delete(m.clearedFields, bluegreenevent.FieldFromActive)
-}
-
-// SetToActive sets the "to_active" field.
-func (m *BluegreenEventMutation) SetToActive(u uuid.UUID) {
-	m.to_active = &u
-}
-
-// ToActive returns the value of the "to_active" field in the mutation.
-func (m *BluegreenEventMutation) ToActive() (r uuid.UUID, exists bool) {
-	v := m.to_active
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldToActive returns the old "to_active" field's value of the BluegreenEvent entity.
-// If the BluegreenEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenEventMutation) OldToActive(ctx context.Context) (v *uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldToActive is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldToActive requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldToActive: %w", err)
-	}
-	return oldValue.ToActive, nil
-}
-
-// ClearToActive clears the value of the "to_active" field.
-func (m *BluegreenEventMutation) ClearToActive() {
-	m.to_active = nil
-	m.clearedFields[bluegreenevent.FieldToActive] = struct{}{}
-}
-
-// ToActiveCleared returns if the "to_active" field was cleared in this mutation.
-func (m *BluegreenEventMutation) ToActiveCleared() bool {
-	_, ok := m.clearedFields[bluegreenevent.FieldToActive]
-	return ok
-}
-
-// ResetToActive resets all changes to the "to_active" field.
-func (m *BluegreenEventMutation) ResetToActive() {
-	m.to_active = nil
-	delete(m.clearedFields, bluegreenevent.FieldToActive)
-}
-
-// SetDetail sets the "detail" field.
-func (m *BluegreenEventMutation) SetDetail(s string) {
-	m.detail = &s
-}
-
-// Detail returns the value of the "detail" field in the mutation.
-func (m *BluegreenEventMutation) Detail() (r string, exists bool) {
-	v := m.detail
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldDetail returns the old "detail" field's value of the BluegreenEvent entity.
-// If the BluegreenEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenEventMutation) OldDetail(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldDetail is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldDetail requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldDetail: %w", err)
-	}
-	return oldValue.Detail, nil
-}
-
-// ClearDetail clears the value of the "detail" field.
-func (m *BluegreenEventMutation) ClearDetail() {
-	m.detail = nil
-	m.clearedFields[bluegreenevent.FieldDetail] = struct{}{}
-}
-
-// DetailCleared returns if the "detail" field was cleared in this mutation.
-func (m *BluegreenEventMutation) DetailCleared() bool {
-	_, ok := m.clearedFields[bluegreenevent.FieldDetail]
-	return ok
-}
-
-// ResetDetail resets all changes to the "detail" field.
-func (m *BluegreenEventMutation) ResetDetail() {
-	m.detail = nil
-	delete(m.clearedFields, bluegreenevent.FieldDetail)
-}
-
-// SetCreatedAt sets the "created_at" field.
-func (m *BluegreenEventMutation) SetCreatedAt(t time.Time) {
-	m.created_at = &t
-}
-
-// CreatedAt returns the value of the "created_at" field in the mutation.
-func (m *BluegreenEventMutation) CreatedAt() (r time.Time, exists bool) {
-	v := m.created_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCreatedAt returns the old "created_at" field's value of the BluegreenEvent entity.
-// If the BluegreenEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BluegreenEventMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
-	}
-	return oldValue.CreatedAt, nil
-}
-
-// ResetCreatedAt resets all changes to the "created_at" field.
-func (m *BluegreenEventMutation) ResetCreatedAt() {
-	m.created_at = nil
-}
-
-// Where appends a list predicates to the BluegreenEventMutation builder.
-func (m *BluegreenEventMutation) Where(ps ...predicate.BluegreenEvent) {
-	m.predicates = append(m.predicates, ps...)
-}
-
-// WhereP appends storage-level predicates to the BluegreenEventMutation builder. Using this method,
-// users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *BluegreenEventMutation) WhereP(ps ...func(*sql.Selector)) {
-	p := make([]predicate.BluegreenEvent, len(ps))
-	for i := range ps {
-		p[i] = ps[i]
-	}
-	m.Where(p...)
-}
-
-// Op returns the operation name.
-func (m *BluegreenEventMutation) Op() Op {
-	return m.op
-}
-
-// SetOp allows setting the mutation operation.
-func (m *BluegreenEventMutation) SetOp(op Op) {
-	m.op = op
-}
-
-// Type returns the node type of this mutation (BluegreenEvent).
-func (m *BluegreenEventMutation) Type() string {
-	return m.typ
-}
-
-// Fields returns all fields that were changed during this mutation. Note that in
-// order to get all numeric fields that were incremented/decremented, call
-// AddedFields().
-func (m *BluegreenEventMutation) Fields() []string {
-	fields := make([]string, 0, 6)
-	if m.bg_id != nil {
-		fields = append(fields, bluegreenevent.FieldBgID)
-	}
-	if m.action != nil {
-		fields = append(fields, bluegreenevent.FieldAction)
-	}
-	if m.from_active != nil {
-		fields = append(fields, bluegreenevent.FieldFromActive)
-	}
-	if m.to_active != nil {
-		fields = append(fields, bluegreenevent.FieldToActive)
-	}
-	if m.detail != nil {
-		fields = append(fields, bluegreenevent.FieldDetail)
-	}
-	if m.created_at != nil {
-		fields = append(fields, bluegreenevent.FieldCreatedAt)
-	}
-	return fields
-}
-
-// Field returns the value of a field with the given name. The second boolean
-// return value indicates that this field was not set, or was not defined in the
-// schema.
-func (m *BluegreenEventMutation) Field(name string) (ent.Value, bool) {
-	switch name {
-	case bluegreenevent.FieldBgID:
-		return m.BgID()
-	case bluegreenevent.FieldAction:
-		return m.Action()
-	case bluegreenevent.FieldFromActive:
-		return m.FromActive()
-	case bluegreenevent.FieldToActive:
-		return m.ToActive()
-	case bluegreenevent.FieldDetail:
-		return m.Detail()
-	case bluegreenevent.FieldCreatedAt:
-		return m.CreatedAt()
-	}
-	return nil, false
-}
-
-// OldField returns the old value of the field from the database. An error is
-// returned if the mutation operation is not UpdateOne, or the query to the
-// database failed.
-func (m *BluegreenEventMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
-	switch name {
-	case bluegreenevent.FieldBgID:
-		return m.OldBgID(ctx)
-	case bluegreenevent.FieldAction:
-		return m.OldAction(ctx)
-	case bluegreenevent.FieldFromActive:
-		return m.OldFromActive(ctx)
-	case bluegreenevent.FieldToActive:
-		return m.OldToActive(ctx)
-	case bluegreenevent.FieldDetail:
-		return m.OldDetail(ctx)
-	case bluegreenevent.FieldCreatedAt:
-		return m.OldCreatedAt(ctx)
-	}
-	return nil, fmt.Errorf("unknown BluegreenEvent field %s", name)
-}
-
-// SetField sets the value of a field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *BluegreenEventMutation) SetField(name string, value ent.Value) error {
-	switch name {
-	case bluegreenevent.FieldBgID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetBgID(v)
-		return nil
-	case bluegreenevent.FieldAction:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetAction(v)
-		return nil
-	case bluegreenevent.FieldFromActive:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetFromActive(v)
-		return nil
-	case bluegreenevent.FieldToActive:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetToActive(v)
-		return nil
-	case bluegreenevent.FieldDetail:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetDetail(v)
-		return nil
-	case bluegreenevent.FieldCreatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCreatedAt(v)
-		return nil
-	}
-	return fmt.Errorf("unknown BluegreenEvent field %s", name)
-}
-
-// AddedFields returns all numeric fields that were incremented/decremented during
-// this mutation.
-func (m *BluegreenEventMutation) AddedFields() []string {
-	return nil
-}
-
-// AddedField returns the numeric value that was incremented/decremented on a field
-// with the given name. The second boolean return value indicates that this field
-// was not set, or was not defined in the schema.
-func (m *BluegreenEventMutation) AddedField(name string) (ent.Value, bool) {
-	return nil, false
-}
-
-// AddField adds the value to the field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *BluegreenEventMutation) AddField(name string, value ent.Value) error {
-	switch name {
-	}
-	return fmt.Errorf("unknown BluegreenEvent numeric field %s", name)
-}
-
-// ClearedFields returns all nullable fields that were cleared during this
-// mutation.
-func (m *BluegreenEventMutation) ClearedFields() []string {
-	var fields []string
-	if m.FieldCleared(bluegreenevent.FieldFromActive) {
-		fields = append(fields, bluegreenevent.FieldFromActive)
-	}
-	if m.FieldCleared(bluegreenevent.FieldToActive) {
-		fields = append(fields, bluegreenevent.FieldToActive)
-	}
-	if m.FieldCleared(bluegreenevent.FieldDetail) {
-		fields = append(fields, bluegreenevent.FieldDetail)
-	}
-	return fields
-}
-
-// FieldCleared returns a boolean indicating if a field with the given name was
-// cleared in this mutation.
-func (m *BluegreenEventMutation) FieldCleared(name string) bool {
-	_, ok := m.clearedFields[name]
-	return ok
-}
-
-// ClearField clears the value of the field with the given name. It returns an
-// error if the field is not defined in the schema.
-func (m *BluegreenEventMutation) ClearField(name string) error {
-	switch name {
-	case bluegreenevent.FieldFromActive:
-		m.ClearFromActive()
-		return nil
-	case bluegreenevent.FieldToActive:
-		m.ClearToActive()
-		return nil
-	case bluegreenevent.FieldDetail:
-		m.ClearDetail()
-		return nil
-	}
-	return fmt.Errorf("unknown BluegreenEvent nullable field %s", name)
-}
-
-// ResetField resets all changes in the mutation for the field with the given name.
-// It returns an error if the field is not defined in the schema.
-func (m *BluegreenEventMutation) ResetField(name string) error {
-	switch name {
-	case bluegreenevent.FieldBgID:
-		m.ResetBgID()
-		return nil
-	case bluegreenevent.FieldAction:
-		m.ResetAction()
-		return nil
-	case bluegreenevent.FieldFromActive:
-		m.ResetFromActive()
-		return nil
-	case bluegreenevent.FieldToActive:
-		m.ResetToActive()
-		return nil
-	case bluegreenevent.FieldDetail:
-		m.ResetDetail()
-		return nil
-	case bluegreenevent.FieldCreatedAt:
-		m.ResetCreatedAt()
-		return nil
-	}
-	return fmt.Errorf("unknown BluegreenEvent field %s", name)
-}
-
-// AddedEdges returns all edge names that were set/added in this mutation.
-func (m *BluegreenEventMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// AddedIDs returns all IDs (to other nodes) that were added for the given edge
-// name in this mutation.
-func (m *BluegreenEventMutation) AddedIDs(name string) []ent.Value {
-	return nil
-}
-
-// RemovedEdges returns all edge names that were removed in this mutation.
-func (m *BluegreenEventMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
-// the given name in this mutation.
-func (m *BluegreenEventMutation) RemovedIDs(name string) []ent.Value {
-	return nil
-}
-
-// ClearedEdges returns all edge names that were cleared in this mutation.
-func (m *BluegreenEventMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// EdgeCleared returns a boolean which indicates if the edge with the given name
-// was cleared in this mutation.
-func (m *BluegreenEventMutation) EdgeCleared(name string) bool {
-	return false
-}
-
-// ClearEdge clears the value of the edge with the given name. It returns an error
-// if that edge is not defined in the schema.
-func (m *BluegreenEventMutation) ClearEdge(name string) error {
-	return fmt.Errorf("unknown BluegreenEvent unique edge %s", name)
-}
-
-// ResetEdge resets all changes to the edge with the given name in this mutation.
-// It returns an error if the edge is not defined in the schema.
-func (m *BluegreenEventMutation) ResetEdge(name string) error {
-	return fmt.Errorf("unknown BluegreenEvent edge %s", name)
-}
-
-// CanaryEventMutation represents an operation that mutates the CanaryEvent nodes in the graph.
-type CanaryEventMutation struct {
-	config
-	op             Op
-	typ            string
-	id             *uuid.UUID
-	release_id     *uuid.UUID
-	phase          *string
-	from_weight    *int
-	addfrom_weight *int
-	to_weight      *int
-	addto_weight   *int
-	detail         *string
-	created_at     *time.Time
-	clearedFields  map[string]struct{}
-	done           bool
-	oldValue       func(context.Context) (*CanaryEvent, error)
-	predicates     []predicate.CanaryEvent
-}
-
-var _ ent.Mutation = (*CanaryEventMutation)(nil)
-
-// canaryeventOption allows management of the mutation configuration using functional options.
-type canaryeventOption func(*CanaryEventMutation)
-
-// newCanaryEventMutation creates new mutation for the CanaryEvent entity.
-func newCanaryEventMutation(c config, op Op, opts ...canaryeventOption) *CanaryEventMutation {
-	m := &CanaryEventMutation{
-		config:        c,
-		op:            op,
-		typ:           TypeCanaryEvent,
-		clearedFields: make(map[string]struct{}),
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	return m
-}
-
-// withCanaryEventID sets the ID field of the mutation.
-func withCanaryEventID(id uuid.UUID) canaryeventOption {
-	return func(m *CanaryEventMutation) {
-		var (
-			err   error
-			once  sync.Once
-			value *CanaryEvent
-		)
-		m.oldValue = func(ctx context.Context) (*CanaryEvent, error) {
-			once.Do(func() {
-				if m.done {
-					err = errors.New("querying old values post mutation is not allowed")
-				} else {
-					value, err = m.Client().CanaryEvent.Get(ctx, id)
-				}
-			})
-			return value, err
-		}
-		m.id = &id
-	}
-}
-
-// withCanaryEvent sets the old CanaryEvent of the mutation.
-func withCanaryEvent(node *CanaryEvent) canaryeventOption {
-	return func(m *CanaryEventMutation) {
-		m.oldValue = func(context.Context) (*CanaryEvent, error) {
-			return node, nil
-		}
-		m.id = &node.ID
-	}
-}
-
-// Client returns a new `ent.Client` from the mutation. If the mutation was
-// executed in a transaction (ent.Tx), a transactional client is returned.
-func (m CanaryEventMutation) Client() *Client {
-	client := &Client{config: m.config}
-	client.init()
-	return client
-}
-
-// Tx returns an `ent.Tx` for mutations that were executed in transactions;
-// it returns an error otherwise.
-func (m CanaryEventMutation) Tx() (*Tx, error) {
-	if _, ok := m.driver.(*txDriver); !ok {
-		return nil, errors.New("ent: mutation is not running in a transaction")
-	}
-	tx := &Tx{config: m.config}
-	tx.init()
-	return tx, nil
-}
-
-// SetID sets the value of the id field. Note that this
-// operation is only accepted on creation of CanaryEvent entities.
-func (m *CanaryEventMutation) SetID(id uuid.UUID) {
-	m.id = &id
-}
-
-// ID returns the ID value in the mutation. Note that the ID is only available
-// if it was provided to the builder or after it was returned from the database.
-func (m *CanaryEventMutation) ID() (id uuid.UUID, exists bool) {
-	if m.id == nil {
-		return
-	}
-	return *m.id, true
-}
-
-// IDs queries the database and returns the entity ids that match the mutation's predicate.
-// That means, if the mutation is applied within a transaction with an isolation level such
-// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
-// or updated by the mutation.
-func (m *CanaryEventMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
-	switch {
-	case m.op.Is(OpUpdateOne | OpDeleteOne):
-		id, exists := m.ID()
-		if exists {
-			return []uuid.UUID{id}, nil
-		}
-		fallthrough
-	case m.op.Is(OpUpdate | OpDelete):
-		return m.Client().CanaryEvent.Query().Where(m.predicates...).IDs(ctx)
-	default:
-		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
-	}
-}
-
-// SetReleaseID sets the "release_id" field.
-func (m *CanaryEventMutation) SetReleaseID(u uuid.UUID) {
-	m.release_id = &u
-}
-
-// ReleaseID returns the value of the "release_id" field in the mutation.
-func (m *CanaryEventMutation) ReleaseID() (r uuid.UUID, exists bool) {
-	v := m.release_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldReleaseID returns the old "release_id" field's value of the CanaryEvent entity.
-// If the CanaryEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryEventMutation) OldReleaseID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldReleaseID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldReleaseID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldReleaseID: %w", err)
-	}
-	return oldValue.ReleaseID, nil
-}
-
-// ResetReleaseID resets all changes to the "release_id" field.
-func (m *CanaryEventMutation) ResetReleaseID() {
-	m.release_id = nil
-}
-
-// SetPhase sets the "phase" field.
-func (m *CanaryEventMutation) SetPhase(s string) {
-	m.phase = &s
-}
-
-// Phase returns the value of the "phase" field in the mutation.
-func (m *CanaryEventMutation) Phase() (r string, exists bool) {
-	v := m.phase
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPhase returns the old "phase" field's value of the CanaryEvent entity.
-// If the CanaryEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryEventMutation) OldPhase(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPhase is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPhase requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPhase: %w", err)
-	}
-	return oldValue.Phase, nil
-}
-
-// ResetPhase resets all changes to the "phase" field.
-func (m *CanaryEventMutation) ResetPhase() {
-	m.phase = nil
-}
-
-// SetFromWeight sets the "from_weight" field.
-func (m *CanaryEventMutation) SetFromWeight(i int) {
-	m.from_weight = &i
-	m.addfrom_weight = nil
-}
-
-// FromWeight returns the value of the "from_weight" field in the mutation.
-func (m *CanaryEventMutation) FromWeight() (r int, exists bool) {
-	v := m.from_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldFromWeight returns the old "from_weight" field's value of the CanaryEvent entity.
-// If the CanaryEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryEventMutation) OldFromWeight(ctx context.Context) (v *int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldFromWeight is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldFromWeight requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldFromWeight: %w", err)
-	}
-	return oldValue.FromWeight, nil
-}
-
-// AddFromWeight adds i to the "from_weight" field.
-func (m *CanaryEventMutation) AddFromWeight(i int) {
-	if m.addfrom_weight != nil {
-		*m.addfrom_weight += i
-	} else {
-		m.addfrom_weight = &i
-	}
-}
-
-// AddedFromWeight returns the value that was added to the "from_weight" field in this mutation.
-func (m *CanaryEventMutation) AddedFromWeight() (r int, exists bool) {
-	v := m.addfrom_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ClearFromWeight clears the value of the "from_weight" field.
-func (m *CanaryEventMutation) ClearFromWeight() {
-	m.from_weight = nil
-	m.addfrom_weight = nil
-	m.clearedFields[canaryevent.FieldFromWeight] = struct{}{}
-}
-
-// FromWeightCleared returns if the "from_weight" field was cleared in this mutation.
-func (m *CanaryEventMutation) FromWeightCleared() bool {
-	_, ok := m.clearedFields[canaryevent.FieldFromWeight]
-	return ok
-}
-
-// ResetFromWeight resets all changes to the "from_weight" field.
-func (m *CanaryEventMutation) ResetFromWeight() {
-	m.from_weight = nil
-	m.addfrom_weight = nil
-	delete(m.clearedFields, canaryevent.FieldFromWeight)
-}
-
-// SetToWeight sets the "to_weight" field.
-func (m *CanaryEventMutation) SetToWeight(i int) {
-	m.to_weight = &i
-	m.addto_weight = nil
-}
-
-// ToWeight returns the value of the "to_weight" field in the mutation.
-func (m *CanaryEventMutation) ToWeight() (r int, exists bool) {
-	v := m.to_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldToWeight returns the old "to_weight" field's value of the CanaryEvent entity.
-// If the CanaryEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryEventMutation) OldToWeight(ctx context.Context) (v *int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldToWeight is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldToWeight requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldToWeight: %w", err)
-	}
-	return oldValue.ToWeight, nil
-}
-
-// AddToWeight adds i to the "to_weight" field.
-func (m *CanaryEventMutation) AddToWeight(i int) {
-	if m.addto_weight != nil {
-		*m.addto_weight += i
-	} else {
-		m.addto_weight = &i
-	}
-}
-
-// AddedToWeight returns the value that was added to the "to_weight" field in this mutation.
-func (m *CanaryEventMutation) AddedToWeight() (r int, exists bool) {
-	v := m.addto_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ClearToWeight clears the value of the "to_weight" field.
-func (m *CanaryEventMutation) ClearToWeight() {
-	m.to_weight = nil
-	m.addto_weight = nil
-	m.clearedFields[canaryevent.FieldToWeight] = struct{}{}
-}
-
-// ToWeightCleared returns if the "to_weight" field was cleared in this mutation.
-func (m *CanaryEventMutation) ToWeightCleared() bool {
-	_, ok := m.clearedFields[canaryevent.FieldToWeight]
-	return ok
-}
-
-// ResetToWeight resets all changes to the "to_weight" field.
-func (m *CanaryEventMutation) ResetToWeight() {
-	m.to_weight = nil
-	m.addto_weight = nil
-	delete(m.clearedFields, canaryevent.FieldToWeight)
-}
-
-// SetDetail sets the "detail" field.
-func (m *CanaryEventMutation) SetDetail(s string) {
-	m.detail = &s
-}
-
-// Detail returns the value of the "detail" field in the mutation.
-func (m *CanaryEventMutation) Detail() (r string, exists bool) {
-	v := m.detail
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldDetail returns the old "detail" field's value of the CanaryEvent entity.
-// If the CanaryEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryEventMutation) OldDetail(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldDetail is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldDetail requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldDetail: %w", err)
-	}
-	return oldValue.Detail, nil
-}
-
-// ClearDetail clears the value of the "detail" field.
-func (m *CanaryEventMutation) ClearDetail() {
-	m.detail = nil
-	m.clearedFields[canaryevent.FieldDetail] = struct{}{}
-}
-
-// DetailCleared returns if the "detail" field was cleared in this mutation.
-func (m *CanaryEventMutation) DetailCleared() bool {
-	_, ok := m.clearedFields[canaryevent.FieldDetail]
-	return ok
-}
-
-// ResetDetail resets all changes to the "detail" field.
-func (m *CanaryEventMutation) ResetDetail() {
-	m.detail = nil
-	delete(m.clearedFields, canaryevent.FieldDetail)
-}
-
-// SetCreatedAt sets the "created_at" field.
-func (m *CanaryEventMutation) SetCreatedAt(t time.Time) {
-	m.created_at = &t
-}
-
-// CreatedAt returns the value of the "created_at" field in the mutation.
-func (m *CanaryEventMutation) CreatedAt() (r time.Time, exists bool) {
-	v := m.created_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCreatedAt returns the old "created_at" field's value of the CanaryEvent entity.
-// If the CanaryEvent object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryEventMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
-	}
-	return oldValue.CreatedAt, nil
-}
-
-// ResetCreatedAt resets all changes to the "created_at" field.
-func (m *CanaryEventMutation) ResetCreatedAt() {
-	m.created_at = nil
-}
-
-// Where appends a list predicates to the CanaryEventMutation builder.
-func (m *CanaryEventMutation) Where(ps ...predicate.CanaryEvent) {
-	m.predicates = append(m.predicates, ps...)
-}
-
-// WhereP appends storage-level predicates to the CanaryEventMutation builder. Using this method,
-// users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *CanaryEventMutation) WhereP(ps ...func(*sql.Selector)) {
-	p := make([]predicate.CanaryEvent, len(ps))
-	for i := range ps {
-		p[i] = ps[i]
-	}
-	m.Where(p...)
-}
-
-// Op returns the operation name.
-func (m *CanaryEventMutation) Op() Op {
-	return m.op
-}
-
-// SetOp allows setting the mutation operation.
-func (m *CanaryEventMutation) SetOp(op Op) {
-	m.op = op
-}
-
-// Type returns the node type of this mutation (CanaryEvent).
-func (m *CanaryEventMutation) Type() string {
-	return m.typ
-}
-
-// Fields returns all fields that were changed during this mutation. Note that in
-// order to get all numeric fields that were incremented/decremented, call
-// AddedFields().
-func (m *CanaryEventMutation) Fields() []string {
-	fields := make([]string, 0, 6)
-	if m.release_id != nil {
-		fields = append(fields, canaryevent.FieldReleaseID)
-	}
-	if m.phase != nil {
-		fields = append(fields, canaryevent.FieldPhase)
-	}
-	if m.from_weight != nil {
-		fields = append(fields, canaryevent.FieldFromWeight)
-	}
-	if m.to_weight != nil {
-		fields = append(fields, canaryevent.FieldToWeight)
-	}
-	if m.detail != nil {
-		fields = append(fields, canaryevent.FieldDetail)
-	}
-	if m.created_at != nil {
-		fields = append(fields, canaryevent.FieldCreatedAt)
-	}
-	return fields
-}
-
-// Field returns the value of a field with the given name. The second boolean
-// return value indicates that this field was not set, or was not defined in the
-// schema.
-func (m *CanaryEventMutation) Field(name string) (ent.Value, bool) {
-	switch name {
-	case canaryevent.FieldReleaseID:
-		return m.ReleaseID()
-	case canaryevent.FieldPhase:
-		return m.Phase()
-	case canaryevent.FieldFromWeight:
-		return m.FromWeight()
-	case canaryevent.FieldToWeight:
-		return m.ToWeight()
-	case canaryevent.FieldDetail:
-		return m.Detail()
-	case canaryevent.FieldCreatedAt:
-		return m.CreatedAt()
-	}
-	return nil, false
-}
-
-// OldField returns the old value of the field from the database. An error is
-// returned if the mutation operation is not UpdateOne, or the query to the
-// database failed.
-func (m *CanaryEventMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
-	switch name {
-	case canaryevent.FieldReleaseID:
-		return m.OldReleaseID(ctx)
-	case canaryevent.FieldPhase:
-		return m.OldPhase(ctx)
-	case canaryevent.FieldFromWeight:
-		return m.OldFromWeight(ctx)
-	case canaryevent.FieldToWeight:
-		return m.OldToWeight(ctx)
-	case canaryevent.FieldDetail:
-		return m.OldDetail(ctx)
-	case canaryevent.FieldCreatedAt:
-		return m.OldCreatedAt(ctx)
-	}
-	return nil, fmt.Errorf("unknown CanaryEvent field %s", name)
-}
-
-// SetField sets the value of a field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *CanaryEventMutation) SetField(name string, value ent.Value) error {
-	switch name {
-	case canaryevent.FieldReleaseID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetReleaseID(v)
-		return nil
-	case canaryevent.FieldPhase:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetPhase(v)
-		return nil
-	case canaryevent.FieldFromWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetFromWeight(v)
-		return nil
-	case canaryevent.FieldToWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetToWeight(v)
-		return nil
-	case canaryevent.FieldDetail:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetDetail(v)
-		return nil
-	case canaryevent.FieldCreatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCreatedAt(v)
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryEvent field %s", name)
-}
-
-// AddedFields returns all numeric fields that were incremented/decremented during
-// this mutation.
-func (m *CanaryEventMutation) AddedFields() []string {
-	var fields []string
-	if m.addfrom_weight != nil {
-		fields = append(fields, canaryevent.FieldFromWeight)
-	}
-	if m.addto_weight != nil {
-		fields = append(fields, canaryevent.FieldToWeight)
-	}
-	return fields
-}
-
-// AddedField returns the numeric value that was incremented/decremented on a field
-// with the given name. The second boolean return value indicates that this field
-// was not set, or was not defined in the schema.
-func (m *CanaryEventMutation) AddedField(name string) (ent.Value, bool) {
-	switch name {
-	case canaryevent.FieldFromWeight:
-		return m.AddedFromWeight()
-	case canaryevent.FieldToWeight:
-		return m.AddedToWeight()
-	}
-	return nil, false
-}
-
-// AddField adds the value to the field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *CanaryEventMutation) AddField(name string, value ent.Value) error {
-	switch name {
-	case canaryevent.FieldFromWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddFromWeight(v)
-		return nil
-	case canaryevent.FieldToWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddToWeight(v)
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryEvent numeric field %s", name)
-}
-
-// ClearedFields returns all nullable fields that were cleared during this
-// mutation.
-func (m *CanaryEventMutation) ClearedFields() []string {
-	var fields []string
-	if m.FieldCleared(canaryevent.FieldFromWeight) {
-		fields = append(fields, canaryevent.FieldFromWeight)
-	}
-	if m.FieldCleared(canaryevent.FieldToWeight) {
-		fields = append(fields, canaryevent.FieldToWeight)
-	}
-	if m.FieldCleared(canaryevent.FieldDetail) {
-		fields = append(fields, canaryevent.FieldDetail)
-	}
-	return fields
-}
-
-// FieldCleared returns a boolean indicating if a field with the given name was
-// cleared in this mutation.
-func (m *CanaryEventMutation) FieldCleared(name string) bool {
-	_, ok := m.clearedFields[name]
-	return ok
-}
-
-// ClearField clears the value of the field with the given name. It returns an
-// error if the field is not defined in the schema.
-func (m *CanaryEventMutation) ClearField(name string) error {
-	switch name {
-	case canaryevent.FieldFromWeight:
-		m.ClearFromWeight()
-		return nil
-	case canaryevent.FieldToWeight:
-		m.ClearToWeight()
-		return nil
-	case canaryevent.FieldDetail:
-		m.ClearDetail()
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryEvent nullable field %s", name)
-}
-
-// ResetField resets all changes in the mutation for the field with the given name.
-// It returns an error if the field is not defined in the schema.
-func (m *CanaryEventMutation) ResetField(name string) error {
-	switch name {
-	case canaryevent.FieldReleaseID:
-		m.ResetReleaseID()
-		return nil
-	case canaryevent.FieldPhase:
-		m.ResetPhase()
-		return nil
-	case canaryevent.FieldFromWeight:
-		m.ResetFromWeight()
-		return nil
-	case canaryevent.FieldToWeight:
-		m.ResetToWeight()
-		return nil
-	case canaryevent.FieldDetail:
-		m.ResetDetail()
-		return nil
-	case canaryevent.FieldCreatedAt:
-		m.ResetCreatedAt()
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryEvent field %s", name)
-}
-
-// AddedEdges returns all edge names that were set/added in this mutation.
-func (m *CanaryEventMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// AddedIDs returns all IDs (to other nodes) that were added for the given edge
-// name in this mutation.
-func (m *CanaryEventMutation) AddedIDs(name string) []ent.Value {
-	return nil
-}
-
-// RemovedEdges returns all edge names that were removed in this mutation.
-func (m *CanaryEventMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
-// the given name in this mutation.
-func (m *CanaryEventMutation) RemovedIDs(name string) []ent.Value {
-	return nil
-}
-
-// ClearedEdges returns all edge names that were cleared in this mutation.
-func (m *CanaryEventMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// EdgeCleared returns a boolean which indicates if the edge with the given name
-// was cleared in this mutation.
-func (m *CanaryEventMutation) EdgeCleared(name string) bool {
-	return false
-}
-
-// ClearEdge clears the value of the edge with the given name. It returns an error
-// if that edge is not defined in the schema.
-func (m *CanaryEventMutation) ClearEdge(name string) error {
-	return fmt.Errorf("unknown CanaryEvent unique edge %s", name)
-}
-
-// ResetEdge resets all changes to the edge with the given name in this mutation.
-// It returns an error if the edge is not defined in the schema.
-func (m *CanaryEventMutation) ResetEdge(name string) error {
-	return fmt.Errorf("unknown CanaryEvent edge %s", name)
-}
-
-// CanaryReleaseMutation represents an operation that mutates the CanaryRelease nodes in the graph.
-type CanaryReleaseMutation struct {
-	config
-	op                Op
-	typ               string
-	id                *uuid.UUID
-	service_id        *uuid.UUID
-	name              *string
-	stable_version_id *uuid.UUID
-	canary_version_id *uuid.UUID
-	phase             *string
-	canary_weight     *int
-	addcanary_weight  *int
-	target_weight     *int
-	addtarget_weight  *int
-	step_weight       *int
-	addstep_weight    *int
-	started_at        *time.Time
-	finished_at       *time.Time
-	created_at        *time.Time
-	updated_at        *time.Time
-	clearedFields     map[string]struct{}
-	done              bool
-	oldValue          func(context.Context) (*CanaryRelease, error)
-	predicates        []predicate.CanaryRelease
-}
-
-var _ ent.Mutation = (*CanaryReleaseMutation)(nil)
-
-// canaryreleaseOption allows management of the mutation configuration using functional options.
-type canaryreleaseOption func(*CanaryReleaseMutation)
-
-// newCanaryReleaseMutation creates new mutation for the CanaryRelease entity.
-func newCanaryReleaseMutation(c config, op Op, opts ...canaryreleaseOption) *CanaryReleaseMutation {
-	m := &CanaryReleaseMutation{
-		config:        c,
-		op:            op,
-		typ:           TypeCanaryRelease,
-		clearedFields: make(map[string]struct{}),
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	return m
-}
-
-// withCanaryReleaseID sets the ID field of the mutation.
-func withCanaryReleaseID(id uuid.UUID) canaryreleaseOption {
-	return func(m *CanaryReleaseMutation) {
-		var (
-			err   error
-			once  sync.Once
-			value *CanaryRelease
-		)
-		m.oldValue = func(ctx context.Context) (*CanaryRelease, error) {
-			once.Do(func() {
-				if m.done {
-					err = errors.New("querying old values post mutation is not allowed")
-				} else {
-					value, err = m.Client().CanaryRelease.Get(ctx, id)
-				}
-			})
-			return value, err
-		}
-		m.id = &id
-	}
-}
-
-// withCanaryRelease sets the old CanaryRelease of the mutation.
-func withCanaryRelease(node *CanaryRelease) canaryreleaseOption {
-	return func(m *CanaryReleaseMutation) {
-		m.oldValue = func(context.Context) (*CanaryRelease, error) {
-			return node, nil
-		}
-		m.id = &node.ID
-	}
-}
-
-// Client returns a new `ent.Client` from the mutation. If the mutation was
-// executed in a transaction (ent.Tx), a transactional client is returned.
-func (m CanaryReleaseMutation) Client() *Client {
-	client := &Client{config: m.config}
-	client.init()
-	return client
-}
-
-// Tx returns an `ent.Tx` for mutations that were executed in transactions;
-// it returns an error otherwise.
-func (m CanaryReleaseMutation) Tx() (*Tx, error) {
-	if _, ok := m.driver.(*txDriver); !ok {
-		return nil, errors.New("ent: mutation is not running in a transaction")
-	}
-	tx := &Tx{config: m.config}
-	tx.init()
-	return tx, nil
-}
-
-// SetID sets the value of the id field. Note that this
-// operation is only accepted on creation of CanaryRelease entities.
-func (m *CanaryReleaseMutation) SetID(id uuid.UUID) {
-	m.id = &id
-}
-
-// ID returns the ID value in the mutation. Note that the ID is only available
-// if it was provided to the builder or after it was returned from the database.
-func (m *CanaryReleaseMutation) ID() (id uuid.UUID, exists bool) {
-	if m.id == nil {
-		return
-	}
-	return *m.id, true
-}
-
-// IDs queries the database and returns the entity ids that match the mutation's predicate.
-// That means, if the mutation is applied within a transaction with an isolation level such
-// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
-// or updated by the mutation.
-func (m *CanaryReleaseMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
-	switch {
-	case m.op.Is(OpUpdateOne | OpDeleteOne):
-		id, exists := m.ID()
-		if exists {
-			return []uuid.UUID{id}, nil
-		}
-		fallthrough
-	case m.op.Is(OpUpdate | OpDelete):
-		return m.Client().CanaryRelease.Query().Where(m.predicates...).IDs(ctx)
-	default:
-		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
-	}
-}
-
-// SetServiceID sets the "service_id" field.
-func (m *CanaryReleaseMutation) SetServiceID(u uuid.UUID) {
-	m.service_id = &u
-}
-
-// ServiceID returns the value of the "service_id" field in the mutation.
-func (m *CanaryReleaseMutation) ServiceID() (r uuid.UUID, exists bool) {
-	v := m.service_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldServiceID returns the old "service_id" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldServiceID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldServiceID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldServiceID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldServiceID: %w", err)
-	}
-	return oldValue.ServiceID, nil
-}
-
-// ResetServiceID resets all changes to the "service_id" field.
-func (m *CanaryReleaseMutation) ResetServiceID() {
-	m.service_id = nil
-}
-
-// SetName sets the "name" field.
-func (m *CanaryReleaseMutation) SetName(s string) {
-	m.name = &s
-}
-
-// Name returns the value of the "name" field in the mutation.
-func (m *CanaryReleaseMutation) Name() (r string, exists bool) {
-	v := m.name
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldName returns the old "name" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldName(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldName is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldName requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldName: %w", err)
-	}
-	return oldValue.Name, nil
-}
-
-// ResetName resets all changes to the "name" field.
-func (m *CanaryReleaseMutation) ResetName() {
-	m.name = nil
-}
-
-// SetStableVersionID sets the "stable_version_id" field.
-func (m *CanaryReleaseMutation) SetStableVersionID(u uuid.UUID) {
-	m.stable_version_id = &u
-}
-
-// StableVersionID returns the value of the "stable_version_id" field in the mutation.
-func (m *CanaryReleaseMutation) StableVersionID() (r uuid.UUID, exists bool) {
-	v := m.stable_version_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldStableVersionID returns the old "stable_version_id" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldStableVersionID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldStableVersionID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldStableVersionID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldStableVersionID: %w", err)
-	}
-	return oldValue.StableVersionID, nil
-}
-
-// ResetStableVersionID resets all changes to the "stable_version_id" field.
-func (m *CanaryReleaseMutation) ResetStableVersionID() {
-	m.stable_version_id = nil
-}
-
-// SetCanaryVersionID sets the "canary_version_id" field.
-func (m *CanaryReleaseMutation) SetCanaryVersionID(u uuid.UUID) {
-	m.canary_version_id = &u
-}
-
-// CanaryVersionID returns the value of the "canary_version_id" field in the mutation.
-func (m *CanaryReleaseMutation) CanaryVersionID() (r uuid.UUID, exists bool) {
-	v := m.canary_version_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCanaryVersionID returns the old "canary_version_id" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldCanaryVersionID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCanaryVersionID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCanaryVersionID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCanaryVersionID: %w", err)
-	}
-	return oldValue.CanaryVersionID, nil
-}
-
-// ResetCanaryVersionID resets all changes to the "canary_version_id" field.
-func (m *CanaryReleaseMutation) ResetCanaryVersionID() {
-	m.canary_version_id = nil
-}
-
-// SetPhase sets the "phase" field.
-func (m *CanaryReleaseMutation) SetPhase(s string) {
-	m.phase = &s
-}
-
-// Phase returns the value of the "phase" field in the mutation.
-func (m *CanaryReleaseMutation) Phase() (r string, exists bool) {
-	v := m.phase
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPhase returns the old "phase" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldPhase(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPhase is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPhase requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPhase: %w", err)
-	}
-	return oldValue.Phase, nil
-}
-
-// ResetPhase resets all changes to the "phase" field.
-func (m *CanaryReleaseMutation) ResetPhase() {
-	m.phase = nil
-}
-
-// SetCanaryWeight sets the "canary_weight" field.
-func (m *CanaryReleaseMutation) SetCanaryWeight(i int) {
-	m.canary_weight = &i
-	m.addcanary_weight = nil
-}
-
-// CanaryWeight returns the value of the "canary_weight" field in the mutation.
-func (m *CanaryReleaseMutation) CanaryWeight() (r int, exists bool) {
-	v := m.canary_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCanaryWeight returns the old "canary_weight" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldCanaryWeight(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCanaryWeight is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCanaryWeight requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCanaryWeight: %w", err)
-	}
-	return oldValue.CanaryWeight, nil
-}
-
-// AddCanaryWeight adds i to the "canary_weight" field.
-func (m *CanaryReleaseMutation) AddCanaryWeight(i int) {
-	if m.addcanary_weight != nil {
-		*m.addcanary_weight += i
-	} else {
-		m.addcanary_weight = &i
-	}
-}
-
-// AddedCanaryWeight returns the value that was added to the "canary_weight" field in this mutation.
-func (m *CanaryReleaseMutation) AddedCanaryWeight() (r int, exists bool) {
-	v := m.addcanary_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetCanaryWeight resets all changes to the "canary_weight" field.
-func (m *CanaryReleaseMutation) ResetCanaryWeight() {
-	m.canary_weight = nil
-	m.addcanary_weight = nil
-}
-
-// SetTargetWeight sets the "target_weight" field.
-func (m *CanaryReleaseMutation) SetTargetWeight(i int) {
-	m.target_weight = &i
-	m.addtarget_weight = nil
-}
-
-// TargetWeight returns the value of the "target_weight" field in the mutation.
-func (m *CanaryReleaseMutation) TargetWeight() (r int, exists bool) {
-	v := m.target_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldTargetWeight returns the old "target_weight" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldTargetWeight(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldTargetWeight is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldTargetWeight requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldTargetWeight: %w", err)
-	}
-	return oldValue.TargetWeight, nil
-}
-
-// AddTargetWeight adds i to the "target_weight" field.
-func (m *CanaryReleaseMutation) AddTargetWeight(i int) {
-	if m.addtarget_weight != nil {
-		*m.addtarget_weight += i
-	} else {
-		m.addtarget_weight = &i
-	}
-}
-
-// AddedTargetWeight returns the value that was added to the "target_weight" field in this mutation.
-func (m *CanaryReleaseMutation) AddedTargetWeight() (r int, exists bool) {
-	v := m.addtarget_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetTargetWeight resets all changes to the "target_weight" field.
-func (m *CanaryReleaseMutation) ResetTargetWeight() {
-	m.target_weight = nil
-	m.addtarget_weight = nil
-}
-
-// SetStepWeight sets the "step_weight" field.
-func (m *CanaryReleaseMutation) SetStepWeight(i int) {
-	m.step_weight = &i
-	m.addstep_weight = nil
-}
-
-// StepWeight returns the value of the "step_weight" field in the mutation.
-func (m *CanaryReleaseMutation) StepWeight() (r int, exists bool) {
-	v := m.step_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldStepWeight returns the old "step_weight" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldStepWeight(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldStepWeight is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldStepWeight requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldStepWeight: %w", err)
-	}
-	return oldValue.StepWeight, nil
-}
-
-// AddStepWeight adds i to the "step_weight" field.
-func (m *CanaryReleaseMutation) AddStepWeight(i int) {
-	if m.addstep_weight != nil {
-		*m.addstep_weight += i
-	} else {
-		m.addstep_weight = &i
-	}
-}
-
-// AddedStepWeight returns the value that was added to the "step_weight" field in this mutation.
-func (m *CanaryReleaseMutation) AddedStepWeight() (r int, exists bool) {
-	v := m.addstep_weight
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetStepWeight resets all changes to the "step_weight" field.
-func (m *CanaryReleaseMutation) ResetStepWeight() {
-	m.step_weight = nil
-	m.addstep_weight = nil
-}
-
-// SetStartedAt sets the "started_at" field.
-func (m *CanaryReleaseMutation) SetStartedAt(t time.Time) {
-	m.started_at = &t
-}
-
-// StartedAt returns the value of the "started_at" field in the mutation.
-func (m *CanaryReleaseMutation) StartedAt() (r time.Time, exists bool) {
-	v := m.started_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldStartedAt returns the old "started_at" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldStartedAt(ctx context.Context) (v *time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldStartedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldStartedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldStartedAt: %w", err)
-	}
-	return oldValue.StartedAt, nil
-}
-
-// ClearStartedAt clears the value of the "started_at" field.
-func (m *CanaryReleaseMutation) ClearStartedAt() {
-	m.started_at = nil
-	m.clearedFields[canaryrelease.FieldStartedAt] = struct{}{}
-}
-
-// StartedAtCleared returns if the "started_at" field was cleared in this mutation.
-func (m *CanaryReleaseMutation) StartedAtCleared() bool {
-	_, ok := m.clearedFields[canaryrelease.FieldStartedAt]
-	return ok
-}
-
-// ResetStartedAt resets all changes to the "started_at" field.
-func (m *CanaryReleaseMutation) ResetStartedAt() {
-	m.started_at = nil
-	delete(m.clearedFields, canaryrelease.FieldStartedAt)
-}
-
-// SetFinishedAt sets the "finished_at" field.
-func (m *CanaryReleaseMutation) SetFinishedAt(t time.Time) {
-	m.finished_at = &t
-}
-
-// FinishedAt returns the value of the "finished_at" field in the mutation.
-func (m *CanaryReleaseMutation) FinishedAt() (r time.Time, exists bool) {
-	v := m.finished_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldFinishedAt returns the old "finished_at" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldFinishedAt(ctx context.Context) (v *time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldFinishedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldFinishedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldFinishedAt: %w", err)
-	}
-	return oldValue.FinishedAt, nil
-}
-
-// ClearFinishedAt clears the value of the "finished_at" field.
-func (m *CanaryReleaseMutation) ClearFinishedAt() {
-	m.finished_at = nil
-	m.clearedFields[canaryrelease.FieldFinishedAt] = struct{}{}
-}
-
-// FinishedAtCleared returns if the "finished_at" field was cleared in this mutation.
-func (m *CanaryReleaseMutation) FinishedAtCleared() bool {
-	_, ok := m.clearedFields[canaryrelease.FieldFinishedAt]
-	return ok
-}
-
-// ResetFinishedAt resets all changes to the "finished_at" field.
-func (m *CanaryReleaseMutation) ResetFinishedAt() {
-	m.finished_at = nil
-	delete(m.clearedFields, canaryrelease.FieldFinishedAt)
-}
-
-// SetCreatedAt sets the "created_at" field.
-func (m *CanaryReleaseMutation) SetCreatedAt(t time.Time) {
-	m.created_at = &t
-}
-
-// CreatedAt returns the value of the "created_at" field in the mutation.
-func (m *CanaryReleaseMutation) CreatedAt() (r time.Time, exists bool) {
-	v := m.created_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCreatedAt returns the old "created_at" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
-	}
-	return oldValue.CreatedAt, nil
-}
-
-// ResetCreatedAt resets all changes to the "created_at" field.
-func (m *CanaryReleaseMutation) ResetCreatedAt() {
-	m.created_at = nil
-}
-
-// SetUpdatedAt sets the "updated_at" field.
-func (m *CanaryReleaseMutation) SetUpdatedAt(t time.Time) {
-	m.updated_at = &t
-}
-
-// UpdatedAt returns the value of the "updated_at" field in the mutation.
-func (m *CanaryReleaseMutation) UpdatedAt() (r time.Time, exists bool) {
-	v := m.updated_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldUpdatedAt returns the old "updated_at" field's value of the CanaryRelease entity.
-// If the CanaryRelease object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CanaryReleaseMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
-	}
-	return oldValue.UpdatedAt, nil
-}
-
-// ResetUpdatedAt resets all changes to the "updated_at" field.
-func (m *CanaryReleaseMutation) ResetUpdatedAt() {
-	m.updated_at = nil
-}
-
-// Where appends a list predicates to the CanaryReleaseMutation builder.
-func (m *CanaryReleaseMutation) Where(ps ...predicate.CanaryRelease) {
-	m.predicates = append(m.predicates, ps...)
-}
-
-// WhereP appends storage-level predicates to the CanaryReleaseMutation builder. Using this method,
-// users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *CanaryReleaseMutation) WhereP(ps ...func(*sql.Selector)) {
-	p := make([]predicate.CanaryRelease, len(ps))
-	for i := range ps {
-		p[i] = ps[i]
-	}
-	m.Where(p...)
-}
-
-// Op returns the operation name.
-func (m *CanaryReleaseMutation) Op() Op {
-	return m.op
-}
-
-// SetOp allows setting the mutation operation.
-func (m *CanaryReleaseMutation) SetOp(op Op) {
-	m.op = op
-}
-
-// Type returns the node type of this mutation (CanaryRelease).
-func (m *CanaryReleaseMutation) Type() string {
-	return m.typ
-}
-
-// Fields returns all fields that were changed during this mutation. Note that in
-// order to get all numeric fields that were incremented/decremented, call
-// AddedFields().
-func (m *CanaryReleaseMutation) Fields() []string {
-	fields := make([]string, 0, 12)
-	if m.service_id != nil {
-		fields = append(fields, canaryrelease.FieldServiceID)
-	}
-	if m.name != nil {
-		fields = append(fields, canaryrelease.FieldName)
-	}
-	if m.stable_version_id != nil {
-		fields = append(fields, canaryrelease.FieldStableVersionID)
-	}
-	if m.canary_version_id != nil {
-		fields = append(fields, canaryrelease.FieldCanaryVersionID)
-	}
-	if m.phase != nil {
-		fields = append(fields, canaryrelease.FieldPhase)
-	}
-	if m.canary_weight != nil {
-		fields = append(fields, canaryrelease.FieldCanaryWeight)
-	}
-	if m.target_weight != nil {
-		fields = append(fields, canaryrelease.FieldTargetWeight)
-	}
-	if m.step_weight != nil {
-		fields = append(fields, canaryrelease.FieldStepWeight)
-	}
-	if m.started_at != nil {
-		fields = append(fields, canaryrelease.FieldStartedAt)
-	}
-	if m.finished_at != nil {
-		fields = append(fields, canaryrelease.FieldFinishedAt)
-	}
-	if m.created_at != nil {
-		fields = append(fields, canaryrelease.FieldCreatedAt)
-	}
-	if m.updated_at != nil {
-		fields = append(fields, canaryrelease.FieldUpdatedAt)
-	}
-	return fields
-}
-
-// Field returns the value of a field with the given name. The second boolean
-// return value indicates that this field was not set, or was not defined in the
-// schema.
-func (m *CanaryReleaseMutation) Field(name string) (ent.Value, bool) {
-	switch name {
-	case canaryrelease.FieldServiceID:
-		return m.ServiceID()
-	case canaryrelease.FieldName:
-		return m.Name()
-	case canaryrelease.FieldStableVersionID:
-		return m.StableVersionID()
-	case canaryrelease.FieldCanaryVersionID:
-		return m.CanaryVersionID()
-	case canaryrelease.FieldPhase:
-		return m.Phase()
-	case canaryrelease.FieldCanaryWeight:
-		return m.CanaryWeight()
-	case canaryrelease.FieldTargetWeight:
-		return m.TargetWeight()
-	case canaryrelease.FieldStepWeight:
-		return m.StepWeight()
-	case canaryrelease.FieldStartedAt:
-		return m.StartedAt()
-	case canaryrelease.FieldFinishedAt:
-		return m.FinishedAt()
-	case canaryrelease.FieldCreatedAt:
-		return m.CreatedAt()
-	case canaryrelease.FieldUpdatedAt:
-		return m.UpdatedAt()
-	}
-	return nil, false
-}
-
-// OldField returns the old value of the field from the database. An error is
-// returned if the mutation operation is not UpdateOne, or the query to the
-// database failed.
-func (m *CanaryReleaseMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
-	switch name {
-	case canaryrelease.FieldServiceID:
-		return m.OldServiceID(ctx)
-	case canaryrelease.FieldName:
-		return m.OldName(ctx)
-	case canaryrelease.FieldStableVersionID:
-		return m.OldStableVersionID(ctx)
-	case canaryrelease.FieldCanaryVersionID:
-		return m.OldCanaryVersionID(ctx)
-	case canaryrelease.FieldPhase:
-		return m.OldPhase(ctx)
-	case canaryrelease.FieldCanaryWeight:
-		return m.OldCanaryWeight(ctx)
-	case canaryrelease.FieldTargetWeight:
-		return m.OldTargetWeight(ctx)
-	case canaryrelease.FieldStepWeight:
-		return m.OldStepWeight(ctx)
-	case canaryrelease.FieldStartedAt:
-		return m.OldStartedAt(ctx)
-	case canaryrelease.FieldFinishedAt:
-		return m.OldFinishedAt(ctx)
-	case canaryrelease.FieldCreatedAt:
-		return m.OldCreatedAt(ctx)
-	case canaryrelease.FieldUpdatedAt:
-		return m.OldUpdatedAt(ctx)
-	}
-	return nil, fmt.Errorf("unknown CanaryRelease field %s", name)
-}
-
-// SetField sets the value of a field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *CanaryReleaseMutation) SetField(name string, value ent.Value) error {
-	switch name {
-	case canaryrelease.FieldServiceID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetServiceID(v)
-		return nil
-	case canaryrelease.FieldName:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetName(v)
-		return nil
-	case canaryrelease.FieldStableVersionID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetStableVersionID(v)
-		return nil
-	case canaryrelease.FieldCanaryVersionID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCanaryVersionID(v)
-		return nil
-	case canaryrelease.FieldPhase:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetPhase(v)
-		return nil
-	case canaryrelease.FieldCanaryWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCanaryWeight(v)
-		return nil
-	case canaryrelease.FieldTargetWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetTargetWeight(v)
-		return nil
-	case canaryrelease.FieldStepWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetStepWeight(v)
-		return nil
-	case canaryrelease.FieldStartedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetStartedAt(v)
-		return nil
-	case canaryrelease.FieldFinishedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetFinishedAt(v)
-		return nil
-	case canaryrelease.FieldCreatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCreatedAt(v)
-		return nil
-	case canaryrelease.FieldUpdatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetUpdatedAt(v)
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryRelease field %s", name)
-}
-
-// AddedFields returns all numeric fields that were incremented/decremented during
-// this mutation.
-func (m *CanaryReleaseMutation) AddedFields() []string {
-	var fields []string
-	if m.addcanary_weight != nil {
-		fields = append(fields, canaryrelease.FieldCanaryWeight)
-	}
-	if m.addtarget_weight != nil {
-		fields = append(fields, canaryrelease.FieldTargetWeight)
-	}
-	if m.addstep_weight != nil {
-		fields = append(fields, canaryrelease.FieldStepWeight)
-	}
-	return fields
-}
-
-// AddedField returns the numeric value that was incremented/decremented on a field
-// with the given name. The second boolean return value indicates that this field
-// was not set, or was not defined in the schema.
-func (m *CanaryReleaseMutation) AddedField(name string) (ent.Value, bool) {
-	switch name {
-	case canaryrelease.FieldCanaryWeight:
-		return m.AddedCanaryWeight()
-	case canaryrelease.FieldTargetWeight:
-		return m.AddedTargetWeight()
-	case canaryrelease.FieldStepWeight:
-		return m.AddedStepWeight()
-	}
-	return nil, false
-}
-
-// AddField adds the value to the field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *CanaryReleaseMutation) AddField(name string, value ent.Value) error {
-	switch name {
-	case canaryrelease.FieldCanaryWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddCanaryWeight(v)
-		return nil
-	case canaryrelease.FieldTargetWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddTargetWeight(v)
-		return nil
-	case canaryrelease.FieldStepWeight:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddStepWeight(v)
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryRelease numeric field %s", name)
-}
-
-// ClearedFields returns all nullable fields that were cleared during this
-// mutation.
-func (m *CanaryReleaseMutation) ClearedFields() []string {
-	var fields []string
-	if m.FieldCleared(canaryrelease.FieldStartedAt) {
-		fields = append(fields, canaryrelease.FieldStartedAt)
-	}
-	if m.FieldCleared(canaryrelease.FieldFinishedAt) {
-		fields = append(fields, canaryrelease.FieldFinishedAt)
-	}
-	return fields
-}
-
-// FieldCleared returns a boolean indicating if a field with the given name was
-// cleared in this mutation.
-func (m *CanaryReleaseMutation) FieldCleared(name string) bool {
-	_, ok := m.clearedFields[name]
-	return ok
-}
-
-// ClearField clears the value of the field with the given name. It returns an
-// error if the field is not defined in the schema.
-func (m *CanaryReleaseMutation) ClearField(name string) error {
-	switch name {
-	case canaryrelease.FieldStartedAt:
-		m.ClearStartedAt()
-		return nil
-	case canaryrelease.FieldFinishedAt:
-		m.ClearFinishedAt()
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryRelease nullable field %s", name)
-}
-
-// ResetField resets all changes in the mutation for the field with the given name.
-// It returns an error if the field is not defined in the schema.
-func (m *CanaryReleaseMutation) ResetField(name string) error {
-	switch name {
-	case canaryrelease.FieldServiceID:
-		m.ResetServiceID()
-		return nil
-	case canaryrelease.FieldName:
-		m.ResetName()
-		return nil
-	case canaryrelease.FieldStableVersionID:
-		m.ResetStableVersionID()
-		return nil
-	case canaryrelease.FieldCanaryVersionID:
-		m.ResetCanaryVersionID()
-		return nil
-	case canaryrelease.FieldPhase:
-		m.ResetPhase()
-		return nil
-	case canaryrelease.FieldCanaryWeight:
-		m.ResetCanaryWeight()
-		return nil
-	case canaryrelease.FieldTargetWeight:
-		m.ResetTargetWeight()
-		return nil
-	case canaryrelease.FieldStepWeight:
-		m.ResetStepWeight()
-		return nil
-	case canaryrelease.FieldStartedAt:
-		m.ResetStartedAt()
-		return nil
-	case canaryrelease.FieldFinishedAt:
-		m.ResetFinishedAt()
-		return nil
-	case canaryrelease.FieldCreatedAt:
-		m.ResetCreatedAt()
-		return nil
-	case canaryrelease.FieldUpdatedAt:
-		m.ResetUpdatedAt()
-		return nil
-	}
-	return fmt.Errorf("unknown CanaryRelease field %s", name)
-}
-
-// AddedEdges returns all edge names that were set/added in this mutation.
-func (m *CanaryReleaseMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// AddedIDs returns all IDs (to other nodes) that were added for the given edge
-// name in this mutation.
-func (m *CanaryReleaseMutation) AddedIDs(name string) []ent.Value {
-	return nil
-}
-
-// RemovedEdges returns all edge names that were removed in this mutation.
-func (m *CanaryReleaseMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
-// the given name in this mutation.
-func (m *CanaryReleaseMutation) RemovedIDs(name string) []ent.Value {
-	return nil
-}
-
-// ClearedEdges returns all edge names that were cleared in this mutation.
-func (m *CanaryReleaseMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
-	return edges
-}
-
-// EdgeCleared returns a boolean which indicates if the edge with the given name
-// was cleared in this mutation.
-func (m *CanaryReleaseMutation) EdgeCleared(name string) bool {
-	return false
-}
-
-// ClearEdge clears the value of the edge with the given name. It returns an error
-// if that edge is not defined in the schema.
-func (m *CanaryReleaseMutation) ClearEdge(name string) error {
-	return fmt.Errorf("unknown CanaryRelease unique edge %s", name)
-}
-
-// ResetEdge resets all changes to the edge with the given name in this mutation.
-// It returns an error if the edge is not defined in the schema.
-func (m *CanaryReleaseMutation) ResetEdge(name string) error {
-	return fmt.Errorf("unknown CanaryRelease edge %s", name)
 }
 
 // CertificateMutation represents an operation that mutates the Certificate nodes in the graph.
@@ -14251,6 +11105,2118 @@ func (m *RateLimitMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *RateLimitMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown RateLimit edge %s", name)
+}
+
+// ReleaseMutation represents an operation that mutates the Release nodes in the graph.
+type ReleaseMutation struct {
+	config
+	op                   Op
+	typ                  string
+	id                   *uuid.UUID
+	strategy             *string
+	deployment_id        *uuid.UUID
+	service_id           *uuid.UUID
+	name                 *string
+	phase                *string
+	primary_version_id   *uuid.UUID
+	secondary_version_id *uuid.UUID
+	primary_weight       *int
+	addprimary_weight    *int
+	secondary_weight     *int
+	addsecondary_weight  *int
+	previous_primary_id  *uuid.UUID
+	_config              *json.RawMessage
+	append_config        json.RawMessage
+	started_at           *time.Time
+	finished_at          *time.Time
+	created_at           *time.Time
+	updated_at           *time.Time
+	clearedFields        map[string]struct{}
+	done                 bool
+	oldValue             func(context.Context) (*Release, error)
+	predicates           []predicate.Release
+}
+
+var _ ent.Mutation = (*ReleaseMutation)(nil)
+
+// releaseOption allows management of the mutation configuration using functional options.
+type releaseOption func(*ReleaseMutation)
+
+// newReleaseMutation creates new mutation for the Release entity.
+func newReleaseMutation(c config, op Op, opts ...releaseOption) *ReleaseMutation {
+	m := &ReleaseMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeRelease,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withReleaseID sets the ID field of the mutation.
+func withReleaseID(id uuid.UUID) releaseOption {
+	return func(m *ReleaseMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Release
+		)
+		m.oldValue = func(ctx context.Context) (*Release, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Release.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withRelease sets the old Release of the mutation.
+func withRelease(node *Release) releaseOption {
+	return func(m *ReleaseMutation) {
+		m.oldValue = func(context.Context) (*Release, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ReleaseMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ReleaseMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Release entities.
+func (m *ReleaseMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ReleaseMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ReleaseMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Release.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetStrategy sets the "strategy" field.
+func (m *ReleaseMutation) SetStrategy(s string) {
+	m.strategy = &s
+}
+
+// Strategy returns the value of the "strategy" field in the mutation.
+func (m *ReleaseMutation) Strategy() (r string, exists bool) {
+	v := m.strategy
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStrategy returns the old "strategy" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldStrategy(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStrategy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStrategy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStrategy: %w", err)
+	}
+	return oldValue.Strategy, nil
+}
+
+// ResetStrategy resets all changes to the "strategy" field.
+func (m *ReleaseMutation) ResetStrategy() {
+	m.strategy = nil
+}
+
+// SetDeploymentID sets the "deployment_id" field.
+func (m *ReleaseMutation) SetDeploymentID(u uuid.UUID) {
+	m.deployment_id = &u
+}
+
+// DeploymentID returns the value of the "deployment_id" field in the mutation.
+func (m *ReleaseMutation) DeploymentID() (r uuid.UUID, exists bool) {
+	v := m.deployment_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeploymentID returns the old "deployment_id" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldDeploymentID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeploymentID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeploymentID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeploymentID: %w", err)
+	}
+	return oldValue.DeploymentID, nil
+}
+
+// ResetDeploymentID resets all changes to the "deployment_id" field.
+func (m *ReleaseMutation) ResetDeploymentID() {
+	m.deployment_id = nil
+}
+
+// SetServiceID sets the "service_id" field.
+func (m *ReleaseMutation) SetServiceID(u uuid.UUID) {
+	m.service_id = &u
+}
+
+// ServiceID returns the value of the "service_id" field in the mutation.
+func (m *ReleaseMutation) ServiceID() (r uuid.UUID, exists bool) {
+	v := m.service_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServiceID returns the old "service_id" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldServiceID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServiceID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServiceID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServiceID: %w", err)
+	}
+	return oldValue.ServiceID, nil
+}
+
+// ClearServiceID clears the value of the "service_id" field.
+func (m *ReleaseMutation) ClearServiceID() {
+	m.service_id = nil
+	m.clearedFields[release.FieldServiceID] = struct{}{}
+}
+
+// ServiceIDCleared returns if the "service_id" field was cleared in this mutation.
+func (m *ReleaseMutation) ServiceIDCleared() bool {
+	_, ok := m.clearedFields[release.FieldServiceID]
+	return ok
+}
+
+// ResetServiceID resets all changes to the "service_id" field.
+func (m *ReleaseMutation) ResetServiceID() {
+	m.service_id = nil
+	delete(m.clearedFields, release.FieldServiceID)
+}
+
+// SetName sets the "name" field.
+func (m *ReleaseMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *ReleaseMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *ReleaseMutation) ResetName() {
+	m.name = nil
+}
+
+// SetPhase sets the "phase" field.
+func (m *ReleaseMutation) SetPhase(s string) {
+	m.phase = &s
+}
+
+// Phase returns the value of the "phase" field in the mutation.
+func (m *ReleaseMutation) Phase() (r string, exists bool) {
+	v := m.phase
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhase returns the old "phase" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldPhase(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhase is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhase requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhase: %w", err)
+	}
+	return oldValue.Phase, nil
+}
+
+// ResetPhase resets all changes to the "phase" field.
+func (m *ReleaseMutation) ResetPhase() {
+	m.phase = nil
+}
+
+// SetPrimaryVersionID sets the "primary_version_id" field.
+func (m *ReleaseMutation) SetPrimaryVersionID(u uuid.UUID) {
+	m.primary_version_id = &u
+}
+
+// PrimaryVersionID returns the value of the "primary_version_id" field in the mutation.
+func (m *ReleaseMutation) PrimaryVersionID() (r uuid.UUID, exists bool) {
+	v := m.primary_version_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrimaryVersionID returns the old "primary_version_id" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldPrimaryVersionID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrimaryVersionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrimaryVersionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrimaryVersionID: %w", err)
+	}
+	return oldValue.PrimaryVersionID, nil
+}
+
+// ResetPrimaryVersionID resets all changes to the "primary_version_id" field.
+func (m *ReleaseMutation) ResetPrimaryVersionID() {
+	m.primary_version_id = nil
+}
+
+// SetSecondaryVersionID sets the "secondary_version_id" field.
+func (m *ReleaseMutation) SetSecondaryVersionID(u uuid.UUID) {
+	m.secondary_version_id = &u
+}
+
+// SecondaryVersionID returns the value of the "secondary_version_id" field in the mutation.
+func (m *ReleaseMutation) SecondaryVersionID() (r uuid.UUID, exists bool) {
+	v := m.secondary_version_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSecondaryVersionID returns the old "secondary_version_id" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldSecondaryVersionID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSecondaryVersionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSecondaryVersionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSecondaryVersionID: %w", err)
+	}
+	return oldValue.SecondaryVersionID, nil
+}
+
+// ResetSecondaryVersionID resets all changes to the "secondary_version_id" field.
+func (m *ReleaseMutation) ResetSecondaryVersionID() {
+	m.secondary_version_id = nil
+}
+
+// SetPrimaryWeight sets the "primary_weight" field.
+func (m *ReleaseMutation) SetPrimaryWeight(i int) {
+	m.primary_weight = &i
+	m.addprimary_weight = nil
+}
+
+// PrimaryWeight returns the value of the "primary_weight" field in the mutation.
+func (m *ReleaseMutation) PrimaryWeight() (r int, exists bool) {
+	v := m.primary_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrimaryWeight returns the old "primary_weight" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldPrimaryWeight(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrimaryWeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrimaryWeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrimaryWeight: %w", err)
+	}
+	return oldValue.PrimaryWeight, nil
+}
+
+// AddPrimaryWeight adds i to the "primary_weight" field.
+func (m *ReleaseMutation) AddPrimaryWeight(i int) {
+	if m.addprimary_weight != nil {
+		*m.addprimary_weight += i
+	} else {
+		m.addprimary_weight = &i
+	}
+}
+
+// AddedPrimaryWeight returns the value that was added to the "primary_weight" field in this mutation.
+func (m *ReleaseMutation) AddedPrimaryWeight() (r int, exists bool) {
+	v := m.addprimary_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPrimaryWeight resets all changes to the "primary_weight" field.
+func (m *ReleaseMutation) ResetPrimaryWeight() {
+	m.primary_weight = nil
+	m.addprimary_weight = nil
+}
+
+// SetSecondaryWeight sets the "secondary_weight" field.
+func (m *ReleaseMutation) SetSecondaryWeight(i int) {
+	m.secondary_weight = &i
+	m.addsecondary_weight = nil
+}
+
+// SecondaryWeight returns the value of the "secondary_weight" field in the mutation.
+func (m *ReleaseMutation) SecondaryWeight() (r int, exists bool) {
+	v := m.secondary_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSecondaryWeight returns the old "secondary_weight" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldSecondaryWeight(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSecondaryWeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSecondaryWeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSecondaryWeight: %w", err)
+	}
+	return oldValue.SecondaryWeight, nil
+}
+
+// AddSecondaryWeight adds i to the "secondary_weight" field.
+func (m *ReleaseMutation) AddSecondaryWeight(i int) {
+	if m.addsecondary_weight != nil {
+		*m.addsecondary_weight += i
+	} else {
+		m.addsecondary_weight = &i
+	}
+}
+
+// AddedSecondaryWeight returns the value that was added to the "secondary_weight" field in this mutation.
+func (m *ReleaseMutation) AddedSecondaryWeight() (r int, exists bool) {
+	v := m.addsecondary_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSecondaryWeight resets all changes to the "secondary_weight" field.
+func (m *ReleaseMutation) ResetSecondaryWeight() {
+	m.secondary_weight = nil
+	m.addsecondary_weight = nil
+}
+
+// SetPreviousPrimaryID sets the "previous_primary_id" field.
+func (m *ReleaseMutation) SetPreviousPrimaryID(u uuid.UUID) {
+	m.previous_primary_id = &u
+}
+
+// PreviousPrimaryID returns the value of the "previous_primary_id" field in the mutation.
+func (m *ReleaseMutation) PreviousPrimaryID() (r uuid.UUID, exists bool) {
+	v := m.previous_primary_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPreviousPrimaryID returns the old "previous_primary_id" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldPreviousPrimaryID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPreviousPrimaryID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPreviousPrimaryID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPreviousPrimaryID: %w", err)
+	}
+	return oldValue.PreviousPrimaryID, nil
+}
+
+// ClearPreviousPrimaryID clears the value of the "previous_primary_id" field.
+func (m *ReleaseMutation) ClearPreviousPrimaryID() {
+	m.previous_primary_id = nil
+	m.clearedFields[release.FieldPreviousPrimaryID] = struct{}{}
+}
+
+// PreviousPrimaryIDCleared returns if the "previous_primary_id" field was cleared in this mutation.
+func (m *ReleaseMutation) PreviousPrimaryIDCleared() bool {
+	_, ok := m.clearedFields[release.FieldPreviousPrimaryID]
+	return ok
+}
+
+// ResetPreviousPrimaryID resets all changes to the "previous_primary_id" field.
+func (m *ReleaseMutation) ResetPreviousPrimaryID() {
+	m.previous_primary_id = nil
+	delete(m.clearedFields, release.FieldPreviousPrimaryID)
+}
+
+// SetConfig sets the "config" field.
+func (m *ReleaseMutation) SetConfig(jm json.RawMessage) {
+	m._config = &jm
+	m.append_config = nil
+}
+
+// Config returns the value of the "config" field in the mutation.
+func (m *ReleaseMutation) Config() (r json.RawMessage, exists bool) {
+	v := m._config
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConfig returns the old "config" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldConfig(ctx context.Context) (v json.RawMessage, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConfig is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConfig requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConfig: %w", err)
+	}
+	return oldValue.Config, nil
+}
+
+// AppendConfig adds jm to the "config" field.
+func (m *ReleaseMutation) AppendConfig(jm json.RawMessage) {
+	m.append_config = append(m.append_config, jm...)
+}
+
+// AppendedConfig returns the list of values that were appended to the "config" field in this mutation.
+func (m *ReleaseMutation) AppendedConfig() (json.RawMessage, bool) {
+	if len(m.append_config) == 0 {
+		return nil, false
+	}
+	return m.append_config, true
+}
+
+// ResetConfig resets all changes to the "config" field.
+func (m *ReleaseMutation) ResetConfig() {
+	m._config = nil
+	m.append_config = nil
+}
+
+// SetStartedAt sets the "started_at" field.
+func (m *ReleaseMutation) SetStartedAt(t time.Time) {
+	m.started_at = &t
+}
+
+// StartedAt returns the value of the "started_at" field in the mutation.
+func (m *ReleaseMutation) StartedAt() (r time.Time, exists bool) {
+	v := m.started_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartedAt returns the old "started_at" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldStartedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartedAt: %w", err)
+	}
+	return oldValue.StartedAt, nil
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (m *ReleaseMutation) ClearStartedAt() {
+	m.started_at = nil
+	m.clearedFields[release.FieldStartedAt] = struct{}{}
+}
+
+// StartedAtCleared returns if the "started_at" field was cleared in this mutation.
+func (m *ReleaseMutation) StartedAtCleared() bool {
+	_, ok := m.clearedFields[release.FieldStartedAt]
+	return ok
+}
+
+// ResetStartedAt resets all changes to the "started_at" field.
+func (m *ReleaseMutation) ResetStartedAt() {
+	m.started_at = nil
+	delete(m.clearedFields, release.FieldStartedAt)
+}
+
+// SetFinishedAt sets the "finished_at" field.
+func (m *ReleaseMutation) SetFinishedAt(t time.Time) {
+	m.finished_at = &t
+}
+
+// FinishedAt returns the value of the "finished_at" field in the mutation.
+func (m *ReleaseMutation) FinishedAt() (r time.Time, exists bool) {
+	v := m.finished_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinishedAt returns the old "finished_at" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldFinishedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinishedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinishedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinishedAt: %w", err)
+	}
+	return oldValue.FinishedAt, nil
+}
+
+// ClearFinishedAt clears the value of the "finished_at" field.
+func (m *ReleaseMutation) ClearFinishedAt() {
+	m.finished_at = nil
+	m.clearedFields[release.FieldFinishedAt] = struct{}{}
+}
+
+// FinishedAtCleared returns if the "finished_at" field was cleared in this mutation.
+func (m *ReleaseMutation) FinishedAtCleared() bool {
+	_, ok := m.clearedFields[release.FieldFinishedAt]
+	return ok
+}
+
+// ResetFinishedAt resets all changes to the "finished_at" field.
+func (m *ReleaseMutation) ResetFinishedAt() {
+	m.finished_at = nil
+	delete(m.clearedFields, release.FieldFinishedAt)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ReleaseMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ReleaseMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ReleaseMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ReleaseMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ReleaseMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Release entity.
+// If the Release object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ReleaseMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the ReleaseMutation builder.
+func (m *ReleaseMutation) Where(ps ...predicate.Release) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ReleaseMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ReleaseMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Release, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ReleaseMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ReleaseMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Release).
+func (m *ReleaseMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ReleaseMutation) Fields() []string {
+	fields := make([]string, 0, 15)
+	if m.strategy != nil {
+		fields = append(fields, release.FieldStrategy)
+	}
+	if m.deployment_id != nil {
+		fields = append(fields, release.FieldDeploymentID)
+	}
+	if m.service_id != nil {
+		fields = append(fields, release.FieldServiceID)
+	}
+	if m.name != nil {
+		fields = append(fields, release.FieldName)
+	}
+	if m.phase != nil {
+		fields = append(fields, release.FieldPhase)
+	}
+	if m.primary_version_id != nil {
+		fields = append(fields, release.FieldPrimaryVersionID)
+	}
+	if m.secondary_version_id != nil {
+		fields = append(fields, release.FieldSecondaryVersionID)
+	}
+	if m.primary_weight != nil {
+		fields = append(fields, release.FieldPrimaryWeight)
+	}
+	if m.secondary_weight != nil {
+		fields = append(fields, release.FieldSecondaryWeight)
+	}
+	if m.previous_primary_id != nil {
+		fields = append(fields, release.FieldPreviousPrimaryID)
+	}
+	if m._config != nil {
+		fields = append(fields, release.FieldConfig)
+	}
+	if m.started_at != nil {
+		fields = append(fields, release.FieldStartedAt)
+	}
+	if m.finished_at != nil {
+		fields = append(fields, release.FieldFinishedAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, release.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, release.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ReleaseMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case release.FieldStrategy:
+		return m.Strategy()
+	case release.FieldDeploymentID:
+		return m.DeploymentID()
+	case release.FieldServiceID:
+		return m.ServiceID()
+	case release.FieldName:
+		return m.Name()
+	case release.FieldPhase:
+		return m.Phase()
+	case release.FieldPrimaryVersionID:
+		return m.PrimaryVersionID()
+	case release.FieldSecondaryVersionID:
+		return m.SecondaryVersionID()
+	case release.FieldPrimaryWeight:
+		return m.PrimaryWeight()
+	case release.FieldSecondaryWeight:
+		return m.SecondaryWeight()
+	case release.FieldPreviousPrimaryID:
+		return m.PreviousPrimaryID()
+	case release.FieldConfig:
+		return m.Config()
+	case release.FieldStartedAt:
+		return m.StartedAt()
+	case release.FieldFinishedAt:
+		return m.FinishedAt()
+	case release.FieldCreatedAt:
+		return m.CreatedAt()
+	case release.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ReleaseMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case release.FieldStrategy:
+		return m.OldStrategy(ctx)
+	case release.FieldDeploymentID:
+		return m.OldDeploymentID(ctx)
+	case release.FieldServiceID:
+		return m.OldServiceID(ctx)
+	case release.FieldName:
+		return m.OldName(ctx)
+	case release.FieldPhase:
+		return m.OldPhase(ctx)
+	case release.FieldPrimaryVersionID:
+		return m.OldPrimaryVersionID(ctx)
+	case release.FieldSecondaryVersionID:
+		return m.OldSecondaryVersionID(ctx)
+	case release.FieldPrimaryWeight:
+		return m.OldPrimaryWeight(ctx)
+	case release.FieldSecondaryWeight:
+		return m.OldSecondaryWeight(ctx)
+	case release.FieldPreviousPrimaryID:
+		return m.OldPreviousPrimaryID(ctx)
+	case release.FieldConfig:
+		return m.OldConfig(ctx)
+	case release.FieldStartedAt:
+		return m.OldStartedAt(ctx)
+	case release.FieldFinishedAt:
+		return m.OldFinishedAt(ctx)
+	case release.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case release.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Release field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReleaseMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case release.FieldStrategy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStrategy(v)
+		return nil
+	case release.FieldDeploymentID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeploymentID(v)
+		return nil
+	case release.FieldServiceID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServiceID(v)
+		return nil
+	case release.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case release.FieldPhase:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhase(v)
+		return nil
+	case release.FieldPrimaryVersionID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrimaryVersionID(v)
+		return nil
+	case release.FieldSecondaryVersionID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSecondaryVersionID(v)
+		return nil
+	case release.FieldPrimaryWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrimaryWeight(v)
+		return nil
+	case release.FieldSecondaryWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSecondaryWeight(v)
+		return nil
+	case release.FieldPreviousPrimaryID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPreviousPrimaryID(v)
+		return nil
+	case release.FieldConfig:
+		v, ok := value.(json.RawMessage)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConfig(v)
+		return nil
+	case release.FieldStartedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartedAt(v)
+		return nil
+	case release.FieldFinishedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinishedAt(v)
+		return nil
+	case release.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case release.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Release field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ReleaseMutation) AddedFields() []string {
+	var fields []string
+	if m.addprimary_weight != nil {
+		fields = append(fields, release.FieldPrimaryWeight)
+	}
+	if m.addsecondary_weight != nil {
+		fields = append(fields, release.FieldSecondaryWeight)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ReleaseMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case release.FieldPrimaryWeight:
+		return m.AddedPrimaryWeight()
+	case release.FieldSecondaryWeight:
+		return m.AddedSecondaryWeight()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReleaseMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case release.FieldPrimaryWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPrimaryWeight(v)
+		return nil
+	case release.FieldSecondaryWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSecondaryWeight(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Release numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ReleaseMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(release.FieldServiceID) {
+		fields = append(fields, release.FieldServiceID)
+	}
+	if m.FieldCleared(release.FieldPreviousPrimaryID) {
+		fields = append(fields, release.FieldPreviousPrimaryID)
+	}
+	if m.FieldCleared(release.FieldStartedAt) {
+		fields = append(fields, release.FieldStartedAt)
+	}
+	if m.FieldCleared(release.FieldFinishedAt) {
+		fields = append(fields, release.FieldFinishedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ReleaseMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ReleaseMutation) ClearField(name string) error {
+	switch name {
+	case release.FieldServiceID:
+		m.ClearServiceID()
+		return nil
+	case release.FieldPreviousPrimaryID:
+		m.ClearPreviousPrimaryID()
+		return nil
+	case release.FieldStartedAt:
+		m.ClearStartedAt()
+		return nil
+	case release.FieldFinishedAt:
+		m.ClearFinishedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Release nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ReleaseMutation) ResetField(name string) error {
+	switch name {
+	case release.FieldStrategy:
+		m.ResetStrategy()
+		return nil
+	case release.FieldDeploymentID:
+		m.ResetDeploymentID()
+		return nil
+	case release.FieldServiceID:
+		m.ResetServiceID()
+		return nil
+	case release.FieldName:
+		m.ResetName()
+		return nil
+	case release.FieldPhase:
+		m.ResetPhase()
+		return nil
+	case release.FieldPrimaryVersionID:
+		m.ResetPrimaryVersionID()
+		return nil
+	case release.FieldSecondaryVersionID:
+		m.ResetSecondaryVersionID()
+		return nil
+	case release.FieldPrimaryWeight:
+		m.ResetPrimaryWeight()
+		return nil
+	case release.FieldSecondaryWeight:
+		m.ResetSecondaryWeight()
+		return nil
+	case release.FieldPreviousPrimaryID:
+		m.ResetPreviousPrimaryID()
+		return nil
+	case release.FieldConfig:
+		m.ResetConfig()
+		return nil
+	case release.FieldStartedAt:
+		m.ResetStartedAt()
+		return nil
+	case release.FieldFinishedAt:
+		m.ResetFinishedAt()
+		return nil
+	case release.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case release.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Release field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ReleaseMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ReleaseMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ReleaseMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ReleaseMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ReleaseMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ReleaseMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ReleaseMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Release unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ReleaseMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Release edge %s", name)
+}
+
+// ReleaseEventMutation represents an operation that mutates the ReleaseEvent nodes in the graph.
+type ReleaseEventMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *uuid.UUID
+	release_id     *uuid.UUID
+	action         *string
+	from_weight    *int
+	addfrom_weight *int
+	to_weight      *int
+	addto_weight   *int
+	from_version   *uuid.UUID
+	to_version     *uuid.UUID
+	detail         *string
+	created_at     *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*ReleaseEvent, error)
+	predicates     []predicate.ReleaseEvent
+}
+
+var _ ent.Mutation = (*ReleaseEventMutation)(nil)
+
+// releaseeventOption allows management of the mutation configuration using functional options.
+type releaseeventOption func(*ReleaseEventMutation)
+
+// newReleaseEventMutation creates new mutation for the ReleaseEvent entity.
+func newReleaseEventMutation(c config, op Op, opts ...releaseeventOption) *ReleaseEventMutation {
+	m := &ReleaseEventMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeReleaseEvent,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withReleaseEventID sets the ID field of the mutation.
+func withReleaseEventID(id uuid.UUID) releaseeventOption {
+	return func(m *ReleaseEventMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ReleaseEvent
+		)
+		m.oldValue = func(ctx context.Context) (*ReleaseEvent, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ReleaseEvent.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withReleaseEvent sets the old ReleaseEvent of the mutation.
+func withReleaseEvent(node *ReleaseEvent) releaseeventOption {
+	return func(m *ReleaseEventMutation) {
+		m.oldValue = func(context.Context) (*ReleaseEvent, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ReleaseEventMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ReleaseEventMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of ReleaseEvent entities.
+func (m *ReleaseEventMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ReleaseEventMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ReleaseEventMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ReleaseEvent.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetReleaseID sets the "release_id" field.
+func (m *ReleaseEventMutation) SetReleaseID(u uuid.UUID) {
+	m.release_id = &u
+}
+
+// ReleaseID returns the value of the "release_id" field in the mutation.
+func (m *ReleaseEventMutation) ReleaseID() (r uuid.UUID, exists bool) {
+	v := m.release_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReleaseID returns the old "release_id" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldReleaseID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReleaseID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReleaseID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReleaseID: %w", err)
+	}
+	return oldValue.ReleaseID, nil
+}
+
+// ResetReleaseID resets all changes to the "release_id" field.
+func (m *ReleaseEventMutation) ResetReleaseID() {
+	m.release_id = nil
+}
+
+// SetAction sets the "action" field.
+func (m *ReleaseEventMutation) SetAction(s string) {
+	m.action = &s
+}
+
+// Action returns the value of the "action" field in the mutation.
+func (m *ReleaseEventMutation) Action() (r string, exists bool) {
+	v := m.action
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAction returns the old "action" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldAction(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAction is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAction requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAction: %w", err)
+	}
+	return oldValue.Action, nil
+}
+
+// ResetAction resets all changes to the "action" field.
+func (m *ReleaseEventMutation) ResetAction() {
+	m.action = nil
+}
+
+// SetFromWeight sets the "from_weight" field.
+func (m *ReleaseEventMutation) SetFromWeight(i int) {
+	m.from_weight = &i
+	m.addfrom_weight = nil
+}
+
+// FromWeight returns the value of the "from_weight" field in the mutation.
+func (m *ReleaseEventMutation) FromWeight() (r int, exists bool) {
+	v := m.from_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFromWeight returns the old "from_weight" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldFromWeight(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFromWeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFromWeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFromWeight: %w", err)
+	}
+	return oldValue.FromWeight, nil
+}
+
+// AddFromWeight adds i to the "from_weight" field.
+func (m *ReleaseEventMutation) AddFromWeight(i int) {
+	if m.addfrom_weight != nil {
+		*m.addfrom_weight += i
+	} else {
+		m.addfrom_weight = &i
+	}
+}
+
+// AddedFromWeight returns the value that was added to the "from_weight" field in this mutation.
+func (m *ReleaseEventMutation) AddedFromWeight() (r int, exists bool) {
+	v := m.addfrom_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearFromWeight clears the value of the "from_weight" field.
+func (m *ReleaseEventMutation) ClearFromWeight() {
+	m.from_weight = nil
+	m.addfrom_weight = nil
+	m.clearedFields[releaseevent.FieldFromWeight] = struct{}{}
+}
+
+// FromWeightCleared returns if the "from_weight" field was cleared in this mutation.
+func (m *ReleaseEventMutation) FromWeightCleared() bool {
+	_, ok := m.clearedFields[releaseevent.FieldFromWeight]
+	return ok
+}
+
+// ResetFromWeight resets all changes to the "from_weight" field.
+func (m *ReleaseEventMutation) ResetFromWeight() {
+	m.from_weight = nil
+	m.addfrom_weight = nil
+	delete(m.clearedFields, releaseevent.FieldFromWeight)
+}
+
+// SetToWeight sets the "to_weight" field.
+func (m *ReleaseEventMutation) SetToWeight(i int) {
+	m.to_weight = &i
+	m.addto_weight = nil
+}
+
+// ToWeight returns the value of the "to_weight" field in the mutation.
+func (m *ReleaseEventMutation) ToWeight() (r int, exists bool) {
+	v := m.to_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldToWeight returns the old "to_weight" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldToWeight(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldToWeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldToWeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldToWeight: %w", err)
+	}
+	return oldValue.ToWeight, nil
+}
+
+// AddToWeight adds i to the "to_weight" field.
+func (m *ReleaseEventMutation) AddToWeight(i int) {
+	if m.addto_weight != nil {
+		*m.addto_weight += i
+	} else {
+		m.addto_weight = &i
+	}
+}
+
+// AddedToWeight returns the value that was added to the "to_weight" field in this mutation.
+func (m *ReleaseEventMutation) AddedToWeight() (r int, exists bool) {
+	v := m.addto_weight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearToWeight clears the value of the "to_weight" field.
+func (m *ReleaseEventMutation) ClearToWeight() {
+	m.to_weight = nil
+	m.addto_weight = nil
+	m.clearedFields[releaseevent.FieldToWeight] = struct{}{}
+}
+
+// ToWeightCleared returns if the "to_weight" field was cleared in this mutation.
+func (m *ReleaseEventMutation) ToWeightCleared() bool {
+	_, ok := m.clearedFields[releaseevent.FieldToWeight]
+	return ok
+}
+
+// ResetToWeight resets all changes to the "to_weight" field.
+func (m *ReleaseEventMutation) ResetToWeight() {
+	m.to_weight = nil
+	m.addto_weight = nil
+	delete(m.clearedFields, releaseevent.FieldToWeight)
+}
+
+// SetFromVersion sets the "from_version" field.
+func (m *ReleaseEventMutation) SetFromVersion(u uuid.UUID) {
+	m.from_version = &u
+}
+
+// FromVersion returns the value of the "from_version" field in the mutation.
+func (m *ReleaseEventMutation) FromVersion() (r uuid.UUID, exists bool) {
+	v := m.from_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFromVersion returns the old "from_version" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldFromVersion(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFromVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFromVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFromVersion: %w", err)
+	}
+	return oldValue.FromVersion, nil
+}
+
+// ClearFromVersion clears the value of the "from_version" field.
+func (m *ReleaseEventMutation) ClearFromVersion() {
+	m.from_version = nil
+	m.clearedFields[releaseevent.FieldFromVersion] = struct{}{}
+}
+
+// FromVersionCleared returns if the "from_version" field was cleared in this mutation.
+func (m *ReleaseEventMutation) FromVersionCleared() bool {
+	_, ok := m.clearedFields[releaseevent.FieldFromVersion]
+	return ok
+}
+
+// ResetFromVersion resets all changes to the "from_version" field.
+func (m *ReleaseEventMutation) ResetFromVersion() {
+	m.from_version = nil
+	delete(m.clearedFields, releaseevent.FieldFromVersion)
+}
+
+// SetToVersion sets the "to_version" field.
+func (m *ReleaseEventMutation) SetToVersion(u uuid.UUID) {
+	m.to_version = &u
+}
+
+// ToVersion returns the value of the "to_version" field in the mutation.
+func (m *ReleaseEventMutation) ToVersion() (r uuid.UUID, exists bool) {
+	v := m.to_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldToVersion returns the old "to_version" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldToVersion(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldToVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldToVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldToVersion: %w", err)
+	}
+	return oldValue.ToVersion, nil
+}
+
+// ClearToVersion clears the value of the "to_version" field.
+func (m *ReleaseEventMutation) ClearToVersion() {
+	m.to_version = nil
+	m.clearedFields[releaseevent.FieldToVersion] = struct{}{}
+}
+
+// ToVersionCleared returns if the "to_version" field was cleared in this mutation.
+func (m *ReleaseEventMutation) ToVersionCleared() bool {
+	_, ok := m.clearedFields[releaseevent.FieldToVersion]
+	return ok
+}
+
+// ResetToVersion resets all changes to the "to_version" field.
+func (m *ReleaseEventMutation) ResetToVersion() {
+	m.to_version = nil
+	delete(m.clearedFields, releaseevent.FieldToVersion)
+}
+
+// SetDetail sets the "detail" field.
+func (m *ReleaseEventMutation) SetDetail(s string) {
+	m.detail = &s
+}
+
+// Detail returns the value of the "detail" field in the mutation.
+func (m *ReleaseEventMutation) Detail() (r string, exists bool) {
+	v := m.detail
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDetail returns the old "detail" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldDetail(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDetail is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDetail requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDetail: %w", err)
+	}
+	return oldValue.Detail, nil
+}
+
+// ResetDetail resets all changes to the "detail" field.
+func (m *ReleaseEventMutation) ResetDetail() {
+	m.detail = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ReleaseEventMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ReleaseEventMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ReleaseEvent entity.
+// If the ReleaseEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReleaseEventMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ReleaseEventMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the ReleaseEventMutation builder.
+func (m *ReleaseEventMutation) Where(ps ...predicate.ReleaseEvent) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ReleaseEventMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ReleaseEventMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ReleaseEvent, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ReleaseEventMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ReleaseEventMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ReleaseEvent).
+func (m *ReleaseEventMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ReleaseEventMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.release_id != nil {
+		fields = append(fields, releaseevent.FieldReleaseID)
+	}
+	if m.action != nil {
+		fields = append(fields, releaseevent.FieldAction)
+	}
+	if m.from_weight != nil {
+		fields = append(fields, releaseevent.FieldFromWeight)
+	}
+	if m.to_weight != nil {
+		fields = append(fields, releaseevent.FieldToWeight)
+	}
+	if m.from_version != nil {
+		fields = append(fields, releaseevent.FieldFromVersion)
+	}
+	if m.to_version != nil {
+		fields = append(fields, releaseevent.FieldToVersion)
+	}
+	if m.detail != nil {
+		fields = append(fields, releaseevent.FieldDetail)
+	}
+	if m.created_at != nil {
+		fields = append(fields, releaseevent.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ReleaseEventMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case releaseevent.FieldReleaseID:
+		return m.ReleaseID()
+	case releaseevent.FieldAction:
+		return m.Action()
+	case releaseevent.FieldFromWeight:
+		return m.FromWeight()
+	case releaseevent.FieldToWeight:
+		return m.ToWeight()
+	case releaseevent.FieldFromVersion:
+		return m.FromVersion()
+	case releaseevent.FieldToVersion:
+		return m.ToVersion()
+	case releaseevent.FieldDetail:
+		return m.Detail()
+	case releaseevent.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ReleaseEventMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case releaseevent.FieldReleaseID:
+		return m.OldReleaseID(ctx)
+	case releaseevent.FieldAction:
+		return m.OldAction(ctx)
+	case releaseevent.FieldFromWeight:
+		return m.OldFromWeight(ctx)
+	case releaseevent.FieldToWeight:
+		return m.OldToWeight(ctx)
+	case releaseevent.FieldFromVersion:
+		return m.OldFromVersion(ctx)
+	case releaseevent.FieldToVersion:
+		return m.OldToVersion(ctx)
+	case releaseevent.FieldDetail:
+		return m.OldDetail(ctx)
+	case releaseevent.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ReleaseEvent field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReleaseEventMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case releaseevent.FieldReleaseID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReleaseID(v)
+		return nil
+	case releaseevent.FieldAction:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAction(v)
+		return nil
+	case releaseevent.FieldFromWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFromWeight(v)
+		return nil
+	case releaseevent.FieldToWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetToWeight(v)
+		return nil
+	case releaseevent.FieldFromVersion:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFromVersion(v)
+		return nil
+	case releaseevent.FieldToVersion:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetToVersion(v)
+		return nil
+	case releaseevent.FieldDetail:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDetail(v)
+		return nil
+	case releaseevent.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ReleaseEvent field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ReleaseEventMutation) AddedFields() []string {
+	var fields []string
+	if m.addfrom_weight != nil {
+		fields = append(fields, releaseevent.FieldFromWeight)
+	}
+	if m.addto_weight != nil {
+		fields = append(fields, releaseevent.FieldToWeight)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ReleaseEventMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case releaseevent.FieldFromWeight:
+		return m.AddedFromWeight()
+	case releaseevent.FieldToWeight:
+		return m.AddedToWeight()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReleaseEventMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case releaseevent.FieldFromWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFromWeight(v)
+		return nil
+	case releaseevent.FieldToWeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddToWeight(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ReleaseEvent numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ReleaseEventMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(releaseevent.FieldFromWeight) {
+		fields = append(fields, releaseevent.FieldFromWeight)
+	}
+	if m.FieldCleared(releaseevent.FieldToWeight) {
+		fields = append(fields, releaseevent.FieldToWeight)
+	}
+	if m.FieldCleared(releaseevent.FieldFromVersion) {
+		fields = append(fields, releaseevent.FieldFromVersion)
+	}
+	if m.FieldCleared(releaseevent.FieldToVersion) {
+		fields = append(fields, releaseevent.FieldToVersion)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ReleaseEventMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ReleaseEventMutation) ClearField(name string) error {
+	switch name {
+	case releaseevent.FieldFromWeight:
+		m.ClearFromWeight()
+		return nil
+	case releaseevent.FieldToWeight:
+		m.ClearToWeight()
+		return nil
+	case releaseevent.FieldFromVersion:
+		m.ClearFromVersion()
+		return nil
+	case releaseevent.FieldToVersion:
+		m.ClearToVersion()
+		return nil
+	}
+	return fmt.Errorf("unknown ReleaseEvent nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ReleaseEventMutation) ResetField(name string) error {
+	switch name {
+	case releaseevent.FieldReleaseID:
+		m.ResetReleaseID()
+		return nil
+	case releaseevent.FieldAction:
+		m.ResetAction()
+		return nil
+	case releaseevent.FieldFromWeight:
+		m.ResetFromWeight()
+		return nil
+	case releaseevent.FieldToWeight:
+		m.ResetToWeight()
+		return nil
+	case releaseevent.FieldFromVersion:
+		m.ResetFromVersion()
+		return nil
+	case releaseevent.FieldToVersion:
+		m.ResetToVersion()
+		return nil
+	case releaseevent.FieldDetail:
+		m.ResetDetail()
+		return nil
+	case releaseevent.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ReleaseEvent field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ReleaseEventMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ReleaseEventMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ReleaseEventMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ReleaseEventMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ReleaseEventMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ReleaseEventMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ReleaseEventMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown ReleaseEvent unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ReleaseEventMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown ReleaseEvent edge %s", name)
 }
 
 // ServiceMutation represents an operation that mutates the Service nodes in the graph.

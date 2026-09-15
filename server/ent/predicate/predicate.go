@@ -12,18 +12,6 @@ type ACMEAccount func(*sql.Selector)
 // AuditLog is the predicate function for auditlog builders.
 type AuditLog func(*sql.Selector)
 
-// BluegreenDeployment is the predicate function for bluegreendeployment builders.
-type BluegreenDeployment func(*sql.Selector)
-
-// BluegreenEvent is the predicate function for bluegreenevent builders.
-type BluegreenEvent func(*sql.Selector)
-
-// CanaryEvent is the predicate function for canaryevent builders.
-type CanaryEvent func(*sql.Selector)
-
-// CanaryRelease is the predicate function for canaryrelease builders.
-type CanaryRelease func(*sql.Selector)
-
 // Certificate is the predicate function for certificate builders.
 type Certificate func(*sql.Selector)
 
@@ -50,6 +38,12 @@ type Node func(*sql.Selector)
 
 // RateLimit is the predicate function for ratelimit builders.
 type RateLimit func(*sql.Selector)
+
+// Release is the predicate function for release builders.
+type Release func(*sql.Selector)
+
+// ReleaseEvent is the predicate function for releaseevent builders.
+type ReleaseEvent func(*sql.Selector)
 
 // Service is the predicate function for service builders.
 type Service func(*sql.Selector)

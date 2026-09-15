@@ -2,13 +2,14 @@ package dashboard
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/NeoPlayful/maple-gateway/server/ent"
-	entcanary "github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	entinstance "github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	entnode "github.com/NeoPlayful/maple-gateway/server/ent/node"
+	entrelease "github.com/NeoPlayful/maple-gateway/server/ent/release"
 	entservice "github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/google/uuid"
 )
@@ -62,8 +63,12 @@ func (r *Repository) counts(ctx context.Context) (Counts, error) {
 		{&c.Versions, r.ent.DeploymentVersion.Query().Count},
 		{&c.Policies, r.ent.TrafficPolicy.Query().Count},
 		{&c.RateLimits, r.ent.RateLimit.Query().Count},
-		{&c.Canary, r.ent.CanaryRelease.Query().Count},
-		{&c.BlueGreen, r.ent.BluegreenDeployment.Query().Count},
+		{&c.Canary, func(ctx context.Context) (int, error) {
+			return r.ent.Release.Query().Where(entrelease.StrategyEQ("canary")).Count(ctx)
+		}},
+		{&c.BlueGreen, func(ctx context.Context) (int, error) {
+			return r.ent.Release.Query().Where(entrelease.StrategyEQ("bluegreen")).Count(ctx)
+		}},
 		{&c.Users, r.ent.User.Query().Count},
 	}
 	for _, it := range items {
@@ -142,21 +147,25 @@ func (r *Repository) nodeDist(ctx context.Context) (Nodes, error) {
 	return d, nil
 }
 
-// runningBG 进行中的 Blue/Green（active 已激活计数）。
+// runningBG 已生效的 Blue/Green（strategy=bluegreen 计数）。
 func (r *Repository) runningBG(ctx context.Context) (int, error) {
-	// 语义同旧 SQL：active_version_id IS NOT NULL 的行数。active_version_id 为非空字段时等价于整表行数。
-	n, err := r.ent.BluegreenDeployment.Query().Count(ctx)
+	n, err := r.ent.Release.Query().
+		Where(entrelease.StrategyEQ("bluegreen")).
+		Count(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("dashboard running bluegreen: %w", err)
 	}
 	return n, nil
 }
 
-// runningCanary 进行中 canary（created/running/paused）精简视图，附服务名。
+// runningCanary 进行中的 canary（strategy=canary 且 phase in created/running/paused）精简视图，附服务名。
 func (r *Repository) runningCanary(ctx context.Context) ([]Canary, error) {
-	es, err := r.ent.CanaryRelease.Query().
-		Where(entcanary.PhaseIn("created", "running", "paused")).
-		Order(entcanary.ByCreatedAt(sql.OrderDesc())).
+	es, err := r.ent.Release.Query().
+		Where(
+			entrelease.StrategyEQ("canary"),
+			entrelease.PhaseIn("created", "running", "paused"),
+		).
+		Order(entrelease.ByCreatedAt(sql.OrderDesc())).
 		Limit(20).
 		All(ctx)
 	if err != nil {
@@ -169,30 +178,54 @@ func (r *Repository) runningCanary(ctx context.Context) ([]Canary, error) {
 	// 批量取服务名（service_id → name），等价于 LEFT JOIN services。
 	svcIDs := make([]uuid.UUID, 0, len(es))
 	for _, e := range es {
-		svcIDs = append(svcIDs, e.ServiceID)
-	}
-	svcs, err := r.ent.Service.Query().
-		Where(entservice.IDIn(svcIDs...)).
-		All(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("dashboard running canary services: %w", err)
+		if e.ServiceID != nil {
+			svcIDs = append(svcIDs, *e.ServiceID)
+		}
 	}
 	svcName := map[uuid.UUID]string{}
-	for _, s := range svcs {
-		svcName[s.ID] = s.Name
+	if len(svcIDs) > 0 {
+		svcs, err := r.ent.Service.Query().
+			Where(entservice.IDIn(svcIDs...)).
+			All(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("dashboard running canary services: %w", err)
+		}
+		for _, s := range svcs {
+			svcName[s.ID] = s.Name
+		}
 	}
 
 	out := make([]Canary, 0, len(es))
 	for _, e := range es {
+		svcID := ""
+		svc := ""
+		if e.ServiceID != nil {
+			svcID = e.ServiceID.String()
+			svc = svcName[*e.ServiceID]
+		}
 		out = append(out, Canary{
 			ID:           e.ID.String(),
-			ServiceID:    e.ServiceID.String(),
-			ServiceName:  svcName[e.ServiceID],
+			ServiceID:    svcID,
+			ServiceName:  svc,
 			Name:         e.Name,
 			Phase:        e.Phase,
-			CanaryWeight: e.CanaryWeight,
-			TargetWeight: e.TargetWeight,
+			CanaryWeight: e.SecondaryWeight,
+			TargetWeight: canaryTargetWeight(e.Config),
 		})
 	}
 	return out, nil
+}
+
+// canaryTargetWeight 从 config JSONB 读 target_weight（缺省 100）。
+func canaryTargetWeight(raw json.RawMessage) int {
+	if len(raw) == 0 {
+		return 100
+	}
+	var cfg struct {
+		TargetWeight int `json:"target_weight"`
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.TargetWeight == 0 {
+		return 100
+	}
+	return cfg.TargetWeight
 }

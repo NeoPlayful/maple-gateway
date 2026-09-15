@@ -63,110 +63,6 @@ var (
 			},
 		},
 	}
-	// BluegreenDeploymentsColumns holds the columns for the "bluegreen_deployments" table.
-	BluegreenDeploymentsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeUUID},
-		{Name: "deployment_id", Type: field.TypeUUID},
-		{Name: "blue_version_id", Type: field.TypeUUID},
-		{Name: "green_version_id", Type: field.TypeUUID},
-		{Name: "active_version_id", Type: field.TypeUUID},
-		{Name: "previous_active_id", Type: field.TypeUUID, Nullable: true},
-		{Name: "created_at", Type: field.TypeTime},
-		{Name: "updated_at", Type: field.TypeTime},
-	}
-	// BluegreenDeploymentsTable holds the schema information for the "bluegreen_deployments" table.
-	BluegreenDeploymentsTable = &schema.Table{
-		Name:       "bluegreen_deployments",
-		Columns:    BluegreenDeploymentsColumns,
-		PrimaryKey: []*schema.Column{BluegreenDeploymentsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "bluegreendeployment_deployment_id",
-				Unique:  true,
-				Columns: []*schema.Column{BluegreenDeploymentsColumns[1]},
-			},
-		},
-	}
-	// BluegreenEventsColumns holds the columns for the "bluegreen_events" table.
-	BluegreenEventsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeUUID},
-		{Name: "bg_id", Type: field.TypeUUID},
-		{Name: "action", Type: field.TypeString},
-		{Name: "from_active", Type: field.TypeUUID, Nullable: true},
-		{Name: "to_active", Type: field.TypeUUID, Nullable: true},
-		{Name: "detail", Type: field.TypeString, Nullable: true, Default: ""},
-		{Name: "created_at", Type: field.TypeTime},
-	}
-	// BluegreenEventsTable holds the schema information for the "bluegreen_events" table.
-	BluegreenEventsTable = &schema.Table{
-		Name:       "bluegreen_events",
-		Columns:    BluegreenEventsColumns,
-		PrimaryKey: []*schema.Column{BluegreenEventsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "bluegreenevent_bg_id",
-				Unique:  false,
-				Columns: []*schema.Column{BluegreenEventsColumns[1]},
-			},
-		},
-	}
-	// CanaryEventsColumns holds the columns for the "canary_events" table.
-	CanaryEventsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeUUID},
-		{Name: "release_id", Type: field.TypeUUID},
-		{Name: "phase", Type: field.TypeString},
-		{Name: "from_weight", Type: field.TypeInt, Nullable: true},
-		{Name: "to_weight", Type: field.TypeInt, Nullable: true},
-		{Name: "detail", Type: field.TypeString, Nullable: true, Default: ""},
-		{Name: "created_at", Type: field.TypeTime},
-	}
-	// CanaryEventsTable holds the schema information for the "canary_events" table.
-	CanaryEventsTable = &schema.Table{
-		Name:       "canary_events",
-		Columns:    CanaryEventsColumns,
-		PrimaryKey: []*schema.Column{CanaryEventsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "canaryevent_release_id",
-				Unique:  false,
-				Columns: []*schema.Column{CanaryEventsColumns[1]},
-			},
-		},
-	}
-	// CanaryReleasesColumns holds the columns for the "canary_releases" table.
-	CanaryReleasesColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeUUID},
-		{Name: "service_id", Type: field.TypeUUID},
-		{Name: "name", Type: field.TypeString},
-		{Name: "stable_version_id", Type: field.TypeUUID},
-		{Name: "canary_version_id", Type: field.TypeUUID},
-		{Name: "phase", Type: field.TypeString, Default: "created"},
-		{Name: "canary_weight", Type: field.TypeInt, Default: 0},
-		{Name: "target_weight", Type: field.TypeInt, Default: 100},
-		{Name: "step_weight", Type: field.TypeInt, Default: 10},
-		{Name: "started_at", Type: field.TypeTime, Nullable: true},
-		{Name: "finished_at", Type: field.TypeTime, Nullable: true},
-		{Name: "created_at", Type: field.TypeTime},
-		{Name: "updated_at", Type: field.TypeTime},
-	}
-	// CanaryReleasesTable holds the schema information for the "canary_releases" table.
-	CanaryReleasesTable = &schema.Table{
-		Name:       "canary_releases",
-		Columns:    CanaryReleasesColumns,
-		PrimaryKey: []*schema.Column{CanaryReleasesColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "canaryrelease_service_id_name",
-				Unique:  true,
-				Columns: []*schema.Column{CanaryReleasesColumns[1], CanaryReleasesColumns[2]},
-			},
-			{
-				Name:    "canaryrelease_phase",
-				Unique:  false,
-				Columns: []*schema.Column{CanaryReleasesColumns[5]},
-			},
-		},
-	}
 	// CertificatesColumns holds the columns for the "certificates" table.
 	CertificatesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -514,6 +410,81 @@ var (
 			},
 		},
 	}
+	// ReleasesColumns holds the columns for the "releases" table.
+	ReleasesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "strategy", Type: field.TypeString},
+		{Name: "deployment_id", Type: field.TypeUUID},
+		{Name: "service_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "name", Type: field.TypeString, Default: ""},
+		{Name: "phase", Type: field.TypeString, Default: "created"},
+		{Name: "primary_version_id", Type: field.TypeUUID},
+		{Name: "secondary_version_id", Type: field.TypeUUID},
+		{Name: "primary_weight", Type: field.TypeInt, Default: 100},
+		{Name: "secondary_weight", Type: field.TypeInt, Default: 0},
+		{Name: "previous_primary_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "config", Type: field.TypeJSON},
+		{Name: "started_at", Type: field.TypeTime, Nullable: true},
+		{Name: "finished_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// ReleasesTable holds the schema information for the "releases" table.
+	ReleasesTable = &schema.Table{
+		Name:       "releases",
+		Columns:    ReleasesColumns,
+		PrimaryKey: []*schema.Column{ReleasesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "release_deployment_id",
+				Unique:  false,
+				Columns: []*schema.Column{ReleasesColumns[2]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "phase NOT IN ('completed','rolled_back','failed')",
+				},
+			},
+			{
+				Name:    "release_service_id",
+				Unique:  false,
+				Columns: []*schema.Column{ReleasesColumns[3]},
+			},
+			{
+				Name:    "release_phase",
+				Unique:  false,
+				Columns: []*schema.Column{ReleasesColumns[5]},
+			},
+			{
+				Name:    "release_deployment_id",
+				Unique:  true,
+				Columns: []*schema.Column{ReleasesColumns[2]},
+			},
+		},
+	}
+	// ReleaseEventsColumns holds the columns for the "release_events" table.
+	ReleaseEventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "release_id", Type: field.TypeUUID},
+		{Name: "action", Type: field.TypeString},
+		{Name: "from_weight", Type: field.TypeInt, Nullable: true},
+		{Name: "to_weight", Type: field.TypeInt, Nullable: true},
+		{Name: "from_version", Type: field.TypeUUID, Nullable: true},
+		{Name: "to_version", Type: field.TypeUUID, Nullable: true},
+		{Name: "detail", Type: field.TypeString, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// ReleaseEventsTable holds the schema information for the "release_events" table.
+	ReleaseEventsTable = &schema.Table{
+		Name:       "release_events",
+		Columns:    ReleaseEventsColumns,
+		PrimaryKey: []*schema.Column{ReleaseEventsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "releaseevent_release_id",
+				Unique:  false,
+				Columns: []*schema.Column{ReleaseEventsColumns[1]},
+			},
+		},
+	}
 	// ServicesColumns holds the columns for the "services" table.
 	ServicesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -681,10 +652,6 @@ var (
 	Tables = []*schema.Table{
 		AcmeAccountsTable,
 		AuditLogsTable,
-		BluegreenDeploymentsTable,
-		BluegreenEventsTable,
-		CanaryEventsTable,
-		CanaryReleasesTable,
 		CertificatesTable,
 		CertificateOperationsTable,
 		DeploymentsTable,
@@ -694,6 +661,8 @@ var (
 		InstancesTable,
 		NodesTable,
 		RateLimitsTable,
+		ReleasesTable,
+		ReleaseEventsTable,
 		ServicesTable,
 		SettingsTable,
 		SettingsHistoryTable,

@@ -18,10 +18,6 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/NeoPlayful/maple-gateway/server/ent/acmeaccount"
 	"github.com/NeoPlayful/maple-gateway/server/ent/auditlog"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreendeployment"
-	"github.com/NeoPlayful/maple-gateway/server/ent/bluegreenevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryevent"
-	"github.com/NeoPlayful/maple-gateway/server/ent/canaryrelease"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificate"
 	"github.com/NeoPlayful/maple-gateway/server/ent/certificateoperation"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
@@ -31,6 +27,8 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
+	"github.com/NeoPlayful/maple-gateway/server/ent/release"
+	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
@@ -48,14 +46,6 @@ type Client struct {
 	ACMEAccount *ACMEAccountClient
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
-	// BluegreenDeployment is the client for interacting with the BluegreenDeployment builders.
-	BluegreenDeployment *BluegreenDeploymentClient
-	// BluegreenEvent is the client for interacting with the BluegreenEvent builders.
-	BluegreenEvent *BluegreenEventClient
-	// CanaryEvent is the client for interacting with the CanaryEvent builders.
-	CanaryEvent *CanaryEventClient
-	// CanaryRelease is the client for interacting with the CanaryRelease builders.
-	CanaryRelease *CanaryReleaseClient
 	// Certificate is the client for interacting with the Certificate builders.
 	Certificate *CertificateClient
 	// CertificateOperation is the client for interacting with the CertificateOperation builders.
@@ -74,6 +64,10 @@ type Client struct {
 	Node *NodeClient
 	// RateLimit is the client for interacting with the RateLimit builders.
 	RateLimit *RateLimitClient
+	// Release is the client for interacting with the Release builders.
+	Release *ReleaseClient
+	// ReleaseEvent is the client for interacting with the ReleaseEvent builders.
+	ReleaseEvent *ReleaseEventClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
 	// Setting is the client for interacting with the Setting builders.
@@ -99,10 +93,6 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.ACMEAccount = NewACMEAccountClient(c.config)
 	c.AuditLog = NewAuditLogClient(c.config)
-	c.BluegreenDeployment = NewBluegreenDeploymentClient(c.config)
-	c.BluegreenEvent = NewBluegreenEventClient(c.config)
-	c.CanaryEvent = NewCanaryEventClient(c.config)
-	c.CanaryRelease = NewCanaryReleaseClient(c.config)
 	c.Certificate = NewCertificateClient(c.config)
 	c.CertificateOperation = NewCertificateOperationClient(c.config)
 	c.Deployment = NewDeploymentClient(c.config)
@@ -112,6 +102,8 @@ func (c *Client) init() {
 	c.Instance = NewInstanceClient(c.config)
 	c.Node = NewNodeClient(c.config)
 	c.RateLimit = NewRateLimitClient(c.config)
+	c.Release = NewReleaseClient(c.config)
+	c.ReleaseEvent = NewReleaseEventClient(c.config)
 	c.Service = NewServiceClient(c.config)
 	c.Setting = NewSettingClient(c.config)
 	c.SettingHistory = NewSettingHistoryClient(c.config)
@@ -212,10 +204,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:               cfg,
 		ACMEAccount:          NewACMEAccountClient(cfg),
 		AuditLog:             NewAuditLogClient(cfg),
-		BluegreenDeployment:  NewBluegreenDeploymentClient(cfg),
-		BluegreenEvent:       NewBluegreenEventClient(cfg),
-		CanaryEvent:          NewCanaryEventClient(cfg),
-		CanaryRelease:        NewCanaryReleaseClient(cfg),
 		Certificate:          NewCertificateClient(cfg),
 		CertificateOperation: NewCertificateOperationClient(cfg),
 		Deployment:           NewDeploymentClient(cfg),
@@ -225,6 +213,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Instance:             NewInstanceClient(cfg),
 		Node:                 NewNodeClient(cfg),
 		RateLimit:            NewRateLimitClient(cfg),
+		Release:              NewReleaseClient(cfg),
+		ReleaseEvent:         NewReleaseEventClient(cfg),
 		Service:              NewServiceClient(cfg),
 		Setting:              NewSettingClient(cfg),
 		SettingHistory:       NewSettingHistoryClient(cfg),
@@ -252,10 +242,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:               cfg,
 		ACMEAccount:          NewACMEAccountClient(cfg),
 		AuditLog:             NewAuditLogClient(cfg),
-		BluegreenDeployment:  NewBluegreenDeploymentClient(cfg),
-		BluegreenEvent:       NewBluegreenEventClient(cfg),
-		CanaryEvent:          NewCanaryEventClient(cfg),
-		CanaryRelease:        NewCanaryReleaseClient(cfg),
 		Certificate:          NewCertificateClient(cfg),
 		CertificateOperation: NewCertificateOperationClient(cfg),
 		Deployment:           NewDeploymentClient(cfg),
@@ -265,6 +251,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Instance:             NewInstanceClient(cfg),
 		Node:                 NewNodeClient(cfg),
 		RateLimit:            NewRateLimitClient(cfg),
+		Release:              NewReleaseClient(cfg),
+		ReleaseEvent:         NewReleaseEventClient(cfg),
 		Service:              NewServiceClient(cfg),
 		Setting:              NewSettingClient(cfg),
 		SettingHistory:       NewSettingHistoryClient(cfg),
@@ -300,11 +288,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.ACMEAccount, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
-		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.CertificateOperation,
-		c.Deployment, c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance,
-		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
-		c.TrafficPolicy, c.User,
+		c.ACMEAccount, c.AuditLog, c.Certificate, c.CertificateOperation, c.Deployment,
+		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
+		c.RateLimit, c.Release, c.ReleaseEvent, c.Service, c.Setting, c.SettingHistory,
+		c.Tenant, c.TrafficPolicy, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -314,11 +301,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.ACMEAccount, c.AuditLog, c.BluegreenDeployment, c.BluegreenEvent,
-		c.CanaryEvent, c.CanaryRelease, c.Certificate, c.CertificateOperation,
-		c.Deployment, c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance,
-		c.Node, c.RateLimit, c.Service, c.Setting, c.SettingHistory, c.Tenant,
-		c.TrafficPolicy, c.User,
+		c.ACMEAccount, c.AuditLog, c.Certificate, c.CertificateOperation, c.Deployment,
+		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
+		c.RateLimit, c.Release, c.ReleaseEvent, c.Service, c.Setting, c.SettingHistory,
+		c.Tenant, c.TrafficPolicy, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -331,14 +317,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ACMEAccount.mutate(ctx, m)
 	case *AuditLogMutation:
 		return c.AuditLog.mutate(ctx, m)
-	case *BluegreenDeploymentMutation:
-		return c.BluegreenDeployment.mutate(ctx, m)
-	case *BluegreenEventMutation:
-		return c.BluegreenEvent.mutate(ctx, m)
-	case *CanaryEventMutation:
-		return c.CanaryEvent.mutate(ctx, m)
-	case *CanaryReleaseMutation:
-		return c.CanaryRelease.mutate(ctx, m)
 	case *CertificateMutation:
 		return c.Certificate.mutate(ctx, m)
 	case *CertificateOperationMutation:
@@ -357,6 +335,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Node.mutate(ctx, m)
 	case *RateLimitMutation:
 		return c.RateLimit.mutate(ctx, m)
+	case *ReleaseMutation:
+		return c.Release.mutate(ctx, m)
+	case *ReleaseEventMutation:
+		return c.ReleaseEvent.mutate(ctx, m)
 	case *ServiceMutation:
 		return c.Service.mutate(ctx, m)
 	case *SettingMutation:
@@ -637,538 +619,6 @@ func (c *AuditLogClient) mutate(ctx context.Context, m *AuditLogMutation) (Value
 		return (&AuditLogDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AuditLog mutation op: %q", m.Op())
-	}
-}
-
-// BluegreenDeploymentClient is a client for the BluegreenDeployment schema.
-type BluegreenDeploymentClient struct {
-	config
-}
-
-// NewBluegreenDeploymentClient returns a client for the BluegreenDeployment from the given config.
-func NewBluegreenDeploymentClient(c config) *BluegreenDeploymentClient {
-	return &BluegreenDeploymentClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `bluegreendeployment.Hooks(f(g(h())))`.
-func (c *BluegreenDeploymentClient) Use(hooks ...Hook) {
-	c.hooks.BluegreenDeployment = append(c.hooks.BluegreenDeployment, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `bluegreendeployment.Intercept(f(g(h())))`.
-func (c *BluegreenDeploymentClient) Intercept(interceptors ...Interceptor) {
-	c.inters.BluegreenDeployment = append(c.inters.BluegreenDeployment, interceptors...)
-}
-
-// Create returns a builder for creating a BluegreenDeployment entity.
-func (c *BluegreenDeploymentClient) Create() *BluegreenDeploymentCreate {
-	mutation := newBluegreenDeploymentMutation(c.config, OpCreate)
-	return &BluegreenDeploymentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of BluegreenDeployment entities.
-func (c *BluegreenDeploymentClient) CreateBulk(builders ...*BluegreenDeploymentCreate) *BluegreenDeploymentCreateBulk {
-	return &BluegreenDeploymentCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *BluegreenDeploymentClient) MapCreateBulk(slice any, setFunc func(*BluegreenDeploymentCreate, int)) *BluegreenDeploymentCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &BluegreenDeploymentCreateBulk{err: fmt.Errorf("calling to BluegreenDeploymentClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*BluegreenDeploymentCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &BluegreenDeploymentCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for BluegreenDeployment.
-func (c *BluegreenDeploymentClient) Update() *BluegreenDeploymentUpdate {
-	mutation := newBluegreenDeploymentMutation(c.config, OpUpdate)
-	return &BluegreenDeploymentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *BluegreenDeploymentClient) UpdateOne(bd *BluegreenDeployment) *BluegreenDeploymentUpdateOne {
-	mutation := newBluegreenDeploymentMutation(c.config, OpUpdateOne, withBluegreenDeployment(bd))
-	return &BluegreenDeploymentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *BluegreenDeploymentClient) UpdateOneID(id uuid.UUID) *BluegreenDeploymentUpdateOne {
-	mutation := newBluegreenDeploymentMutation(c.config, OpUpdateOne, withBluegreenDeploymentID(id))
-	return &BluegreenDeploymentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for BluegreenDeployment.
-func (c *BluegreenDeploymentClient) Delete() *BluegreenDeploymentDelete {
-	mutation := newBluegreenDeploymentMutation(c.config, OpDelete)
-	return &BluegreenDeploymentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *BluegreenDeploymentClient) DeleteOne(bd *BluegreenDeployment) *BluegreenDeploymentDeleteOne {
-	return c.DeleteOneID(bd.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *BluegreenDeploymentClient) DeleteOneID(id uuid.UUID) *BluegreenDeploymentDeleteOne {
-	builder := c.Delete().Where(bluegreendeployment.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &BluegreenDeploymentDeleteOne{builder}
-}
-
-// Query returns a query builder for BluegreenDeployment.
-func (c *BluegreenDeploymentClient) Query() *BluegreenDeploymentQuery {
-	return &BluegreenDeploymentQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeBluegreenDeployment},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a BluegreenDeployment entity by its id.
-func (c *BluegreenDeploymentClient) Get(ctx context.Context, id uuid.UUID) (*BluegreenDeployment, error) {
-	return c.Query().Where(bluegreendeployment.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *BluegreenDeploymentClient) GetX(ctx context.Context, id uuid.UUID) *BluegreenDeployment {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *BluegreenDeploymentClient) Hooks() []Hook {
-	return c.hooks.BluegreenDeployment
-}
-
-// Interceptors returns the client interceptors.
-func (c *BluegreenDeploymentClient) Interceptors() []Interceptor {
-	return c.inters.BluegreenDeployment
-}
-
-func (c *BluegreenDeploymentClient) mutate(ctx context.Context, m *BluegreenDeploymentMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&BluegreenDeploymentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&BluegreenDeploymentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&BluegreenDeploymentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&BluegreenDeploymentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown BluegreenDeployment mutation op: %q", m.Op())
-	}
-}
-
-// BluegreenEventClient is a client for the BluegreenEvent schema.
-type BluegreenEventClient struct {
-	config
-}
-
-// NewBluegreenEventClient returns a client for the BluegreenEvent from the given config.
-func NewBluegreenEventClient(c config) *BluegreenEventClient {
-	return &BluegreenEventClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `bluegreenevent.Hooks(f(g(h())))`.
-func (c *BluegreenEventClient) Use(hooks ...Hook) {
-	c.hooks.BluegreenEvent = append(c.hooks.BluegreenEvent, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `bluegreenevent.Intercept(f(g(h())))`.
-func (c *BluegreenEventClient) Intercept(interceptors ...Interceptor) {
-	c.inters.BluegreenEvent = append(c.inters.BluegreenEvent, interceptors...)
-}
-
-// Create returns a builder for creating a BluegreenEvent entity.
-func (c *BluegreenEventClient) Create() *BluegreenEventCreate {
-	mutation := newBluegreenEventMutation(c.config, OpCreate)
-	return &BluegreenEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of BluegreenEvent entities.
-func (c *BluegreenEventClient) CreateBulk(builders ...*BluegreenEventCreate) *BluegreenEventCreateBulk {
-	return &BluegreenEventCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *BluegreenEventClient) MapCreateBulk(slice any, setFunc func(*BluegreenEventCreate, int)) *BluegreenEventCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &BluegreenEventCreateBulk{err: fmt.Errorf("calling to BluegreenEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*BluegreenEventCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &BluegreenEventCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for BluegreenEvent.
-func (c *BluegreenEventClient) Update() *BluegreenEventUpdate {
-	mutation := newBluegreenEventMutation(c.config, OpUpdate)
-	return &BluegreenEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *BluegreenEventClient) UpdateOne(be *BluegreenEvent) *BluegreenEventUpdateOne {
-	mutation := newBluegreenEventMutation(c.config, OpUpdateOne, withBluegreenEvent(be))
-	return &BluegreenEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *BluegreenEventClient) UpdateOneID(id uuid.UUID) *BluegreenEventUpdateOne {
-	mutation := newBluegreenEventMutation(c.config, OpUpdateOne, withBluegreenEventID(id))
-	return &BluegreenEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for BluegreenEvent.
-func (c *BluegreenEventClient) Delete() *BluegreenEventDelete {
-	mutation := newBluegreenEventMutation(c.config, OpDelete)
-	return &BluegreenEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *BluegreenEventClient) DeleteOne(be *BluegreenEvent) *BluegreenEventDeleteOne {
-	return c.DeleteOneID(be.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *BluegreenEventClient) DeleteOneID(id uuid.UUID) *BluegreenEventDeleteOne {
-	builder := c.Delete().Where(bluegreenevent.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &BluegreenEventDeleteOne{builder}
-}
-
-// Query returns a query builder for BluegreenEvent.
-func (c *BluegreenEventClient) Query() *BluegreenEventQuery {
-	return &BluegreenEventQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeBluegreenEvent},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a BluegreenEvent entity by its id.
-func (c *BluegreenEventClient) Get(ctx context.Context, id uuid.UUID) (*BluegreenEvent, error) {
-	return c.Query().Where(bluegreenevent.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *BluegreenEventClient) GetX(ctx context.Context, id uuid.UUID) *BluegreenEvent {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *BluegreenEventClient) Hooks() []Hook {
-	return c.hooks.BluegreenEvent
-}
-
-// Interceptors returns the client interceptors.
-func (c *BluegreenEventClient) Interceptors() []Interceptor {
-	return c.inters.BluegreenEvent
-}
-
-func (c *BluegreenEventClient) mutate(ctx context.Context, m *BluegreenEventMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&BluegreenEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&BluegreenEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&BluegreenEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&BluegreenEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown BluegreenEvent mutation op: %q", m.Op())
-	}
-}
-
-// CanaryEventClient is a client for the CanaryEvent schema.
-type CanaryEventClient struct {
-	config
-}
-
-// NewCanaryEventClient returns a client for the CanaryEvent from the given config.
-func NewCanaryEventClient(c config) *CanaryEventClient {
-	return &CanaryEventClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `canaryevent.Hooks(f(g(h())))`.
-func (c *CanaryEventClient) Use(hooks ...Hook) {
-	c.hooks.CanaryEvent = append(c.hooks.CanaryEvent, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `canaryevent.Intercept(f(g(h())))`.
-func (c *CanaryEventClient) Intercept(interceptors ...Interceptor) {
-	c.inters.CanaryEvent = append(c.inters.CanaryEvent, interceptors...)
-}
-
-// Create returns a builder for creating a CanaryEvent entity.
-func (c *CanaryEventClient) Create() *CanaryEventCreate {
-	mutation := newCanaryEventMutation(c.config, OpCreate)
-	return &CanaryEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of CanaryEvent entities.
-func (c *CanaryEventClient) CreateBulk(builders ...*CanaryEventCreate) *CanaryEventCreateBulk {
-	return &CanaryEventCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *CanaryEventClient) MapCreateBulk(slice any, setFunc func(*CanaryEventCreate, int)) *CanaryEventCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &CanaryEventCreateBulk{err: fmt.Errorf("calling to CanaryEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*CanaryEventCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &CanaryEventCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for CanaryEvent.
-func (c *CanaryEventClient) Update() *CanaryEventUpdate {
-	mutation := newCanaryEventMutation(c.config, OpUpdate)
-	return &CanaryEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *CanaryEventClient) UpdateOne(ce *CanaryEvent) *CanaryEventUpdateOne {
-	mutation := newCanaryEventMutation(c.config, OpUpdateOne, withCanaryEvent(ce))
-	return &CanaryEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *CanaryEventClient) UpdateOneID(id uuid.UUID) *CanaryEventUpdateOne {
-	mutation := newCanaryEventMutation(c.config, OpUpdateOne, withCanaryEventID(id))
-	return &CanaryEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for CanaryEvent.
-func (c *CanaryEventClient) Delete() *CanaryEventDelete {
-	mutation := newCanaryEventMutation(c.config, OpDelete)
-	return &CanaryEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *CanaryEventClient) DeleteOne(ce *CanaryEvent) *CanaryEventDeleteOne {
-	return c.DeleteOneID(ce.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *CanaryEventClient) DeleteOneID(id uuid.UUID) *CanaryEventDeleteOne {
-	builder := c.Delete().Where(canaryevent.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &CanaryEventDeleteOne{builder}
-}
-
-// Query returns a query builder for CanaryEvent.
-func (c *CanaryEventClient) Query() *CanaryEventQuery {
-	return &CanaryEventQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeCanaryEvent},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a CanaryEvent entity by its id.
-func (c *CanaryEventClient) Get(ctx context.Context, id uuid.UUID) (*CanaryEvent, error) {
-	return c.Query().Where(canaryevent.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *CanaryEventClient) GetX(ctx context.Context, id uuid.UUID) *CanaryEvent {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *CanaryEventClient) Hooks() []Hook {
-	return c.hooks.CanaryEvent
-}
-
-// Interceptors returns the client interceptors.
-func (c *CanaryEventClient) Interceptors() []Interceptor {
-	return c.inters.CanaryEvent
-}
-
-func (c *CanaryEventClient) mutate(ctx context.Context, m *CanaryEventMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&CanaryEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&CanaryEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&CanaryEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&CanaryEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown CanaryEvent mutation op: %q", m.Op())
-	}
-}
-
-// CanaryReleaseClient is a client for the CanaryRelease schema.
-type CanaryReleaseClient struct {
-	config
-}
-
-// NewCanaryReleaseClient returns a client for the CanaryRelease from the given config.
-func NewCanaryReleaseClient(c config) *CanaryReleaseClient {
-	return &CanaryReleaseClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `canaryrelease.Hooks(f(g(h())))`.
-func (c *CanaryReleaseClient) Use(hooks ...Hook) {
-	c.hooks.CanaryRelease = append(c.hooks.CanaryRelease, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `canaryrelease.Intercept(f(g(h())))`.
-func (c *CanaryReleaseClient) Intercept(interceptors ...Interceptor) {
-	c.inters.CanaryRelease = append(c.inters.CanaryRelease, interceptors...)
-}
-
-// Create returns a builder for creating a CanaryRelease entity.
-func (c *CanaryReleaseClient) Create() *CanaryReleaseCreate {
-	mutation := newCanaryReleaseMutation(c.config, OpCreate)
-	return &CanaryReleaseCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of CanaryRelease entities.
-func (c *CanaryReleaseClient) CreateBulk(builders ...*CanaryReleaseCreate) *CanaryReleaseCreateBulk {
-	return &CanaryReleaseCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *CanaryReleaseClient) MapCreateBulk(slice any, setFunc func(*CanaryReleaseCreate, int)) *CanaryReleaseCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &CanaryReleaseCreateBulk{err: fmt.Errorf("calling to CanaryReleaseClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*CanaryReleaseCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &CanaryReleaseCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for CanaryRelease.
-func (c *CanaryReleaseClient) Update() *CanaryReleaseUpdate {
-	mutation := newCanaryReleaseMutation(c.config, OpUpdate)
-	return &CanaryReleaseUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *CanaryReleaseClient) UpdateOne(cr *CanaryRelease) *CanaryReleaseUpdateOne {
-	mutation := newCanaryReleaseMutation(c.config, OpUpdateOne, withCanaryRelease(cr))
-	return &CanaryReleaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *CanaryReleaseClient) UpdateOneID(id uuid.UUID) *CanaryReleaseUpdateOne {
-	mutation := newCanaryReleaseMutation(c.config, OpUpdateOne, withCanaryReleaseID(id))
-	return &CanaryReleaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for CanaryRelease.
-func (c *CanaryReleaseClient) Delete() *CanaryReleaseDelete {
-	mutation := newCanaryReleaseMutation(c.config, OpDelete)
-	return &CanaryReleaseDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *CanaryReleaseClient) DeleteOne(cr *CanaryRelease) *CanaryReleaseDeleteOne {
-	return c.DeleteOneID(cr.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *CanaryReleaseClient) DeleteOneID(id uuid.UUID) *CanaryReleaseDeleteOne {
-	builder := c.Delete().Where(canaryrelease.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &CanaryReleaseDeleteOne{builder}
-}
-
-// Query returns a query builder for CanaryRelease.
-func (c *CanaryReleaseClient) Query() *CanaryReleaseQuery {
-	return &CanaryReleaseQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeCanaryRelease},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a CanaryRelease entity by its id.
-func (c *CanaryReleaseClient) Get(ctx context.Context, id uuid.UUID) (*CanaryRelease, error) {
-	return c.Query().Where(canaryrelease.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *CanaryReleaseClient) GetX(ctx context.Context, id uuid.UUID) *CanaryRelease {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *CanaryReleaseClient) Hooks() []Hook {
-	return c.hooks.CanaryRelease
-}
-
-// Interceptors returns the client interceptors.
-func (c *CanaryReleaseClient) Interceptors() []Interceptor {
-	return c.inters.CanaryRelease
-}
-
-func (c *CanaryReleaseClient) mutate(ctx context.Context, m *CanaryReleaseMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&CanaryReleaseCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&CanaryReleaseUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&CanaryReleaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&CanaryReleaseDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown CanaryRelease mutation op: %q", m.Op())
 	}
 }
 
@@ -2481,6 +1931,272 @@ func (c *RateLimitClient) mutate(ctx context.Context, m *RateLimitMutation) (Val
 	}
 }
 
+// ReleaseClient is a client for the Release schema.
+type ReleaseClient struct {
+	config
+}
+
+// NewReleaseClient returns a client for the Release from the given config.
+func NewReleaseClient(c config) *ReleaseClient {
+	return &ReleaseClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `release.Hooks(f(g(h())))`.
+func (c *ReleaseClient) Use(hooks ...Hook) {
+	c.hooks.Release = append(c.hooks.Release, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `release.Intercept(f(g(h())))`.
+func (c *ReleaseClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Release = append(c.inters.Release, interceptors...)
+}
+
+// Create returns a builder for creating a Release entity.
+func (c *ReleaseClient) Create() *ReleaseCreate {
+	mutation := newReleaseMutation(c.config, OpCreate)
+	return &ReleaseCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Release entities.
+func (c *ReleaseClient) CreateBulk(builders ...*ReleaseCreate) *ReleaseCreateBulk {
+	return &ReleaseCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ReleaseClient) MapCreateBulk(slice any, setFunc func(*ReleaseCreate, int)) *ReleaseCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ReleaseCreateBulk{err: fmt.Errorf("calling to ReleaseClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ReleaseCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ReleaseCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Release.
+func (c *ReleaseClient) Update() *ReleaseUpdate {
+	mutation := newReleaseMutation(c.config, OpUpdate)
+	return &ReleaseUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ReleaseClient) UpdateOne(r *Release) *ReleaseUpdateOne {
+	mutation := newReleaseMutation(c.config, OpUpdateOne, withRelease(r))
+	return &ReleaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ReleaseClient) UpdateOneID(id uuid.UUID) *ReleaseUpdateOne {
+	mutation := newReleaseMutation(c.config, OpUpdateOne, withReleaseID(id))
+	return &ReleaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Release.
+func (c *ReleaseClient) Delete() *ReleaseDelete {
+	mutation := newReleaseMutation(c.config, OpDelete)
+	return &ReleaseDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ReleaseClient) DeleteOne(r *Release) *ReleaseDeleteOne {
+	return c.DeleteOneID(r.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ReleaseClient) DeleteOneID(id uuid.UUID) *ReleaseDeleteOne {
+	builder := c.Delete().Where(release.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ReleaseDeleteOne{builder}
+}
+
+// Query returns a query builder for Release.
+func (c *ReleaseClient) Query() *ReleaseQuery {
+	return &ReleaseQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRelease},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Release entity by its id.
+func (c *ReleaseClient) Get(ctx context.Context, id uuid.UUID) (*Release, error) {
+	return c.Query().Where(release.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ReleaseClient) GetX(ctx context.Context, id uuid.UUID) *Release {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ReleaseClient) Hooks() []Hook {
+	return c.hooks.Release
+}
+
+// Interceptors returns the client interceptors.
+func (c *ReleaseClient) Interceptors() []Interceptor {
+	return c.inters.Release
+}
+
+func (c *ReleaseClient) mutate(ctx context.Context, m *ReleaseMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ReleaseCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ReleaseUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ReleaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ReleaseDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Release mutation op: %q", m.Op())
+	}
+}
+
+// ReleaseEventClient is a client for the ReleaseEvent schema.
+type ReleaseEventClient struct {
+	config
+}
+
+// NewReleaseEventClient returns a client for the ReleaseEvent from the given config.
+func NewReleaseEventClient(c config) *ReleaseEventClient {
+	return &ReleaseEventClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `releaseevent.Hooks(f(g(h())))`.
+func (c *ReleaseEventClient) Use(hooks ...Hook) {
+	c.hooks.ReleaseEvent = append(c.hooks.ReleaseEvent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `releaseevent.Intercept(f(g(h())))`.
+func (c *ReleaseEventClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ReleaseEvent = append(c.inters.ReleaseEvent, interceptors...)
+}
+
+// Create returns a builder for creating a ReleaseEvent entity.
+func (c *ReleaseEventClient) Create() *ReleaseEventCreate {
+	mutation := newReleaseEventMutation(c.config, OpCreate)
+	return &ReleaseEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ReleaseEvent entities.
+func (c *ReleaseEventClient) CreateBulk(builders ...*ReleaseEventCreate) *ReleaseEventCreateBulk {
+	return &ReleaseEventCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ReleaseEventClient) MapCreateBulk(slice any, setFunc func(*ReleaseEventCreate, int)) *ReleaseEventCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ReleaseEventCreateBulk{err: fmt.Errorf("calling to ReleaseEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ReleaseEventCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ReleaseEventCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ReleaseEvent.
+func (c *ReleaseEventClient) Update() *ReleaseEventUpdate {
+	mutation := newReleaseEventMutation(c.config, OpUpdate)
+	return &ReleaseEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ReleaseEventClient) UpdateOne(re *ReleaseEvent) *ReleaseEventUpdateOne {
+	mutation := newReleaseEventMutation(c.config, OpUpdateOne, withReleaseEvent(re))
+	return &ReleaseEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ReleaseEventClient) UpdateOneID(id uuid.UUID) *ReleaseEventUpdateOne {
+	mutation := newReleaseEventMutation(c.config, OpUpdateOne, withReleaseEventID(id))
+	return &ReleaseEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ReleaseEvent.
+func (c *ReleaseEventClient) Delete() *ReleaseEventDelete {
+	mutation := newReleaseEventMutation(c.config, OpDelete)
+	return &ReleaseEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ReleaseEventClient) DeleteOne(re *ReleaseEvent) *ReleaseEventDeleteOne {
+	return c.DeleteOneID(re.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ReleaseEventClient) DeleteOneID(id uuid.UUID) *ReleaseEventDeleteOne {
+	builder := c.Delete().Where(releaseevent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ReleaseEventDeleteOne{builder}
+}
+
+// Query returns a query builder for ReleaseEvent.
+func (c *ReleaseEventClient) Query() *ReleaseEventQuery {
+	return &ReleaseEventQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeReleaseEvent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ReleaseEvent entity by its id.
+func (c *ReleaseEventClient) Get(ctx context.Context, id uuid.UUID) (*ReleaseEvent, error) {
+	return c.Query().Where(releaseevent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ReleaseEventClient) GetX(ctx context.Context, id uuid.UUID) *ReleaseEvent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ReleaseEventClient) Hooks() []Hook {
+	return c.hooks.ReleaseEvent
+}
+
+// Interceptors returns the client interceptors.
+func (c *ReleaseEventClient) Interceptors() []Interceptor {
+	return c.inters.ReleaseEvent
+}
+
+func (c *ReleaseEventClient) mutate(ctx context.Context, m *ReleaseEventMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ReleaseEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ReleaseEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ReleaseEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ReleaseEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ReleaseEvent mutation op: %q", m.Op())
+	}
+}
+
 // ServiceClient is a client for the Service schema.
 type ServiceClient struct {
 	config
@@ -3394,15 +3110,15 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		ACMEAccount, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Certificate, CertificateOperation, Deployment,
-		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Service,
-		Setting, SettingHistory, Tenant, TrafficPolicy, User []ent.Hook
+		ACMEAccount, AuditLog, Certificate, CertificateOperation, Deployment,
+		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Release,
+		ReleaseEvent, Service, Setting, SettingHistory, Tenant, TrafficPolicy,
+		User []ent.Hook
 	}
 	inters struct {
-		ACMEAccount, AuditLog, BluegreenDeployment, BluegreenEvent, CanaryEvent,
-		CanaryRelease, Certificate, CertificateOperation, Deployment,
-		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Service,
-		Setting, SettingHistory, Tenant, TrafficPolicy, User []ent.Interceptor
+		ACMEAccount, AuditLog, Certificate, CertificateOperation, Deployment,
+		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Release,
+		ReleaseEvent, Service, Setting, SettingHistory, Tenant, TrafficPolicy,
+		User []ent.Interceptor
 	}
 )
