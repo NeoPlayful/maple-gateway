@@ -14,6 +14,10 @@ const def: PageDef = {
     { key: 'description', label: 'fields.description' },
     { key: 'status', label: 'fields.status', badge: true },
   ],
+  filters: [
+    { type: 'keyword', key: 'keyword', keys: ['name', 'slug', 'description'], placeholder: 'tenants.filterPh' },
+    { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+  ],
   createFields: [
     { key: 'name', label: 'fields.name', required: true },
     { key: 'slug', label: 'fields.slug', required: true, placeholder: 'tenants.slugPh' },

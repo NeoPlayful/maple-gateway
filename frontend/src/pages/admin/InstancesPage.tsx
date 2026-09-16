@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { list, create, update, remove, statusAction } from '../../lib/modules';
@@ -9,6 +9,7 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
 
 // 端口映射展示为「主机端口:容器内部端口」，如 8101:80；无映射则回退为 '-'。
@@ -16,6 +17,14 @@ function fmtPortPair(host: number, container: number): string {
   if (!host) return '-';
   return container ? `${host}:${container}` : String(host);
 }
+
+// 筛选栏：关键字（地址）+ 服务 + 健康 + 状态，纯前端过滤已加载列表。
+const INSTANCE_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['address', 'version'], placeholder: 'instances.filterPh' },
+  { type: 'select', key: 'service_id', placeholder: 'common.filterAllService', loadOptions: { path: '/api/admin/services', valueKey: 'id', labelKey: 'name' } },
+  { type: 'select', key: 'health', placeholder: 'common.filterAllHealth', labelPrefix: 'status' },
+  { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+];
 
 export default function InstancesPage() {
   const { t } = useTranslation('admin');
@@ -27,6 +36,7 @@ export default function InstancesPage() {
   // 运行时容器：instance_id → 容器状态（CM 观测）。
   const [containers, setContainers] = useState<Record<string, CMContainer>>({});
   const [cmEnabled, setCmEnabled] = useState(true);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   // 表单弹窗：editing 非空=编辑，空=注册。
   const [formOpen, setFormOpen] = useState(false);
@@ -221,6 +231,11 @@ export default function InstancesPage() {
   const inputCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
+  const filtered = useMemo(() => applyFilters(rows, INSTANCE_FILTERS, filterValues), [rows, filterValues]);
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
+
   return (
     <div>
       <PageHeader
@@ -270,7 +285,7 @@ export default function InstancesPage() {
               onChange={(e) => setServiceId(e.target.value)}
               className={inputCls}
             >
-              <option value="">{t('canary.selectService')}</option>
+              <option value="">{t('releases.selectService')}</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -338,6 +353,15 @@ export default function InstancesPage() {
         )}
       </Modal>
 
+      <FilterBar
+        filters={INSTANCE_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={rows}
+        parents={{ '/api/admin/services': services }}
+      />
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -355,12 +379,12 @@ export default function InstancesPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('instances.none')}</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{rows.length === 0 ? t('instances.none') : t('common.noMatch')}</td>
               </tr>
             )}
-            {rows.map((r) => {
+            {filtered.map((r) => {
               const ct = containers[r.id];
               return (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">

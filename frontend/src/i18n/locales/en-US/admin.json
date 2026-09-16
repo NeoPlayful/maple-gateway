@@ -35,7 +35,19 @@
     "select": "Select…",
     "none": "No data",
     "noRows": "No data",
+    "noMatch": "No matching records",
     "search": "Search",
+    "searchPh": "Search…",
+    "resetFilter": "Reset",
+    "filterAllStatus": "All statuses",
+    "filterAllRole": "All roles",
+    "filterAllTenant": "All tenants",
+    "filterAllService": "All services",
+    "filterAllSource": "All sources",
+    "filterAllScope": "All scopes",
+    "filterAllPhase": "All phases",
+    "filterAllHealth": "All health",
+    "filterAllRegion": "All regions",
     "emptyPlaceholder": "Leave all blank",
     "version": "Version",
     "copyId": "Copy ID",
@@ -155,12 +167,14 @@
   },
   "tenants": {
     "title": "Tenants",
-    "slugPh": "e.g. tenant_1001"
+    "slugPh": "e.g. tenant_1001",
+    "filterPh": "Search name, slug or description"
   },
   "users": {
     "title": "Users",
     "new": "New User",
     "editTitle": "Edit User",
+    "filterPh": "Search email or name",
     "editHint": "Email is the login credential and can't be changed; demoting the last active super admin is rejected.",
     "confirmDelete": "Delete this user? This cannot be undone (you can't delete yourself or the last super admin).",
     "emailPh": "e.g. ops@maple.com",
@@ -175,10 +189,12 @@
   },
   "services": {
     "title": "Services",
-    "namePh": "e.g. storefront"
+    "namePh": "e.g. storefront",
+    "filterPh": "Search service name"
   },
   "domains": {
     "title": "Domains",
+    "filterPh": "Search hostname",
     "hostnamePh": "e.g. shop-a.com",
     "tlsCloudflare": "Cloudflare SaaS",
     "tlsManaged": "Managed",
@@ -190,6 +206,7 @@
   },
   "certificates": {
     "title": "Certificates",
+    "filterPh": "Search hostname",
     "upload": "Upload certificate",
     "uploading": "Uploading…",
     "hostname": "Hostname",
@@ -244,6 +261,7 @@
   "deployments": {
     "title": "Deployments",
     "namePh": "e.g. prod",
+    "filterPh": "Search deployment name",
     "runtime": "Runtime",
     "noVersions": "No versions",
     "noInstances": "No instances",
@@ -272,6 +290,7 @@
     "filterAllServices": "All services",
     "filterAllStatus": "All statuses",
     "keywordPh": "Search version or image",
+    "filterPh": "Search version or image",
     "resetFilter": "Reset",
     "createTitle": "New Version",
     "editTitle": "Edit Version",
@@ -285,6 +304,7 @@
   },
   "nodes": {
     "title": "Nodes",
+    "filterPh": "Search node name or host",
     "newTitle": "New node",
     "editTitle": "Edit node",
     "ownershipHint": "The node name is the identity reported by the agent and can't be changed after creation.",
@@ -313,6 +333,7 @@
     "title": "Releases",
     "new": "New Release",
     "editTitle": "Edit Release",
+    "filterPh": "Search release name",
     "strategy": "Strategy",
     "strategyCanary": "Canary",
     "strategyBlueGreen": "Blue/Green",
@@ -381,6 +402,7 @@
   },
   "instances": {
     "title": "Instances",
+    "filterPh": "Search address or version",
     "registerNew": "Register instance",
     "registerTitle": "Register instance",
     "editTitle": "Edit instance",
@@ -422,6 +444,7 @@
   },
   "ratelimit": {
     "title": "Rate limits",
+    "filterPh": "Search rule name",
     "newRule": "New rule",
     "editTitle": "Edit rate limit rule",
     "ownershipHint": "The scope and target can't be changed after creation; only name, limit, window, burst and response code are editable.",
@@ -454,6 +477,7 @@
   },
   "traffic": {
     "title": "Traffic policies",
+    "filterPh": "Search policy name",
     "newPolicy": "New policy",
     "editTitle": "Edit policy",
     "ownershipHint": "The service can't be changed after creation; the match rules are rebuilt from the current form.",
@@ -580,6 +604,7 @@
   },
   "applications": {
     "title": "Compose Applications",
+    "filterPh": "Search app name or description",
     "new": "New application",
     "createTitle": "New Compose application",
     "editTitle": "Edit Compose application",

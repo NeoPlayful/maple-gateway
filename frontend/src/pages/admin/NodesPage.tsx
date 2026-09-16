@@ -9,7 +9,15 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+
+// 筛选栏：关键字（节点名/主机地址）+ 状态 + 区域，纯前端过滤已加载列表。
+const NODE_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['name', 'host'], placeholder: 'nodes.filterPh' },
+  { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+  { type: 'select', key: 'region', placeholder: 'common.filterAllRegion' },
+];
 
 // 字节数格式化。
 function fmtBytes(n?: number): string {
@@ -44,6 +52,7 @@ export default function NodesPage() {
   const [cmMetrics, setCmMetrics] = useState<Record<string, NodeMetric>>({});
   const [cmEnabled, setCmEnabled] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   // 表单弹窗：editing 非空=编辑，空=新建。
   const [formOpen, setFormOpen] = useState(false);
@@ -186,6 +195,11 @@ export default function NodesPage() {
   const activeStates = ['active', 'enabled', 'online', 'healthy'];
   const inactiveStates = ['disabled', 'suspended', 'offline', 'maintenance', 'paused'];
 
+  const filtered = useMemo(() => applyFilters(rows, NODE_FILTERS, filterValues), [rows, filterValues]);
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
+
   return (
     <div>
       <PageHeader
@@ -257,6 +271,14 @@ export default function NodesPage() {
         )}
       </Modal>
 
+      <FilterBar
+        filters={NODE_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={rows}
+      />
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -274,12 +296,12 @@ export default function NodesPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('common.none')}</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{rows.length === 0 ? t('common.none') : t('common.noMatch')}</td>
               </tr>
             )}
-            {rows.map((r) => {
+            {filtered.map((r) => {
               const cn = cmNodes[r.name];
               const mt = metricByName.get(r.name);
               const hostm = mt?.metrics?.host;

@@ -9,6 +9,11 @@ const def: PageDef = {
     { key: 'protocol', label: 'fields.protocol' },
     { key: 'status', label: 'fields.status', badge: true },
   ],
+  filters: [
+    { type: 'keyword', key: 'keyword', keys: ['name'], placeholder: 'services.filterPh' },
+    { type: 'select', key: 'tenant_id', placeholder: 'common.filterAllTenant', loadOptions: { path: '/api/admin/tenants', valueKey: 'id', labelKey: 'name' } },
+    { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+  ],
   createFields: [
     {
       key: 'tenant_id',

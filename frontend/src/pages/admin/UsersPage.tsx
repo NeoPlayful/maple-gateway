@@ -1,6 +1,6 @@
 // 平台用户（管理员账号）管理页：列表 + 展开详情 + 新建 + 改角色 + 启停。
 // 后端契约见 internal/api/users.go（写操作经 RBAC 限 super_admin）。
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -14,6 +14,7 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { DetailGrid } from '../../components/admin/DetailGrid';
 import { IdCell } from '../../components/admin/IdCell';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
 
 // AdminUser 与 /api/admin/users 返回字段对应。
@@ -28,6 +29,21 @@ interface AdminUser {
 
 // 平台角色（与后端 auth.ValidRole 一致）。
 const ROLES = ['super_admin', 'operator', 'viewer'] as const;
+
+// 筛选栏：关键字（邮箱/姓名）+ 角色 + 状态，三者 AND，纯前端过滤已加载列表。
+const USER_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['email', 'name'], placeholder: 'users.filterPh' },
+  { type: 'select', key: 'role', placeholder: 'common.filterAllRole', options: ROLES.map((r) => ({ value: r, label: `users.role.${r}` })) },
+  {
+    type: 'select',
+    key: 'status',
+    placeholder: 'common.filterAllStatus',
+    options: [
+      { value: 'active', label: 'status.active' },
+      { value: 'disabled', label: 'status.disabled' },
+    ],
+  },
+];
 
 const roleColor: Record<string, string> = {
   super_admin: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300',
@@ -48,6 +64,9 @@ export default function UsersPage() {
   const [rows, setRows] = useState<AdminUser[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 列表筛选：关键字（邮箱/姓名）/ 角色 / 状态，三者 AND，纯前端过滤已加载列表。
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   // 新建弹窗。
   const [createOpen, setCreateOpen] = useState(false);
@@ -154,6 +173,14 @@ export default function UsersPage() {
       toast.error(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
+
+  const filtered = useMemo(
+    () => applyFilters(rows, USER_FILTERS, filterValues),
+    [rows, filterValues],
+  );
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
 
   return (
     <div>
@@ -269,6 +296,14 @@ export default function UsersPage() {
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t('users.editHint')}</p>
       </Modal>
 
+      <FilterBar
+        filters={USER_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={rows}
+      />
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -282,14 +317,14 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  {t('common.none')}
+                  {rows.length === 0 ? t('common.none') : t('common.noMatch')}
                 </td>
               </tr>
             )}
-            {rows.map((u) => {
+            {filtered.map((u) => {
               const expanded = expandedId === u.id;
               const isSelf = me?.id === u.id;
               return (

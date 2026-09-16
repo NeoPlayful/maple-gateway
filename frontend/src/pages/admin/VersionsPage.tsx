@@ -7,7 +7,15 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+
+// 筛选栏：关键字（版本/镜像）+ 服务 + 状态，纯前端过滤已加载的全部版本。
+const VERSION_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['version', 'image'], placeholder: 'versions.filterPh' },
+  { type: 'select', key: 'service_id', placeholder: 'versions.filterAllServices', loadOptions: { path: '/api/admin/services', valueKey: 'id', labelKey: 'name' } },
+  { type: 'select', key: 'status', placeholder: 'versions.filterAllStatus', labelPrefix: 'status' },
+];
 
 // 版本管理：全局平铺所有服务/部署下的"可执行规格"（镜像 / 副本数 / 端口 / 环境变量 / 调度约束）。
 // 版本规格即 Container Manager 的部署意图来源——保存后由 Gateway Leader 推给 CM。
@@ -23,10 +31,8 @@ export default function VersionsPage() {
   // 新建弹窗内联动加载的部署（随所选服务变化）。
   const [formDeploys, setFormDeploys] = useState<Deployment[]>([]);
 
-  // 列表筛选：服务 / 状态 / 关键字（三者 AND，纯前端过滤已加载的全部版本）。
-  const [filterSvc, setFilterSvc] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [keyword, setKeyword] = useState('');
+  // 列表筛选：关键字 / 服务 / 状态，纯前端过滤已加载的全部版本。
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   // 表单态（字符串保存原始输入，提交时转换）。svcId/depId 仅新建时用于定位所属部署。
   const [form, setForm] = useState({
@@ -171,33 +177,15 @@ export default function VersionsPage() {
     [form.version, form.image, form.depId, editing],
   );
 
-  // 状态候选取自当前数据（去重），避免硬编码遗漏策略新增的状态。
-  const statusOptions = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.status))).sort(),
-    [rows],
-  );
-
-  const kw = keyword.trim().toLowerCase();
   const filtered = useMemo(
-    () => rows.filter((r) => {
-      if (filterSvc && r.service_id !== filterSvc) return false;
-      if (filterStatus && r.status !== filterStatus) return false;
-      if (kw) {
-        const hay = `${r.version} ${r.image ?? ''}`.toLowerCase();
-        if (!hay.includes(kw)) return false;
-      }
-      return true;
-    }),
-    [rows, filterSvc, filterStatus, kw],
+    () => applyFilters(rows, VERSION_FILTERS, filterValues),
+    [rows, filterValues],
   );
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
 
-  const hasFilter = !!(filterSvc || filterStatus || kw);
-  const resetFilter = () => { setFilterSvc(''); setFilterStatus(''); setKeyword(''); };
-
-  // fieldCls 只含盒子样式（不含宽度）。弹窗输入框需要占满一行用 inputCls；
-  // 筛选栏控件需要固定窄宽，必须用 fieldCls + 明确宽度——若复用含 w-full 的 inputCls，
-  // Tailwind 中 w-full 优先级高于数字宽度，会压过 w-40/w-36 导致控件撑满、整条栏溢出屏幕。
-  // focus 样式对齐 CrudPage 规范输入框：抹掉浏览器默认焦点框、改为主题色边，否则聚焦出现黑框。
+  // fieldCls 只含盒子样式（不含宽度）。弹窗输入框需要占满一行用 inputCls。
   const fieldCls =
     'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-th-accent-focus focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500';
   const inputCls = `${fieldCls} w-full`;
@@ -218,32 +206,14 @@ export default function VersionsPage() {
       {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
-      <div className="mb-3 overflow-x-auto">
-        <div className="flex items-center gap-3">
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder={t('versions.keywordPh')}
-            className={`${fieldCls} w-48 shrink-0`}
-          />
-          <select value={filterSvc} onChange={(e) => setFilterSvc(e.target.value)} className={`${fieldCls} w-40 shrink-0`}>
-            <option value="">{t('versions.filterAllServices')}</option>
-            {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={`${fieldCls} w-36 shrink-0`}>
-            <option value="">{t('versions.filterAllStatus')}</option>
-            {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {hasFilter && (
-            <button
-              onClick={resetFilter}
-              className="shrink-0 rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-            >
-              {t('versions.resetFilter')}
-            </button>
-          )}
-        </div>
-      </div>
+      <FilterBar
+        filters={VERSION_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={rows}
+        parents={{ '/api/admin/services': services }}
+      />
 
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
@@ -315,13 +285,13 @@ export default function VersionsPage() {
             <>
               <Field label={t('fields.service')}>
                 <select value={form.svcId} onChange={(e) => loadFormDeploys(e.target.value)} className={inputCls}>
-                  <option value="">{t('canary.selectService')}</option>
+                  <option value="">{t('releases.selectService')}</option>
                   {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>
               <Field label={t('fields.deploymentName')}>
                 <select value={form.depId} disabled={!formDeploys.length} onChange={(e) => setForm({ ...form, depId: e.target.value })} className={inputCls}>
-                  <option value="">{t('canary.selectDeployment')}</option>
+                  <option value="">{t('releases.selectDeployment')}</option>
                   {formDeploys.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.strategy})</option>)}
                 </select>
               </Field>
