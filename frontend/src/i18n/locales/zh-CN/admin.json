@@ -267,7 +267,12 @@
   "versions": {
     "title": "版本与规格",
     "newVersion": "新建版本",
-    "none": "请选择部署以查看其版本",
+    "none": "暂无版本",
+    "noMatch": "没有符合条件的版本",
+    "filterAllServices": "全部服务",
+    "filterAllStatus": "全部状态",
+    "keywordPh": "搜索版本或镜像",
+    "resetFilter": "重置",
     "createTitle": "新建版本",
     "editTitle": "编辑版本",
     "setDefault": "设为默认",

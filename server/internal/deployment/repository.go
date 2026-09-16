@@ -11,6 +11,7 @@ import (
 	entdeployment "github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	entdv "github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	entinstance "github.com/NeoPlayful/maple-gateway/server/ent/instance"
+	entservice "github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 )
@@ -362,6 +363,60 @@ func (r *Repository) DeleteVersion(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("commit delete version: %w", err)
 	}
 	return nil
+}
+
+// ListAllVersions 列出全部版本并补出所属服务/部署归属，供全局版本列表展示。
+// 先把服务名、部署名建映射，再一次遍历版本装配，避免逐行查库。
+func (r *Repository) ListAllVersions(ctx context.Context) ([]*VersionWithOwner, error) {
+	vs, err := r.ent.DeploymentVersion.Query().
+		WithDeployment().
+		Order(entdv.ByCreatedAt(sql.OrderDesc())).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list all versions: %w", err)
+	}
+
+	// 收集涉及的 service_id 与 deployment_id，批量取名。
+	svcIDs := map[uuid.UUID]struct{}{}
+	for _, v := range vs {
+		if v.Edges.Deployment != nil {
+			svcIDs[v.Edges.Deployment.ServiceID] = struct{}{}
+		}
+	}
+	svcNames := map[uuid.UUID]string{}
+	if len(svcIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(svcIDs))
+		for id := range svcIDs {
+			ids = append(ids, id)
+		}
+		ss, err := r.ent.Service.Query().Where(entservice.IDIn(ids...)).All(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve service names: %w", err)
+		}
+		for _, s := range ss {
+			svcNames[s.ID] = s.Name
+		}
+	}
+
+	// 部署名取自已 eager-load 的边，避免再查一次。
+	depNames := map[uuid.UUID]string{}
+	for _, v := range vs {
+		if d := v.Edges.Deployment; d != nil {
+			depNames[d.ID] = d.Name
+		}
+	}
+
+	out := make([]*VersionWithOwner, 0, len(vs))
+	for _, v := range vs {
+		row := &VersionWithOwner{Version: *toVersion(v)}
+		if d := v.Edges.Deployment; d != nil {
+			row.ServiceID = d.ServiceID
+			row.ServiceName = svcNames[d.ServiceID]
+			row.DeploymentName = depNames[d.ID]
+		}
+		out = append(out, row)
+	}
+	return out, nil
 }
 
 // VersionGroupRow 是跨 service 的版本聚合行（路由表构建用，避免引入 cache 依赖）。

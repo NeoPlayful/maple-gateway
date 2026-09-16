@@ -54,6 +54,13 @@ export interface Version {
   created_at: string;
 }
 
+// 全局版本列表行：版本规格 + 所属服务/部署归属（GET /api/admin/versions）。
+export interface VersionWithOwner extends Version {
+  service_id: string;
+  service_name: string;
+  deployment_name: string;
+}
+
 export interface Instance {
   id: string;
   service_id: string;
