@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
-import type { Deployment, Service, Version } from '../../types';
+import type { Deployment, Service, VersionWithOwner } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
@@ -9,23 +9,29 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { PageHeader } from '../../themes';
 
-// 版本管理：为部署定义"可执行规格"（镜像 / 副本数 / 端口 / 环境变量 / 调度约束）。
+// 版本管理：全局平铺所有服务/部署下的"可执行规格"（镜像 / 副本数 / 端口 / 环境变量 / 调度约束）。
 // 版本规格即 Container Manager 的部署意图来源——保存后由 Gateway Leader 推给 CM。
 export default function VersionsPage() {
   const { t } = useTranslation('admin');
   const [services, setServices] = useState<Service[]>([]);
-  const [deploys, setDeploys] = useState<Deployment[]>([]);
-  const [versions, setVersions] = useState<Version[]>([]);
-  const [svcId, setSvcId] = useState('');
-  const [depId, setDepId] = useState('');
+  const [rows, setRows] = useState<VersionWithOwner[]>([]);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Version | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<VersionWithOwner | null>(null);
+  const [deleteRow, setDeleteRow] = useState<VersionWithOwner | null>(null);
+  // 新建弹窗内联动加载的部署（随所选服务变化）。
+  const [formDeploys, setFormDeploys] = useState<Deployment[]>([]);
 
-  // 表单态（字符串保存原始输入，提交时转换）。
+  // 列表筛选：服务 / 状态 / 关键字（三者 AND，纯前端过滤已加载的全部版本）。
+  const [filterSvc, setFilterSvc] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [keyword, setKeyword] = useState('');
+
+  // 表单态（字符串保存原始输入，提交时转换）。svcId/depId 仅新建时用于定位所属部署。
   const [form, setForm] = useState({
+    svcId: '',
+    depId: '',
     version: '',
     image: '',
     replicas: '1',
@@ -39,39 +45,47 @@ export default function VersionsPage() {
 
   const loadServices = useCallback(async () => {
     try {
-      setServices(await api.get<Service[]>('/api/admin/services?limit=100'));
+      setServices(await api.get<Service[]>('/api/admin/services?limit=200'));
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { loadServices(); }, [loadServices]);
-
-  const loadDeploys = async (serviceId: string) => {
-    setSvcId(serviceId);
-    setDepId('');
-    setVersions([]);
-    if (!serviceId) { setDeploys([]); return; }
+  const loadVersions = useCallback(async () => {
     try {
-      setDeploys(await api.get<Deployment[]>(`/api/admin/deployments?service_id=${serviceId}&limit=100`));
-    } catch { setDeploys([]); }
-  };
+      setRows(await api.get<VersionWithOwner[]>('/api/admin/versions?limit=200'));
+      setErr('');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('common.loadFailed'));
+      setRows([]);
+    }
+  }, [t]);
 
-  const loadVersions = async (deploymentId: string) => {
-    setDepId(deploymentId);
-    if (!deploymentId) { setVersions([]); return; }
+  useEffect(() => { loadServices(); loadVersions(); }, [loadServices, loadVersions]);
+
+  // 新建弹窗内选服务 → 联动加载其部署。
+  const loadFormDeploys = async (serviceId: string) => {
+    setForm((f) => ({ ...f, svcId: serviceId, depId: '' }));
+    if (!serviceId) { setFormDeploys([]); return; }
     try {
-      setVersions(await api.get<Version[]>(`/api/admin/deployments/${deploymentId}/versions`));
-    } catch { setVersions([]); }
+      setFormDeploys(await api.get<Deployment[]>(`/api/admin/deployments?service_id=${serviceId}&limit=200`));
+    } catch { setFormDeploys([]); }
   };
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ version: '', image: '', replicas: '1', port: '', weight: '100', status: 'stable', health_path: '', env: '', node_selector: '' });
+    setFormDeploys([]);
+    setForm({
+      svcId: '', depId: '', version: '', image: '', replicas: '1', port: '',
+      weight: '100', status: 'stable', health_path: '', env: '', node_selector: '',
+    });
     setModalOpen(true);
   };
 
-  const openEdit = (v: Version) => {
+  const openEdit = (v: VersionWithOwner) => {
     setEditing(v);
+    setFormDeploys([]);
     setForm({
+      svcId: v.service_id,
+      depId: v.deployment_id,
       version: v.version,
       image: v.image ?? '',
       replicas: String(v.replicas ?? 1),
@@ -118,41 +132,75 @@ export default function VersionsPage() {
         await api.patch(`/api/admin/versions/${editing.id}`, body);
         setMsg(t('versions.updateHint'));
       } else {
-        await api.post(`/api/admin/deployments/${depId}/versions`, body);
+        await api.post(`/api/admin/deployments/${form.depId}/versions`, body);
         setMsg(t('versions.createHint'));
       }
       setModalOpen(false);
-      await loadVersions(depId);
+      await loadVersions();
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
-  const setDefault = async (v: Version) => {
+  const setDefault = async (v: VersionWithOwner) => {
     setErr('');
     try {
-      await api.post(`/api/admin/versions/${v.id}/default`, { deployment_id: depId });
+      await api.post(`/api/admin/versions/${v.id}/default`, { deployment_id: v.deployment_id });
       setMsg(t('versions.defaultHint'));
-      await loadVersions(depId);
+      await loadVersions();
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
   const doDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteRow) return;
     try {
-      await api.delete(`/api/admin/versions/${deleteId}`);
+      await api.delete(`/api/admin/versions/${deleteRow.id}`);
       setMsg(t('versions.deleteHint'));
-      setDeleteId(null);
-      await loadVersions(depId);
+      setDeleteRow(null);
+      await loadVersions();
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('common.operateFailed'));
     }
   };
 
-  const inputCls =
-    'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+  // 新建时需先选服务与部署；编辑时仅需版本与镜像。
+  const canSubmit = useMemo(
+    () => !!form.version && !!form.image && (editing ? true : !!form.depId),
+    [form.version, form.image, form.depId, editing],
+  );
+
+  // 状态候选取自当前数据（去重），避免硬编码遗漏策略新增的状态。
+  const statusOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.status))).sort(),
+    [rows],
+  );
+
+  const kw = keyword.trim().toLowerCase();
+  const filtered = useMemo(
+    () => rows.filter((r) => {
+      if (filterSvc && r.service_id !== filterSvc) return false;
+      if (filterStatus && r.status !== filterStatus) return false;
+      if (kw) {
+        const hay = `${r.version} ${r.image ?? ''}`.toLowerCase();
+        if (!hay.includes(kw)) return false;
+      }
+      return true;
+    }),
+    [rows, filterSvc, filterStatus, kw],
+  );
+
+  const hasFilter = !!(filterSvc || filterStatus || kw);
+  const resetFilter = () => { setFilterSvc(''); setFilterStatus(''); setKeyword(''); };
+
+  // fieldCls 只含盒子样式（不含宽度）。弹窗输入框需要占满一行用 inputCls；
+  // 筛选栏控件需要固定窄宽，必须用 fieldCls + 明确宽度——若复用含 w-full 的 inputCls，
+  // Tailwind 中 w-full 优先级高于数字宽度，会压过 w-40/w-36 导致控件撑满、整条栏溢出屏幕。
+  // focus 样式对齐 CrudPage 规范输入框：抹掉浏览器默认焦点框、改为主题色边，否则聚焦出现黑框。
+  const fieldCls =
+    'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-th-accent-focus focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500';
+  const inputCls = `${fieldCls} w-full`;
 
   return (
     <div>
@@ -160,9 +208,8 @@ export default function VersionsPage() {
         title={t('versions.title')}
         right={
           <button
-            disabled={!depId}
             onClick={openCreate}
-            className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover disabled:opacity-40"
+            className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover"
           >
             + {t('versions.newVersion')}
           </button>
@@ -171,25 +218,39 @@ export default function VersionsPage() {
       {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Field label={t('fields.service')}>
-          <select value={svcId} onChange={(e) => loadDeploys(e.target.value)} className={inputCls}>
-            <option value="">{t('canary.selectService')}</option>
+      <div className="mb-3 overflow-x-auto">
+        <div className="flex items-center gap-3">
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder={t('versions.keywordPh')}
+            className={`${fieldCls} w-48 shrink-0`}
+          />
+          <select value={filterSvc} onChange={(e) => setFilterSvc(e.target.value)} className={`${fieldCls} w-40 shrink-0`}>
+            <option value="">{t('versions.filterAllServices')}</option>
             {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-        </Field>
-        <Field label={t('fields.deploymentName')}>
-          <select value={depId} disabled={!deploys.length} onChange={(e) => loadVersions(e.target.value)} className={inputCls}>
-            <option value="">{t('canary.selectDeployment')}</option>
-            {deploys.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.strategy})</option>)}
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={`${fieldCls} w-36 shrink-0`}>
+            <option value="">{t('versions.filterAllStatus')}</option>
+            {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-        </Field>
+          {hasFilter && (
+            <button
+              onClick={resetFilter}
+              className="shrink-0 rounded bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+            >
+              {t('versions.resetFilter')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
+              <th className="px-4 py-2">{t('fields.service')}</th>
+              <th className="px-4 py-2">{t('fields.deploymentName')}</th>
               <th className="px-4 py-2">{t('fields.version')}</th>
               <th className="px-4 py-2">{t('fields.image')}</th>
               <th className="px-4 py-2">{t('fields.replicas')}</th>
@@ -201,11 +262,15 @@ export default function VersionsPage() {
             </tr>
           </thead>
           <tbody>
-            {versions.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('versions.none')}</td></tr>
+            {filtered.length === 0 && (
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                {rows.length === 0 ? t('versions.none') : t('versions.noMatch')}
+              </td></tr>
             )}
-            {versions.map((v) => (
+            {filtered.map((v) => (
               <tr key={v.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.service_name || v.service_id.slice(0, 8)}</td>
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.deployment_name || v.deployment_id.slice(0, 8)}</td>
                 <td className="px-4 py-2 font-medium">{v.version}</td>
                 <td className="px-4 py-2 font-mono text-xs">{v.image || '-'}</td>
                 <td className="px-4 py-2">{v.replicas ?? 1}</td>
@@ -217,7 +282,7 @@ export default function VersionsPage() {
                   <div className="flex flex-wrap gap-1">
                     <ActionBtn onClick={() => openEdit(v)}>{t('common.edit')}</ActionBtn>
                     {v.status !== 'stable' && <ActionBtn onClick={() => setDefault(v)}>{t('versions.setDefault')}</ActionBtn>}
-                    <ActionBtn danger onClick={() => setDeleteId(v.id)}>{t('common.delete')}</ActionBtn>
+                    <ActionBtn danger onClick={() => setDeleteRow(v)}>{t('common.delete')}</ActionBtn>
                   </div>
                 </td>
               </tr>
@@ -236,7 +301,7 @@ export default function VersionsPage() {
               {t('common.cancel')}
             </button>
             <button
-              disabled={!form.version || !form.image}
+              disabled={!canSubmit}
               onClick={submit}
               className="rounded bg-th-accent px-4 py-1.5 text-sm text-white hover:bg-th-accent-hover disabled:opacity-40"
             >
@@ -246,6 +311,22 @@ export default function VersionsPage() {
         }
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {!editing && (
+            <>
+              <Field label={t('fields.service')}>
+                <select value={form.svcId} onChange={(e) => loadFormDeploys(e.target.value)} className={inputCls}>
+                  <option value="">{t('canary.selectService')}</option>
+                  {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Field>
+              <Field label={t('fields.deploymentName')}>
+                <select value={form.depId} disabled={!formDeploys.length} onChange={(e) => setForm({ ...form, depId: e.target.value })} className={inputCls}>
+                  <option value="">{t('canary.selectDeployment')}</option>
+                  {formDeploys.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.strategy})</option>)}
+                </select>
+              </Field>
+            </>
+          )}
           <Field label={t('fields.version')}>
             <input value={form.version} disabled={!!editing} onChange={(e) => setForm({ ...form, version: e.target.value })} className={inputCls} />
           </Field>
@@ -282,10 +363,10 @@ export default function VersionsPage() {
       </Modal>
 
       <ConfirmDialog
-        open={!!deleteId}
+        open={!!deleteRow}
         title={t('versions.deleteTitle')}
         message={t('versions.deleteConfirm')}
-        onCancel={() => setDeleteId(null)}
+        onCancel={() => setDeleteRow(null)}
         onConfirm={doDelete}
       />
     </div>

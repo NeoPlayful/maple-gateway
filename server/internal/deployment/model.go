@@ -107,3 +107,12 @@ type UpdateVersion struct {
 	HealthPath   *string           `json:"health_path"`
 	NodeSelector map[string]string `json:"node_selector"`
 }
+
+// VersionWithOwner 是全局版本列表行：版本规格 + 所属服务/部署归属。
+// 版本自身只存 deployment_id，跨服务平铺展示时需补出服务名。
+type VersionWithOwner struct {
+	Version
+	ServiceID      uuid.UUID `json:"service_id"`
+	ServiceName    string    `json:"service_name"`
+	DeploymentName string    `json:"deployment_name"`
+}

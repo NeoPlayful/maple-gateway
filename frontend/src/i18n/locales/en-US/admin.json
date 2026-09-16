@@ -267,7 +267,12 @@
   "versions": {
     "title": "Versions & Specs",
     "newVersion": "New Version",
-    "none": "Select a deployment to view its versions",
+    "none": "No versions yet",
+    "noMatch": "No versions match the filters",
+    "filterAllServices": "All services",
+    "filterAllStatus": "All statuses",
+    "keywordPh": "Search version or image",
+    "resetFilter": "Reset",
     "createTitle": "New Version",
     "editTitle": "Edit Version",
     "setDefault": "Set default",

@@ -248,6 +248,7 @@ func New(d Deps) *fiber.App {
 	dpl.Post("/:id/versions", deployH.CreateVersion)
 
 	ver := admin.Group("/versions")
+	ver.Get("/", deployH.ListAllVersions)
 	ver.Get("/:id", deployH.GetVersion)
 	ver.Patch("/:id", deployH.UpdateVersion)
 	ver.Delete("/:id", deployH.DeleteVersion)

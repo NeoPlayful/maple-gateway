@@ -195,6 +195,15 @@ func (h *Handler) setDeploymentStatus(c fiber.Ctx, s Status) error {
 
 // ---------- Version ----------
 
+// ListAllVersions GET /api/admin/versions —— 平铺全部版本（带服务/部署归属），供全局版本列表。
+func (h *Handler) ListAllVersions(c fiber.Ctx) error {
+	items, err := h.repo.ListAllVersions(c.Context())
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OKMeta(c, items, fiber.Map{"total": len(items)})
+}
+
 // ListVersions GET /api/admin/deployments/:id/versions
 func (h *Handler) ListVersions(c fiber.Ctx) error {
 	id, err := parseID(c, "id")
