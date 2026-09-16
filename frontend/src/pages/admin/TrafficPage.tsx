@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { list, create, update, statusAction, remove } from '../../lib/modules';
@@ -8,12 +8,21 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+
+// 筛选栏：关键字（策略名）+ 服务 + 状态，纯前端过滤已加载列表。
+const TRAFFIC_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['name'], placeholder: 'traffic.filterPh' },
+  { type: 'select', key: 'service_id', placeholder: 'common.filterAllService', loadOptions: { path: '/api/admin/services', valueKey: 'id', labelKey: 'name' } },
+  { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+];
 
 export default function TrafficPage() {
   const { t } = useTranslation('admin');
   const [rows, setRows] = useState<TrafficPolicy[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   // 待删除策略 id：非空时显示确认弹窗。
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -172,6 +181,11 @@ export default function TrafficPage() {
   const inputCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
+  const filtered = useMemo(() => applyFilters(rows, TRAFFIC_FILTERS, filterValues), [rows, filterValues]);
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
+
   return (
     <div>
       <PageHeader
@@ -260,6 +274,15 @@ export default function TrafficPage() {
         )}
       </Modal>
 
+      <FilterBar
+        filters={TRAFFIC_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={rows}
+        parents={{ '/api/admin/services': services }}
+      />
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -273,12 +296,12 @@ export default function TrafficPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('traffic.none')}</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{rows.length === 0 ? t('traffic.none') : t('common.noMatch')}</td>
               </tr>
             )}
-            {rows.map((r) => (
+            {filtered.map((r) => (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2 font-medium">{r.name}</td>
                 <td className="px-4 py-2">{r.priority}</td>

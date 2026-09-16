@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api } from '../../lib/client';
@@ -9,9 +9,17 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
 
 type Strategy = 'canary' | 'bluegreen';
+
+// 筛选栏：关键字（发布名）+ 服务 + 阶段，纯前端过滤已加载列表（策略按钮组另走服务端过滤）。
+const RELEASE_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['name'], placeholder: 'releases.filterPh' },
+  { type: 'select', key: 'service_id', placeholder: 'common.filterAllService', loadOptions: { path: '/api/admin/services', valueKey: 'id', labelKey: 'name' } },
+  { type: 'select', key: 'phase', placeholder: 'common.filterAllPhase' },
+];
 
 interface VersionMeta {
   id: string;
@@ -45,6 +53,7 @@ export default function ReleasesPage() {
 
   // 策略筛选：空=全部。
   const [filter, setFilter] = useState<Strategy | ''>('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   // 新建弹窗。
   const [createOpen, setCreateOpen] = useState(false);
@@ -279,6 +288,11 @@ export default function ReleasesPage() {
   const inputCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
 
+  const filtered = useMemo(() => applyFilters(rows, RELEASE_FILTERS, filterValues), [rows, filterValues]);
+  const setFilterValue = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
+
   const filterBtn = (val: Strategy | '', label: string) => (
     <button
       onClick={() => setFilter(val)}
@@ -307,6 +321,15 @@ export default function ReleasesPage() {
             {`+ ${t('releases.new')}`}
           </button>
         }
+      />
+
+      <FilterBar
+        filters={RELEASE_FILTERS}
+        values={filterValues}
+        onChange={setFilterValue}
+        onReset={resetFilter}
+        rows={rows}
+        parents={{ '/api/admin/services': services }}
       />
 
       <div className="mb-3 flex gap-2">
@@ -532,10 +555,10 @@ export default function ReleasesPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('releases.none')}</td></tr>
+            {filtered.length === 0 && (
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{rows.length === 0 ? t('releases.none') : t('common.noMatch')}</td></tr>
             )}
-            {rows.map((r) => (
+            {filtered.map((r) => (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2 font-medium">{r.name}</td>
                 <td className="px-4 py-2">

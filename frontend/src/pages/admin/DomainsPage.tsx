@@ -38,6 +38,11 @@ const def: PageDef = {
     { key: 'status', label: 'fields.status', badge: true },
     { key: 'created_at', label: 'fields.createdAt', render: (r) => new Date(r.created_at).toLocaleString() },
   ],
+  filters: [
+    { type: 'keyword', key: 'keyword', keys: ['hostname'], placeholder: 'domains.filterPh' },
+    { type: 'select', key: 'tenant_id', placeholder: 'common.filterAllTenant', loadOptions: { path: '/api/admin/tenants', valueKey: 'id', labelKey: 'name' } },
+    { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+  ],
   createFields: [
     {
       key: 'tenant_id',

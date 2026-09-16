@@ -9,6 +9,7 @@ import { StatusBadge } from './admin/StatusBadge';
 import { ActionBtn } from './admin/ActionBtn';
 import { Modal } from './admin/Modal';
 import { ConfirmDialog } from './admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from './admin/FilterBar';
 
 export interface FieldDef {
   key: string;
@@ -30,6 +31,7 @@ export interface PageDef {
   columns: { key: string; label: string; badge?: boolean; render?: (r: any) => ReactNode }[];
   createFields: FieldDef[];
   editFields?: FieldDef[]; // 声明后行内显示"编辑"，PATCH 部分更新
+  filters?: FilterDef[]; // 声明后表格上方显示筛选栏（前端过滤已加载列表）
   renderDetail?: (row: any, data: Record<string, any[]>) => ReactNode; // 声明后行首显示展开箭头，展开渲染该行详情
   detailLoad?: string[]; // 详情所需的数据源路径，加载时预取后按路径作为 renderDetail 第二参传入
   statusActions?: ('enable' | 'disable')[]; // 提供 enable/disable 动作
@@ -52,6 +54,8 @@ export default function CrudPage({ def }: { def: PageDef }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   // 当前展开详情的行 id（手风琴式，同一时刻最多展开一行）。
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // 筛选栏当前值：按筛选项 key 存原始输入（空串=不筛）。
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -64,17 +68,21 @@ export default function CrudPage({ def }: { def: PageDef }) {
   const loadParents = useCallback(async () => {
     const out: Record<string, any[]> = {};
     const fields = [...def.createFields, ...(def.editFields ?? [])];
-    for (const f of fields) {
-      if (f.loadOptions && !out[f.loadOptions.path]) {
+    // 筛选栏的 select 也可能动态拉取选项，一并在 parents 里预取（与表单字段共用同一缓存 map）。
+    const filterLoads = (def.filters ?? [])
+      .map((f) => f.loadOptions)
+      .filter((x): x is NonNullable<typeof x> => !!x);
+    for (const f of [...fields.map((x) => x.loadOptions), ...filterLoads]) {
+      if (f && !out[f.path]) {
         try {
-          out[f.loadOptions.path] = await list(f.loadOptions.path);
+          out[f.path] = await list(f.path);
         } catch {
-          out[f.loadOptions.path] = [];
+          out[f.path] = [];
         }
       }
     }
     setParents(out);
-  }, [def.createFields, def.editFields]);
+  }, [def.createFields, def.editFields, def.filters]);
 
   // 预取 detailLoad 声明的数据源（详情渲染同步读取，避免逐行异步）。
   const loadDetail = useCallback(async () => {
@@ -213,6 +221,17 @@ export default function CrudPage({ def }: { def: PageDef }) {
     [def.statusActions],
   );
 
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+
+  const resetFilter = () => setFilterValues({});
+
+  // 前端过滤：keyword 跨 keys 模糊匹配（大小写不敏感）；select 按行字段精确匹配；多条件 AND。
+  const filtered = useMemo(
+    () => applyFilters(rows, def.filters ?? [], filterValues),
+    [rows, def.filters, filterValues],
+  );
+
   const fieldCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-th-accent-focus focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500';
 
@@ -327,6 +346,17 @@ export default function CrudPage({ def }: { def: PageDef }) {
         onCancel={() => setDeleteId(null)}
       />
 
+      {def.filters && def.filters.length > 0 && (
+        <FilterBar
+          filters={def.filters}
+          values={filterValues}
+          onChange={setFilter}
+          onReset={resetFilter}
+          rows={rows}
+          parents={parents}
+        />
+      )}
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -340,17 +370,17 @@ export default function CrudPage({ def }: { def: PageDef }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td
                   colSpan={def.columns.length + 1}
                   className="px-4 py-6 text-center text-slate-400 dark:text-slate-500"
                 >
-                  {t('common.none', '暂无数据')}
+                  {rows.length === 0 ? t('common.none', '暂无数据') : t('common.noMatch', '没有符合条件的记录')}
                 </td>
               </tr>
             )}
-            {rows.map((r) => (
+            {filtered.map((r) => (
               <Fragment key={r.id}>
                 <tr
                   onClick={

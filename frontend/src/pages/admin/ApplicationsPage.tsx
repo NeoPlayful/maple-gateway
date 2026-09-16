@@ -8,6 +8,13 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
+
+// 筛选栏：关键字（应用名/描述）+ 状态，纯前端过滤已加载列表。
+const APP_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['name', 'description'], placeholder: 'applications.filterPh' },
+  { type: 'select', key: 'status', placeholder: 'common.filterAllStatus' },
+];
 
 // 一个可直接套用的最小 Compose 规格示例，帮助首次使用者快速上手。
 const SAMPLE_SPEC = `services:
@@ -23,6 +30,7 @@ export default function ApplicationsPage() {
   const [enabled, setEnabled] = useState(true);
   const [err, setErr] = useState('');
   const [last, setLast] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   // 编辑弹窗（新建 / 编辑复用）。
   const [editing, setEditing] = useState<CMApplication | null>(null);
@@ -151,6 +159,10 @@ export default function ApplicationsPage() {
     () => [...apps].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
     [apps],
   );
+  const filtered = useMemo(() => applyFilters(sorted, APP_FILTERS, filterValues), [sorted, filterValues]);
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
 
   const inputCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
@@ -181,6 +193,14 @@ export default function ApplicationsPage() {
       />
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
+      <FilterBar
+        filters={APP_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={sorted}
+      />
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -194,12 +214,12 @@ export default function ApplicationsPage() {
             </tr>
           </thead>
           <tbody>
-            {sorted.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{t('applications.none')}</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{sorted.length === 0 ? t('applications.none') : t('common.noMatch')}</td>
               </tr>
             )}
-            {sorted.map((a) => (
+            {filtered.map((a) => (
               <tr key={a.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2">
                   <button onClick={() => openDetail(a)} className="font-semibold text-sky-600 hover:underline dark:text-sky-400">{a.name}</button>

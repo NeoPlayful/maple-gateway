@@ -35,7 +35,19 @@
     "select": "选择…",
     "none": "暂无数据",
     "noRows": "暂无数据",
+    "noMatch": "没有符合条件的记录",
     "search": "查询",
+    "searchPh": "搜索…",
+    "resetFilter": "重置",
+    "filterAllStatus": "全部状态",
+    "filterAllRole": "全部角色",
+    "filterAllTenant": "全部租户",
+    "filterAllService": "全部服务",
+    "filterAllSource": "全部来源",
+    "filterAllScope": "全部维度",
+    "filterAllPhase": "全部阶段",
+    "filterAllHealth": "全部健康",
+    "filterAllRegion": "全部区域",
     "emptyPlaceholder": "留空全部",
     "version": "版本",
     "copyId": "复制 ID",
@@ -155,12 +167,14 @@
   },
   "tenants": {
     "title": "租户管理",
-    "slugPh": "如 tenant_1001"
+    "slugPh": "如 tenant_1001",
+    "filterPh": "搜索名称、标识或描述"
   },
   "users": {
     "title": "用户管理",
     "new": "新建用户",
     "editTitle": "编辑用户",
+    "filterPh": "搜索邮箱或姓名",
     "editHint": "邮箱为登录凭据，不可修改；降级最后一名活跃超管会被拒绝。",
     "confirmDelete": "确认删除该用户？此操作不可撤销（不能删除自己或最后一名超管）。",
     "emailPh": "如 ops@maple.com",
@@ -175,11 +189,13 @@
   },
   "services": {
     "title": "服务管理",
-    "namePh": "如 storefront"
+    "namePh": "如 storefront",
+    "filterPh": "搜索服务名"
   },
   "domains": {
     "title": "域名管理",
     "hostnamePh": "如 shop-a.com",
+    "filterPh": "搜索域名",
     "tlsCloudflare": "Cloudflare SaaS",
     "tlsManaged": "Managed",
     "tlsManual": "Direct TLS",
@@ -190,6 +206,7 @@
   },
   "certificates": {
     "title": "证书管理",
+    "filterPh": "搜索域名",
     "upload": "上传证书",
     "uploading": "上传中…",
     "hostname": "证书域名 (hostname)",
@@ -244,6 +261,7 @@
   "deployments": {
     "title": "部署与版本",
     "namePh": "如 prod",
+    "filterPh": "搜索部署名",
     "runtime": "运行时",
     "noVersions": "暂无版本",
     "noInstances": "暂无实例",
@@ -272,6 +290,7 @@
     "filterAllServices": "全部服务",
     "filterAllStatus": "全部状态",
     "keywordPh": "搜索版本或镜像",
+    "filterPh": "搜索版本或镜像",
     "resetFilter": "重置",
     "createTitle": "新建版本",
     "editTitle": "编辑版本",
@@ -285,6 +304,7 @@
   },
   "nodes": {
     "title": "节点管理",
+    "filterPh": "搜索节点名或地址",
     "newTitle": "新建节点",
     "editTitle": "编辑节点",
     "ownershipHint": "节点名称是 Agent 上报的身份标识，创建后不可修改。",
@@ -313,6 +333,7 @@
     "title": "发布",
     "new": "新建发布",
     "editTitle": "编辑发布",
+    "filterPh": "搜索发布名",
     "strategy": "策略",
     "strategyCanary": "金丝雀",
     "strategyBlueGreen": "蓝绿",
@@ -381,6 +402,7 @@
   },
   "instances": {
     "title": "实例管理",
+    "filterPh": "搜索地址或版本",
     "registerNew": "注册实例",
     "registerTitle": "注册实例",
     "editTitle": "编辑实例",
@@ -422,6 +444,7 @@
   },
   "ratelimit": {
     "title": "限流规则",
+    "filterPh": "搜索规则名",
     "newRule": "新建限流规则",
     "editTitle": "编辑限流规则",
     "ownershipHint": "维度 Scope 与作用对象在创建后不可修改；仅名称、配额、窗口、突发与状态码可编辑。",
@@ -454,6 +477,7 @@
   },
   "traffic": {
     "title": "流量策略",
+    "filterPh": "搜索策略名",
     "newPolicy": "新建策略",
     "editTitle": "编辑策略",
     "ownershipHint": "所属服务在创建后不可修改；匹配规则按当前表单整体重建。",
@@ -580,6 +604,7 @@
   },
   "applications": {
     "title": "Compose 应用",
+    "filterPh": "搜索应用名或描述",
     "new": "新建应用",
     "createTitle": "新建 Compose 应用",
     "editTitle": "编辑 Compose 应用",

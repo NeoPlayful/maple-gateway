@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { list, remove } from '../../lib/modules';
@@ -10,6 +10,7 @@ import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { ProgressStepper } from '../../components/admin/ProgressStepper';
+import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
 
 // 签发/续期操作进度（后端 certificate_operations）。
@@ -52,6 +53,13 @@ interface Domain {
 const DOMAIN_KEEP = '__keep__';
 const DOMAIN_CLEAR = '__clear__';
 
+// 筛选栏：关键字（hostname）+ 状态 + 来源，纯前端过滤已加载列表。
+const CERT_FILTERS: FilterDef[] = [
+  { type: 'keyword', key: 'keyword', keys: ['hostname'], placeholder: 'certificates.filterPh' },
+  { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+  { type: 'select', key: 'source', placeholder: 'common.filterAllSource' },
+];
+
 const domainName = (d?: string | null) => (d ? `${d.slice(0, 8)}…` : '-');
 
 const inputCls =
@@ -63,6 +71,7 @@ export default function CertificatesPage() {
   const [rows, setRows] = useState<Certificate[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [busy, setBusy] = useState(false);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   // 待删除证书 id：非空时显示确认弹窗。
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -285,6 +294,11 @@ export default function CertificatesPage() {
       setBusy(false);
     }
   };
+
+  const filtered = useMemo(() => applyFilters(rows, CERT_FILTERS, filterValues), [rows, filterValues]);
+  const setFilter = (key: string, value: string) =>
+    setFilterValues((cur) => ({ ...cur, [key]: value }));
+  const resetFilter = () => setFilterValues({});
 
   return (
     <div>
@@ -541,6 +555,14 @@ export default function CertificatesPage() {
         )}
       </Modal>
 
+      <FilterBar
+        filters={CERT_FILTERS}
+        values={filterValues}
+        onChange={setFilter}
+        onReset={resetFilter}
+        rows={rows}
+      />
+
       <div className="overflow-x-auto rounded-th-card border border-slate-200 bg-white shadow-th-card dark:border-slate-700 dark:bg-slate-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
@@ -556,14 +578,14 @@ export default function CertificatesPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  {t('certificates.none')}
+                  {rows.length === 0 ? t('certificates.none') : t('common.noMatch')}
                 </td>
               </tr>
             )}
-            {rows.map((r) => (
+            {filtered.map((r) => (
               <tr
                 key={r.id}
                 className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"

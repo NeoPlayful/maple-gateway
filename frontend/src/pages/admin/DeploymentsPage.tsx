@@ -202,6 +202,11 @@ const def: PageDef = {
     { key: 'strategy', label: 'fields.strategy' },
     { key: 'status', label: 'fields.status', badge: true },
   ],
+  filters: [
+    { type: 'keyword', key: 'keyword', keys: ['name'], placeholder: 'deployments.filterPh' },
+    { type: 'select', key: 'service_id', placeholder: 'common.filterAllService', loadOptions: { path: '/api/admin/services', valueKey: 'id', labelKey: 'name' } },
+    { type: 'select', key: 'status', placeholder: 'common.filterAllStatus', labelPrefix: 'status' },
+  ],
   createFields: [
     {
       key: 'service_id',
