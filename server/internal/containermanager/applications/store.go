@@ -155,9 +155,10 @@ func (s *Store) persist(a Application) {
 		VALUES ($1::uuid, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,'')::uuid,
 			$8, $9, $10, $11, $12)
 		ON CONFLICT (id) DO UPDATE SET
-			name=EXCLUDED.name, description=EXCLUDED.description, status=EXCLUDED.status,
-			node_id=EXCLUDED.node_id, service_id=EXCLUDED.service_id, version=EXCLUDED.version,
-			spec=EXCLUDED.spec, target_weight=EXCLUDED.target_weight, updated_at=EXCLUDED.updated_at`,
+			tenant_id=EXCLUDED.tenant_id, name=EXCLUDED.name, description=EXCLUDED.description,
+			status=EXCLUDED.status, node_id=EXCLUDED.node_id, service_id=EXCLUDED.service_id,
+			version=EXCLUDED.version, spec=EXCLUDED.spec, target_weight=EXCLUDED.target_weight,
+			updated_at=EXCLUDED.updated_at`,
 		a.ID, a.TenantID, a.Name, a.Description, a.Status, a.NodeID, a.ServiceID,
 		a.Version, a.Spec, a.TargetWeight, a.CreatedAt, a.UpdatedAt)
 }

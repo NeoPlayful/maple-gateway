@@ -31,6 +31,8 @@ func (DeploymentVersion) Fields() []ent.Field {
 		field.JSON("resources", json.RawMessage{}).Optional(),
 		field.String("health_path").Optional().Default(""),
 		field.JSON("node_selector", map[string]string{}).Optional(),
+		// mounts 是绑定挂载规格：把数据根下的子目录映射进容器（path 相对节点 data_dir）。
+		field.JSON("mounts", []MountSpec{}).Optional(),
 		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),
 	}

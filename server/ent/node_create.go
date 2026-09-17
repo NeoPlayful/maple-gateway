@@ -50,6 +50,20 @@ func (nc *NodeCreate) SetNillableRegion(s *string) *NodeCreate {
 	return nc
 }
 
+// SetDataDir sets the "data_dir" field.
+func (nc *NodeCreate) SetDataDir(s string) *NodeCreate {
+	nc.mutation.SetDataDir(s)
+	return nc
+}
+
+// SetNillableDataDir sets the "data_dir" field if the given value is not nil.
+func (nc *NodeCreate) SetNillableDataDir(s *string) *NodeCreate {
+	if s != nil {
+		nc.SetDataDir(*s)
+	}
+	return nc
+}
+
 // SetLabels sets the "labels" field.
 func (nc *NodeCreate) SetLabels(m map[string]string) *NodeCreate {
 	nc.mutation.SetLabels(m)
@@ -163,6 +177,10 @@ func (nc *NodeCreate) defaults() {
 		v := node.DefaultRegion
 		nc.mutation.SetRegion(v)
 	}
+	if _, ok := nc.mutation.DataDir(); !ok {
+		v := node.DefaultDataDir
+		nc.mutation.SetDataDir(v)
+	}
 	if _, ok := nc.mutation.Status(); !ok {
 		v := node.DefaultStatus
 		nc.mutation.SetStatus(v)
@@ -194,6 +212,9 @@ func (nc *NodeCreate) check() error {
 		if err := node.HostValidator(v); err != nil {
 			return &ValidationError{Name: "host", err: fmt.Errorf(`ent: validator failed for field "Node.host": %w`, err)}
 		}
+	}
+	if _, ok := nc.mutation.DataDir(); !ok {
+		return &ValidationError{Name: "data_dir", err: errors.New(`ent: missing required field "Node.data_dir"`)}
 	}
 	if _, ok := nc.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Node.status"`)}
@@ -254,6 +275,10 @@ func (nc *NodeCreate) createSpec() (*Node, *sqlgraph.CreateSpec) {
 	if value, ok := nc.mutation.Region(); ok {
 		_spec.SetField(node.FieldRegion, field.TypeString, value)
 		_node.Region = value
+	}
+	if value, ok := nc.mutation.DataDir(); ok {
+		_spec.SetField(node.FieldDataDir, field.TypeString, value)
+		_node.DataDir = value
 	}
 	if value, ok := nc.mutation.Labels(); ok {
 		_spec.SetField(node.FieldLabels, field.TypeJSON, value)
@@ -370,6 +395,18 @@ func (u *NodeUpsert) UpdateRegion() *NodeUpsert {
 // ClearRegion clears the value of the "region" field.
 func (u *NodeUpsert) ClearRegion() *NodeUpsert {
 	u.SetNull(node.FieldRegion)
+	return u
+}
+
+// SetDataDir sets the "data_dir" field.
+func (u *NodeUpsert) SetDataDir(v string) *NodeUpsert {
+	u.Set(node.FieldDataDir, v)
+	return u
+}
+
+// UpdateDataDir sets the "data_dir" field to the value that was provided on create.
+func (u *NodeUpsert) UpdateDataDir() *NodeUpsert {
+	u.SetExcluded(node.FieldDataDir)
 	return u
 }
 
@@ -548,6 +585,20 @@ func (u *NodeUpsertOne) UpdateRegion() *NodeUpsertOne {
 func (u *NodeUpsertOne) ClearRegion() *NodeUpsertOne {
 	return u.Update(func(s *NodeUpsert) {
 		s.ClearRegion()
+	})
+}
+
+// SetDataDir sets the "data_dir" field.
+func (u *NodeUpsertOne) SetDataDir(v string) *NodeUpsertOne {
+	return u.Update(func(s *NodeUpsert) {
+		s.SetDataDir(v)
+	})
+}
+
+// UpdateDataDir sets the "data_dir" field to the value that was provided on create.
+func (u *NodeUpsertOne) UpdateDataDir() *NodeUpsertOne {
+	return u.Update(func(s *NodeUpsert) {
+		s.UpdateDataDir()
 	})
 }
 
@@ -906,6 +957,20 @@ func (u *NodeUpsertBulk) UpdateRegion() *NodeUpsertBulk {
 func (u *NodeUpsertBulk) ClearRegion() *NodeUpsertBulk {
 	return u.Update(func(s *NodeUpsert) {
 		s.ClearRegion()
+	})
+}
+
+// SetDataDir sets the "data_dir" field.
+func (u *NodeUpsertBulk) SetDataDir(v string) *NodeUpsertBulk {
+	return u.Update(func(s *NodeUpsert) {
+		s.SetDataDir(v)
+	})
+}
+
+// UpdateDataDir sets the "data_dir" field to the value that was provided on create.
+func (u *NodeUpsertBulk) UpdateDataDir() *NodeUpsertBulk {
+	return u.Update(func(s *NodeUpsert) {
+		s.UpdateDataDir()
 	})
 }
 

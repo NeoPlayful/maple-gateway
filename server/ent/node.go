@@ -25,6 +25,8 @@ type Node struct {
 	Host string `json:"host,omitempty"`
 	// Region holds the value of the "region" field.
 	Region string `json:"region,omitempty"`
+	// DataDir holds the value of the "data_dir" field.
+	DataDir string `json:"data_dir,omitempty"`
 	// Labels holds the value of the "labels" field.
 	Labels map[string]string `json:"labels,omitempty"`
 	// Status holds the value of the "status" field.
@@ -49,7 +51,7 @@ func (*Node) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case node.FieldWeight:
 			values[i] = new(sql.NullInt64)
-		case node.FieldName, node.FieldHost, node.FieldRegion, node.FieldStatus:
+		case node.FieldName, node.FieldHost, node.FieldRegion, node.FieldDataDir, node.FieldStatus:
 			values[i] = new(sql.NullString)
 		case node.FieldLastSeenAt, node.FieldCreatedAt, node.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -93,6 +95,12 @@ func (n *Node) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field region", values[i])
 			} else if value.Valid {
 				n.Region = value.String
+			}
+		case node.FieldDataDir:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field data_dir", values[i])
+			} else if value.Valid {
+				n.DataDir = value.String
 			}
 		case node.FieldLabels:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -177,6 +185,9 @@ func (n *Node) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("region=")
 	builder.WriteString(n.Region)
+	builder.WriteString(", ")
+	builder.WriteString("data_dir=")
+	builder.WriteString(n.DataDir)
 	builder.WriteString(", ")
 	builder.WriteString("labels=")
 	builder.WriteString(fmt.Sprintf("%v", n.Labels))

@@ -42,6 +42,9 @@ func (h *Handler) Create(c fiber.Ctx) error {
 	if err := pkg.ValidateStruct(in); err != nil {
 		return pkg.Err(c, err)
 	}
+	if err := ValidateDataDir(in.DataDir); err != nil {
+		return pkg.Err(c, err)
+	}
 	n, err := h.repo.Create(c.Context(), in)
 	if err != nil {
 		return pkg.Err(c, err)
@@ -71,6 +74,11 @@ func (h *Handler) Update(c fiber.Ctx) error {
 	var in Update
 	if err := c.Bind().Body(&in); err != nil {
 		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	if in.DataDir != nil {
+		if err := ValidateDataDir(*in.DataDir); err != nil {
+			return pkg.Err(c, err)
+		}
 	}
 	n, err := h.repo.Update(c.Context(), id, in)
 	if err != nil {

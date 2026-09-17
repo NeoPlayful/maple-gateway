@@ -19,6 +19,8 @@ import {
   ShieldCheckIcon,
   WrenchScrewdriverIcon,
   CircleStackIcon,
+  RectangleStackIcon,
+  FolderIcon,
 } from '@heroicons/react/24/outline';
 
 export interface NavItem {
@@ -45,6 +47,8 @@ export const nav: NavItem[] = [
   { to: '/admin/health', label: 'nav.health', icon: HeartIcon },
   { to: '/admin/runtime', label: 'nav.runtime', icon: WrenchScrewdriverIcon },
   { to: '/admin/applications', label: 'nav.applications', icon: CircleStackIcon },
+  { to: '/admin/templates', label: 'nav.templates', icon: RectangleStackIcon },
+  { to: '/admin/projects', label: 'nav.projects', icon: FolderIcon },
   { to: '/admin/logs', label: 'nav.logs', icon: DocumentTextIcon },
   { to: '/admin/settings', label: 'nav.settings', icon: Cog6ToothIcon },
 ];

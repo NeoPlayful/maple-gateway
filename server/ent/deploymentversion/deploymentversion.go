@@ -35,6 +35,8 @@ const (
 	FieldHealthPath = "health_path"
 	// FieldNodeSelector holds the string denoting the node_selector field in the database.
 	FieldNodeSelector = "node_selector"
+	// FieldMounts holds the string denoting the mounts field in the database.
+	FieldMounts = "mounts"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -66,6 +68,7 @@ var Columns = []string{
 	FieldResources,
 	FieldHealthPath,
 	FieldNodeSelector,
+	FieldMounts,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }

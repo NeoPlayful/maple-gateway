@@ -30,6 +30,7 @@ func toModel(e *ent.Node) *Node {
 		Name:       e.Name,
 		Host:       e.Host,
 		Region:     e.Region,
+		DataDir:    e.DataDir,
 		Labels:     e.Labels,
 		Status:     Status(e.Status),
 		Weight:     e.Weight,
@@ -50,6 +51,7 @@ func (r *Repository) Create(ctx context.Context, in New) (*Node, error) {
 		SetName(in.Name).
 		SetHost(in.Host).
 		SetRegion(in.Region).
+		SetDataDir(normalizeDataDir(in.DataDir)).
 		SetLabels(in.Labels).
 		SetStatus(string(StatusOnline)).
 		SetWeight(weight).
@@ -157,6 +159,13 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Node
 	}
 	if in.Region != nil {
 		upd = upd.SetRegion(*in.Region)
+	}
+	// data_dir 三态：设置 / 显式清空 / 保持不变（默认）。
+	switch {
+	case in.DataDir != nil:
+		upd = upd.SetDataDir(normalizeDataDir(*in.DataDir))
+	case in.ClearDataDir:
+		upd = upd.SetDataDir("")
 	}
 	if in.Labels != nil {
 		upd = upd.SetLabels(in.Labels)

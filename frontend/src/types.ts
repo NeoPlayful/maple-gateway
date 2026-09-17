@@ -37,6 +37,14 @@ export interface Deployment {
   created_at: string;
 }
 
+// 绑定挂载：把节点数据根下的子目录映射进容器。
+// path 相对节点数据目录（形如 <租户>/<模板>/<项目>/<子目录>），宿主绝对路径由节点拼出。
+export interface Mount {
+  path: string;
+  target: string;
+  read_only?: boolean;
+}
+
 export interface Version {
   id: string;
   deployment_id: string;
@@ -51,6 +59,7 @@ export interface Version {
   resources?: unknown;
   health_path?: string;
   node_selector?: Record<string, string>;
+  mounts?: Mount[];
   created_at: string;
 }
 
@@ -83,6 +92,7 @@ export interface Node {
   name: string;
   host: string;
   region?: string;
+  data_dir?: string;
   status: string;
   weight: number;
   last_seen_at?: string | null;
@@ -362,4 +372,45 @@ export interface CMAppService {
   image?: string;
   container_id?: string;
   publishers?: { url?: string; target_port?: number; published_port?: number; protocol?: string }[];
+}
+
+// ---- 应用模板与项目（容器创建的模板化之路）----
+
+// 模板参数定义：渲染时用取值替换规格中的 {{key}}。
+export interface TemplateParam {
+  key: string;
+  label: string;
+  type: 'string' | 'number' | 'bool' | 'select';
+  required?: boolean;
+  default?: string;
+  options?: string[];
+  hint?: string;
+}
+
+// 一个应用模板：带 {{参数键}} 占位符的 Compose 规格 + 参数定义。
+// slug 是模板标识（英文），作为数据目录第二段。
+export interface AppTemplate {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  spec: string;
+  params?: TemplateParam[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 租户下的一个部署项目：项目名即项目标识（英文），作为数据目录第三段。
+export interface Project {
+  id: string;
+  tenant_id: string;
+  template_id: string;
+  name: string;
+  description?: string;
+  status: string;
+  node_id?: string;
+  application_id?: string;
+  created_at: string;
+  updated_at: string;
 }

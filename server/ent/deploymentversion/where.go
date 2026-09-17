@@ -566,6 +566,16 @@ func NodeSelectorNotNil() predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldNotNull(FieldNodeSelector))
 }
 
+// MountsIsNil applies the IsNil predicate on the "mounts" field.
+func MountsIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldMounts))
+}
+
+// MountsNotNil applies the NotNil predicate on the "mounts" field.
+func MountsNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldMounts))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldEQ(FieldCreatedAt, v))

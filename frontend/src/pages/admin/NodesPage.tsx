@@ -64,6 +64,7 @@ export default function NodesPage() {
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [region, setRegion] = useState('');
+  const [dataDir, setDataDir] = useState('');
   const [weight, setWeight] = useState('0');
 
   const load = useCallback(async () => {
@@ -110,6 +111,7 @@ export default function NodesPage() {
     setName('');
     setHost('');
     setRegion('');
+    setDataDir('');
     setWeight('0');
     setFormOpen(true);
   };
@@ -121,6 +123,7 @@ export default function NodesPage() {
     setName(r.name);
     setHost(r.host);
     setRegion(r.region ?? '');
+    setDataDir(r.data_dir ?? '');
     setWeight(String(r.weight ?? 0));
     setFormOpen(true);
   };
@@ -146,6 +149,8 @@ export default function NodesPage() {
         await update('/api/admin/nodes', editing.id, {
           host: host.trim(),
           region,
+          // 清空数据目录走独立标记（后端三态语义），避免与"保持不变"混淆。
+          ...(dataDir.trim() ? { data_dir: dataDir.trim() } : { data_dir_clear: true }),
           weight: Number(weight) || 0,
         });
         toast.success(t('common.updateSuccess'));
@@ -154,6 +159,7 @@ export default function NodesPage() {
           name,
           host: host.trim(),
           region,
+          data_dir: dataDir.trim(),
           weight: Number(weight) || 0,
         });
         toast.success(t('common.createSuccess'));
@@ -262,6 +268,9 @@ export default function NodesPage() {
           <Field label={t('fields.region')}>
             <input value={region} onChange={(e) => setRegion(e.target.value)} className={inputCls} />
           </Field>
+          <Field label={t('fields.dataDir')}>
+            <input value={dataDir} onChange={(e) => setDataDir(e.target.value)} placeholder={t('nodes.dataDirPh')} className={inputCls} />
+          </Field>
           <Field label={t('fields.weight')}>
             <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls} />
           </Field>
@@ -285,6 +294,7 @@ export default function NodesPage() {
             <tr>
               <th className="px-4 py-2">{t('fields.nodeName')}</th>
               <th className="px-4 py-2">{t('fields.host')}</th>
+              <th className="px-4 py-2">{t('fields.dataDir')}</th>
               <th className="px-4 py-2">{t('fields.status')}</th>
               <th className="px-4 py-2">{t('nodes.agent')}</th>
               <th className="px-4 py-2">{t('runtime.colCpu')}</th>
@@ -298,7 +308,7 @@ export default function NodesPage() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{rows.length === 0 ? t('common.none') : t('common.noMatch')}</td>
+                <td colSpan={11} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{rows.length === 0 ? t('common.none') : t('common.noMatch')}</td>
               </tr>
             )}
             {filtered.map((r) => {
@@ -310,6 +320,7 @@ export default function NodesPage() {
                 <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                   <td className="px-4 py-2">{r.name}</td>
                   <td className="px-4 py-2 font-mono text-xs">{r.host}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{r.data_dir || '-'}</td>
                   <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                   <td className="px-4 py-2">
                     {cmEnabled && cn ? (

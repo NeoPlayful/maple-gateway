@@ -23,6 +23,7 @@ type Node struct {
 	Name       string            `json:"name"`
 	Host       string            `json:"host"`
 	Region     string            `json:"region,omitempty"`
+	DataDir    string            `json:"data_dir,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty"`
 	Status     Status            `json:"status"`
 	Weight     int               `json:"weight"`
@@ -38,15 +39,21 @@ type New struct {
 	Region string            `json:"region" validate:"max=64"`
 	Labels map[string]string `json:"labels"`
 	Weight int               `json:"weight" validate:"min=0,max=1000"`
+	// DataDir 容器绑定挂载的宿主根目录（绝对路径）；为空表示不配置。
+	DataDir string `json:"data_dir" validate:"omitempty,max=1024"`
 }
 
 // Update 携带可修改字段。
+//
+// DataDir 三态：DataDir 非空=设置；ClearDataDir=true=显式清空；二者皆否=保持不变。
 type Update struct {
-	Host   *string           `json:"host"`
-	Region *string           `json:"region"`
-	Labels map[string]string `json:"labels"`
-	Weight *int              `json:"weight"`
-	Status *Status           `json:"status"`
+	Host         *string           `json:"host"`
+	Region       *string           `json:"region"`
+	DataDir      *string           `json:"data_dir"`
+	ClearDataDir bool              `json:"data_dir_clear,omitempty"`
+	Labels       map[string]string `json:"labels"`
+	Weight       *int              `json:"weight"`
+	Status       *Status           `json:"status"`
 }
 
 // Heartbeat 更新节点最后心跳时间。

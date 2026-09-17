@@ -67,6 +67,16 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Tenant, error)
 	return toModel(e), nil
 }
 
+// TenantSlug 返回租户标识（数据目录第一段）；租户不存在返回错误。
+// 实现 project.SlugResolver。
+func (r *Repository) TenantSlug(ctx context.Context, id uuid.UUID) (string, error) {
+	t, err := r.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return t.Slug, nil
+}
+
 // All 返回全部租户（路由缓存构建用）。
 func (r *Repository) All(ctx context.Context) ([]*Tenant, error) {
 	es, err := r.ent.Tenant.Query().All(ctx)

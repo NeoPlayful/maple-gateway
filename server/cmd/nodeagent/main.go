@@ -51,13 +51,14 @@ func run(configPath string) error {
 	defer stop()
 
 	// 接入本机 Docker Engine：Agent 是唯一直连 Docker 的组件。
-	dcli, err := docker.New(cfg.Agent.DockerHost, cfg.Agent.ManagedLabel)
+	dcli, err := docker.New(cfg.Agent.DockerHost, cfg.Agent.ManagedLabel, cfg.Agent.DataRoot)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = dcli.Close() }()
 	logger.Info("docker engine connected", zap.String("host", cfg.Agent.DockerHost),
-		zap.String("managed_label", cfg.Agent.ManagedLabel))
+		zap.String("managed_label", cfg.Agent.ManagedLabel),
+		zap.String("data_root", cfg.Agent.DataRoot))
 
 	rt := runtime.New(dcli, cfg.Agent.AllowedImages)
 	app := api.New(cfg, logger, rt)

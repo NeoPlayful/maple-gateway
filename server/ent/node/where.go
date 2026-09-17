@@ -70,6 +70,11 @@ func Region(v string) predicate.Node {
 	return predicate.Node(sql.FieldEQ(FieldRegion, v))
 }
 
+// DataDir applies equality check predicate on the "data_dir" field. It's identical to DataDirEQ.
+func DataDir(v string) predicate.Node {
+	return predicate.Node(sql.FieldEQ(FieldDataDir, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.Node {
 	return predicate.Node(sql.FieldEQ(FieldStatus, v))
@@ -298,6 +303,71 @@ func RegionEqualFold(v string) predicate.Node {
 // RegionContainsFold applies the ContainsFold predicate on the "region" field.
 func RegionContainsFold(v string) predicate.Node {
 	return predicate.Node(sql.FieldContainsFold(FieldRegion, v))
+}
+
+// DataDirEQ applies the EQ predicate on the "data_dir" field.
+func DataDirEQ(v string) predicate.Node {
+	return predicate.Node(sql.FieldEQ(FieldDataDir, v))
+}
+
+// DataDirNEQ applies the NEQ predicate on the "data_dir" field.
+func DataDirNEQ(v string) predicate.Node {
+	return predicate.Node(sql.FieldNEQ(FieldDataDir, v))
+}
+
+// DataDirIn applies the In predicate on the "data_dir" field.
+func DataDirIn(vs ...string) predicate.Node {
+	return predicate.Node(sql.FieldIn(FieldDataDir, vs...))
+}
+
+// DataDirNotIn applies the NotIn predicate on the "data_dir" field.
+func DataDirNotIn(vs ...string) predicate.Node {
+	return predicate.Node(sql.FieldNotIn(FieldDataDir, vs...))
+}
+
+// DataDirGT applies the GT predicate on the "data_dir" field.
+func DataDirGT(v string) predicate.Node {
+	return predicate.Node(sql.FieldGT(FieldDataDir, v))
+}
+
+// DataDirGTE applies the GTE predicate on the "data_dir" field.
+func DataDirGTE(v string) predicate.Node {
+	return predicate.Node(sql.FieldGTE(FieldDataDir, v))
+}
+
+// DataDirLT applies the LT predicate on the "data_dir" field.
+func DataDirLT(v string) predicate.Node {
+	return predicate.Node(sql.FieldLT(FieldDataDir, v))
+}
+
+// DataDirLTE applies the LTE predicate on the "data_dir" field.
+func DataDirLTE(v string) predicate.Node {
+	return predicate.Node(sql.FieldLTE(FieldDataDir, v))
+}
+
+// DataDirContains applies the Contains predicate on the "data_dir" field.
+func DataDirContains(v string) predicate.Node {
+	return predicate.Node(sql.FieldContains(FieldDataDir, v))
+}
+
+// DataDirHasPrefix applies the HasPrefix predicate on the "data_dir" field.
+func DataDirHasPrefix(v string) predicate.Node {
+	return predicate.Node(sql.FieldHasPrefix(FieldDataDir, v))
+}
+
+// DataDirHasSuffix applies the HasSuffix predicate on the "data_dir" field.
+func DataDirHasSuffix(v string) predicate.Node {
+	return predicate.Node(sql.FieldHasSuffix(FieldDataDir, v))
+}
+
+// DataDirEqualFold applies the EqualFold predicate on the "data_dir" field.
+func DataDirEqualFold(v string) predicate.Node {
+	return predicate.Node(sql.FieldEqualFold(FieldDataDir, v))
+}
+
+// DataDirContainsFold applies the ContainsFold predicate on the "data_dir" field.
+func DataDirContainsFold(v string) predicate.Node {
+	return predicate.Node(sql.FieldContainsFold(FieldDataDir, v))
 }
 
 // LabelsIsNil applies the IsNil predicate on the "labels" field.

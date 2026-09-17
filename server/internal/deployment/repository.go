@@ -9,6 +9,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/NeoPlayful/maple-gateway/server/ent"
 	entdeployment "github.com/NeoPlayful/maple-gateway/server/ent/deployment"
+	"github.com/NeoPlayful/maple-gateway/server/ent/schema"
 	entdv "github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	entinstance "github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	entservice "github.com/NeoPlayful/maple-gateway/server/ent/service"
@@ -68,9 +69,34 @@ func toVersion(e *ent.DeploymentVersion) *Version {
 		Resources:    json.RawMessage(e.Resources),
 		HealthPath:   e.HealthPath,
 		NodeSelector: e.NodeSelector,
+		Mounts:       toMounts(e.Mounts),
 		CreatedAt:    e.CreatedAt,
 		UpdatedAt:    e.UpdatedAt,
 	}
+}
+
+// toMounts 把持久化形态转为领域模型（nil 保持 nil，便于 JSON 省略）。
+func toMounts(ms []schema.MountSpec) []Mount {
+	if len(ms) == 0 {
+		return nil
+	}
+	out := make([]Mount, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, Mount{Path: m.Path, Target: m.Target, ReadOnly: m.ReadOnly})
+	}
+	return out
+}
+
+// mountSpecs 把领域模型转为持久化形态。
+func mountSpecs(ms []Mount) []schema.MountSpec {
+	if len(ms) == 0 {
+		return nil
+	}
+	out := make([]schema.MountSpec, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, schema.MountSpec{Path: m.Path, Target: m.Target, ReadOnly: m.ReadOnly})
+	}
+	return out
 }
 
 // ---------- Deployment ----------
@@ -228,6 +254,7 @@ func (r *Repository) CreateVersion(ctx context.Context, deploymentID uuid.UUID, 
 		SetResources(nonNilRaw(in.Resources)).
 		SetHealthPath(in.HealthPath).
 		SetNodeSelector(nonNilEnv(in.NodeSelector)).
+		SetMounts(mountSpecs(in.Mounts)).
 		SetCreatedAt(now).
 		SetUpdatedAt(now).
 		Save(ctx)
@@ -325,6 +352,10 @@ func (r *Repository) UpdateVersion(ctx context.Context, id uuid.UUID, in UpdateV
 	}
 	if in.NodeSelector != nil {
 		upd = upd.SetNodeSelector(in.NodeSelector)
+	}
+	// mounts 非 nil 即整体替换（空数组表示清空），与前端"按当前表单整体重建"语义一致。
+	if in.Mounts != nil {
+		upd = upd.SetMounts(mountSpecs(in.Mounts))
 	}
 	e, err := upd.Save(ctx)
 	if err != nil {

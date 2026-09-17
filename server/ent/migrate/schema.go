@@ -199,6 +199,7 @@ var (
 		{Name: "resources", Type: field.TypeJSON, Nullable: true},
 		{Name: "health_path", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "node_selector", Type: field.TypeJSON, Nullable: true},
+		{Name: "mounts", Type: field.TypeJSON, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "deployment_id", Type: field.TypeUUID},
@@ -211,7 +212,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "deployment_versions_deployments_versions",
-				Columns:    []*schema.Column{DeploymentVersionsColumns[13]},
+				Columns:    []*schema.Column{DeploymentVersionsColumns[14]},
 				RefColumns: []*schema.Column{DeploymentsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -220,7 +221,7 @@ var (
 			{
 				Name:    "deploymentversion_deployment_id_version",
 				Unique:  true,
-				Columns: []*schema.Column{DeploymentVersionsColumns[13], DeploymentVersionsColumns[1]},
+				Columns: []*schema.Column{DeploymentVersionsColumns[14], DeploymentVersionsColumns[1]},
 			},
 		},
 	}
@@ -341,6 +342,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "host", Type: field.TypeString},
 		{Name: "region", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "data_dir", Type: field.TypeString, Default: ""},
 		{Name: "labels", Type: field.TypeJSON, Nullable: true},
 		{Name: "status", Type: field.TypeString, Default: "online"},
 		{Name: "weight", Type: field.TypeInt, Default: 1},
@@ -362,7 +364,38 @@ var (
 			{
 				Name:    "node_status",
 				Unique:  false,
-				Columns: []*schema.Column{NodesColumns[5]},
+				Columns: []*schema.Column{NodesColumns[6]},
+			},
+		},
+	}
+	// ProjectsColumns holds the columns for the "projects" table.
+	ProjectsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "tenant_id", Type: field.TypeUUID},
+		{Name: "template_id", Type: field.TypeUUID},
+		{Name: "name", Type: field.TypeString},
+		{Name: "description", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "status", Type: field.TypeString, Default: "active"},
+		{Name: "node_id", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "application_id", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// ProjectsTable holds the schema information for the "projects" table.
+	ProjectsTable = &schema.Table{
+		Name:       "projects",
+		Columns:    ProjectsColumns,
+		PrimaryKey: []*schema.Column{ProjectsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "project_tenant_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{ProjectsColumns[1], ProjectsColumns[3]},
+			},
+			{
+				Name:    "project_tenant_id",
+				Unique:  false,
+				Columns: []*schema.Column{ProjectsColumns[1]},
 			},
 		},
 	}
@@ -565,6 +598,31 @@ var (
 			},
 		},
 	}
+	// TemplatesColumns holds the columns for the "templates" table.
+	TemplatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "name", Type: field.TypeString},
+		{Name: "slug", Type: field.TypeString, Unique: true},
+		{Name: "description", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "spec", Type: field.TypeString, Default: ""},
+		{Name: "params", Type: field.TypeJSON, Nullable: true},
+		{Name: "status", Type: field.TypeString, Default: "active"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TemplatesTable holds the schema information for the "templates" table.
+	TemplatesTable = &schema.Table{
+		Name:       "templates",
+		Columns:    TemplatesColumns,
+		PrimaryKey: []*schema.Column{TemplatesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "template_status",
+				Unique:  false,
+				Columns: []*schema.Column{TemplatesColumns[6]},
+			},
+		},
+	}
 	// TenantsColumns holds the columns for the "tenants" table.
 	TenantsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -660,12 +718,14 @@ var (
 		GatewayInstancesTable,
 		InstancesTable,
 		NodesTable,
+		ProjectsTable,
 		RateLimitsTable,
 		ReleasesTable,
 		ReleaseEventsTable,
 		ServicesTable,
 		SettingsTable,
 		SettingsHistoryTable,
+		TemplatesTable,
 		TenantsTable,
 		TrafficPoliciesTable,
 		UsersTable,

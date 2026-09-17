@@ -32,6 +32,8 @@ type Tx struct {
 	Instance *InstanceClient
 	// Node is the client for interacting with the Node builders.
 	Node *NodeClient
+	// Project is the client for interacting with the Project builders.
+	Project *ProjectClient
 	// RateLimit is the client for interacting with the RateLimit builders.
 	RateLimit *RateLimitClient
 	// Release is the client for interacting with the Release builders.
@@ -44,6 +46,8 @@ type Tx struct {
 	Setting *SettingClient
 	// SettingHistory is the client for interacting with the SettingHistory builders.
 	SettingHistory *SettingHistoryClient
+	// Template is the client for interacting with the Template builders.
+	Template *TemplateClient
 	// Tenant is the client for interacting with the Tenant builders.
 	Tenant *TenantClient
 	// TrafficPolicy is the client for interacting with the TrafficPolicy builders.
@@ -191,12 +195,14 @@ func (tx *Tx) init() {
 	tx.GatewayInstance = NewGatewayInstanceClient(tx.config)
 	tx.Instance = NewInstanceClient(tx.config)
 	tx.Node = NewNodeClient(tx.config)
+	tx.Project = NewProjectClient(tx.config)
 	tx.RateLimit = NewRateLimitClient(tx.config)
 	tx.Release = NewReleaseClient(tx.config)
 	tx.ReleaseEvent = NewReleaseEventClient(tx.config)
 	tx.Service = NewServiceClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
 	tx.SettingHistory = NewSettingHistoryClient(tx.config)
+	tx.Template = NewTemplateClient(tx.config)
 	tx.Tenant = NewTenantClient(tx.config)
 	tx.TrafficPolicy = NewTrafficPolicyClient(tx.config)
 	tx.User = NewUserClient(tx.config)

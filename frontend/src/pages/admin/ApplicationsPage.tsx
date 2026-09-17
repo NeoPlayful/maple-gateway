@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '../../lib/client';
-import type { CMApplication, CMAppService } from '../../types';
+import type { CMApplication, CMAppService, Tenant } from '../../types';
 import { PageHeader } from '../../themes';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
@@ -27,6 +27,7 @@ const SAMPLE_SPEC = `services:
 export default function ApplicationsPage() {
   const { t } = useTranslation('admin');
   const [apps, setApps] = useState<CMApplication[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [err, setErr] = useState('');
   const [last, setLast] = useState('');
@@ -34,7 +35,7 @@ export default function ApplicationsPage() {
 
   // 编辑弹窗（新建 / 编辑复用）。
   const [editing, setEditing] = useState<CMApplication | null>(null);
-  const [form, setForm] = useState({ id: '', name: '', description: '', version: '', spec: '' });
+  const [form, setForm] = useState({ id: '', tenantId: '', name: '', description: '', version: '', spec: '' });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -61,21 +62,29 @@ export default function ApplicationsPage() {
     }
   }, [t]);
 
+  // 租户清单供表单选择归属；失败不影响列表。
+  const loadTenants = useCallback(async () => {
+    try {
+      setTenants(await api.get<Tenant[]>('/api/admin/tenants?limit=200'));
+    } catch { setTenants([]); }
+  }, []);
+
   useEffect(() => {
     load();
+    loadTenants();
     const timer = setInterval(load, 10000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, loadTenants]);
 
   const openNew = () => {
     setEditing({} as CMApplication);
-    setForm({ id: '', name: '', description: '', version: 'v1', spec: SAMPLE_SPEC });
+    setForm({ id: '', tenantId: '', name: '', description: '', version: 'v1', spec: SAMPLE_SPEC });
     setFormErr('');
   };
 
   const openEdit = (a: CMApplication) => {
     setEditing(a);
-    setForm({ id: a.id, name: a.name, description: a.description ?? '', version: a.version ?? '', spec: a.spec ?? '' });
+    setForm({ id: a.id, tenantId: a.tenant_id ?? '', name: a.name, description: a.description ?? '', version: a.version ?? '', spec: a.spec ?? '' });
     setFormErr('');
   };
 
@@ -93,6 +102,7 @@ export default function ApplicationsPage() {
     try {
       await api.post('/api/admin/cm/applications', {
         id: form.id,
+        tenant_id: form.tenantId,
         name: form.name,
         description: form.description,
         version: form.version,
@@ -164,6 +174,9 @@ export default function ApplicationsPage() {
     setFilterValues((cur) => ({ ...cur, [key]: value }));
   const resetFilter = () => setFilterValues({});
 
+  // 租户名按 id 解析（列表行展示；未匹配显示空由调用处兜底）。
+  const tenantName = (id?: string) => tenants.find((tn) => tn.id === id)?.name ?? '';
+
   const inputCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
   const taCls = `${inputCls} font-mono text-xs`;
@@ -206,6 +219,7 @@ export default function ApplicationsPage() {
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">{t('fields.name')}</th>
+              <th className="px-4 py-2">{t('fields.tenant')}</th>
               <th className="px-4 py-2">{t('applications.colVersion')}</th>
               <th className="px-4 py-2">{t('fields.status')}</th>
               <th className="px-4 py-2">{t('runtime.colNode')}</th>
@@ -216,7 +230,7 @@ export default function ApplicationsPage() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{sorted.length === 0 ? t('applications.none') : t('common.noMatch')}</td>
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{sorted.length === 0 ? t('applications.none') : t('common.noMatch')}</td>
               </tr>
             )}
             {filtered.map((a) => (
@@ -224,6 +238,9 @@ export default function ApplicationsPage() {
                 <td className="px-4 py-2">
                   <button onClick={() => openDetail(a)} className="font-semibold text-sky-600 hover:underline dark:text-sky-400">{a.name}</button>
                   {a.description && <p className="text-xs text-slate-400">{a.description}</p>}
+                </td>
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                  {tenantName(a.tenant_id) || '-'}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{a.version || '-'}</td>
                 <td className="px-4 py-2"><StatusBadge value={a.status} raw label={a.status === 'running' ? t('applications.statusRunning') : undefined} /></td>
@@ -265,6 +282,13 @@ export default function ApplicationsPage() {
             <div>
               <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.name')}</label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('applications.namePh')} className={inputCls} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.tenant')}</label>
+              <select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })} className={inputCls}>
+                <option value="">{t('applications.tenantNone')}</option>
+                {tenants.map((tn) => <option key={tn.id} value={tn.id}>{tn.name}</option>)}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.colVersion')}</label>

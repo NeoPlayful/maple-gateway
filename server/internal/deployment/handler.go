@@ -65,10 +65,23 @@ func (h *Handler) pushVersion(c fiber.Ctx, v *Version, strategy string) {
 		HealthPath:   v.HealthPath,
 		NodeSelector: v.NodeSelector,
 		Strategy:     strategy,
+		Mounts:       cmMounts(v.Mounts),
 	}
 	if err := h.pusher.PushDeploy(c.Context(), in); err != nil {
 		pkg.Log().Warn("push deployment intent to cm failed: " + err.Error())
 	}
+}
+
+// cmMounts 把领域挂载项转为下发 CM 的形态。
+func cmMounts(ms []Mount) []cmclient.Mount {
+	if len(ms) == 0 {
+		return nil
+	}
+	out := make([]cmclient.Mount, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, cmclient.Mount{Path: m.Path, Target: m.Target, ReadOnly: m.ReadOnly})
+	}
+	return out
 }
 
 func parseID(c fiber.Ctx, name string) (uuid.UUID, error) {
@@ -230,6 +243,9 @@ func (h *Handler) CreateVersion(c fiber.Ctx) error {
 	if err := pkg.ValidateStruct(in); err != nil {
 		return pkg.Err(c, err)
 	}
+	if err := ValidateMounts(in.Mounts); err != nil {
+		return pkg.Err(c, err)
+	}
 	v, err := h.repo.CreateVersion(c.Context(), id, in)
 	if err != nil {
 		return pkg.Err(c, err)
@@ -260,6 +276,9 @@ func (h *Handler) UpdateVersion(c fiber.Ctx) error {
 	var in UpdateVersion
 	if err := c.Bind().Body(&in); err != nil {
 		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	if err := ValidateMounts(in.Mounts); err != nil {
+		return pkg.Err(c, err)
 	}
 	v, err := h.repo.UpdateVersion(c.Context(), id, in)
 	if err != nil {

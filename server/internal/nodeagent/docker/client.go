@@ -45,6 +45,9 @@ const (
 type Client struct {
 	cli          *client.Client
 	managedLabel string
+	// dataRoot 是本节点数据根目录（宿主机绝对路径）。容器绑定挂载的宿主路径一律
+	// 由本节点用它拼出，越界无法发生；为空则节点不承载任何带挂载的容器。
+	dataRoot string
 
 	// lastSample 缓存各容器上一次采集的累计计数器与时刻，供两次采样差分算速率。
 	// 统计为按需拉取（详情面板打开期间），首次采样无前值，速率返回 0。
@@ -61,8 +64,8 @@ type statSample struct {
 }
 
 // New 构造。managedLabel 为受管标签键；host 为空则用 SDK 平台默认端点
-// （Linux: unix socket；Windows: npipe）。
-func New(host, managedLabel string) (*Client, error) {
+// （Linux: unix socket；Windows: npipe）。dataRoot 为本节点数据根目录（可空）。
+func New(host, managedLabel, dataRoot string) (*Client, error) {
 	opts := []client.Opt{client.WithAPIVersionNegotiation()}
 	if host != "" {
 		opts = append(opts, client.WithHost(host))
@@ -73,7 +76,7 @@ func New(host, managedLabel string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("docker client: %w", err)
 	}
-	return &Client{cli: cli, managedLabel: managedLabel, lastSample: map[string]statSample{}}, nil
+	return &Client{cli: cli, managedLabel: managedLabel, dataRoot: normalizeRoot(dataRoot), lastSample: map[string]statSample{}}, nil
 }
 
 // Close 释放底层连接。
@@ -101,6 +104,20 @@ type CreateSpec struct {
 	Memory     string   `json:"memory"`
 	Command    []string `json:"command"`
 	HealthPath string   `json:"health_path"`
+	// Mounts 是绑定挂载项：Path 相对本节点数据根，形如 <租户>/<模板>/<项目>/...。
+	Mounts []Mount `json:"mounts,omitempty"`
+}
+
+// Mount 是一次绑定挂载：把数据根下的子目录映射进容器。
+// 控制面只给出相对数据根的 Path，宿主绝对路径由本节点用自身数据根拼出——
+// 数据根只存在于节点本地配置，越界因此无从发生。
+type Mount struct {
+	// Path 相对数据根的子路径（如 "t1/tpl/p1/db"）；不含上跳段。
+	Path string `json:"path"`
+	// Target 容器内挂载点（绝对路径）。
+	Target string `json:"target"`
+	// ReadOnly 为真则以只读方式挂载。
+	ReadOnly bool `json:"read_only,omitempty"`
 }
 
 // Container 是受管容器的观测视图。
@@ -240,6 +257,12 @@ func (c *Client) Ensure(ctx context.Context, spec CreateSpec, allowedImages []st
 		Cmd:    spec.Command,
 	}
 	hostCfg := &container.HostConfig{}
+	// 绑定挂载：规格只给相对数据根的子路径，本节点拼出宿主绝对路径并做越界校验。
+	binds, err := c.buildBinds(spec.Mounts)
+	if err != nil {
+		return "", 0, err
+	}
+	hostCfg.Binds = binds
 	if spec.Port > 0 {
 		containerPort := nat.Port(fmt.Sprintf("%d/tcp", spec.Port))
 		cfg.ExposedPorts = nat.PortSet{containerPort: struct{}{}}

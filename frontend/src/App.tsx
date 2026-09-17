@@ -23,6 +23,8 @@ import RateLimitsPage from './pages/admin/RateLimitsPage';
 import HealthPage from './pages/admin/HealthPage';
 import RuntimePage from './pages/admin/RuntimePage';
 import ApplicationsPage from './pages/admin/ApplicationsPage';
+import TemplatesPage from './pages/admin/TemplatesPage';
+import ProjectsPage from './pages/admin/ProjectsPage';
 
 export default function App() {
   const { t } = useTranslation('admin');
@@ -69,6 +71,8 @@ export default function App() {
           <Route path="health" element={<HealthPage />} />
           <Route path="runtime" element={<RuntimePage />} />
           <Route path="applications" element={<ApplicationsPage />} />
+          <Route path="templates" element={<TemplatesPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
