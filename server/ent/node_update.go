@@ -76,6 +76,20 @@ func (nu *NodeUpdate) ClearRegion() *NodeUpdate {
 	return nu
 }
 
+// SetDataDir sets the "data_dir" field.
+func (nu *NodeUpdate) SetDataDir(s string) *NodeUpdate {
+	nu.mutation.SetDataDir(s)
+	return nu
+}
+
+// SetNillableDataDir sets the "data_dir" field if the given value is not nil.
+func (nu *NodeUpdate) SetNillableDataDir(s *string) *NodeUpdate {
+	if s != nil {
+		nu.SetDataDir(*s)
+	}
+	return nu
+}
+
 // SetLabels sets the "labels" field.
 func (nu *NodeUpdate) SetLabels(m map[string]string) *NodeUpdate {
 	nu.mutation.SetLabels(m)
@@ -228,6 +242,9 @@ func (nu *NodeUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if nu.mutation.RegionCleared() {
 		_spec.ClearField(node.FieldRegion, field.TypeString)
 	}
+	if value, ok := nu.mutation.DataDir(); ok {
+		_spec.SetField(node.FieldDataDir, field.TypeString, value)
+	}
 	if value, ok := nu.mutation.Labels(); ok {
 		_spec.SetField(node.FieldLabels, field.TypeJSON, value)
 	}
@@ -317,6 +334,20 @@ func (nuo *NodeUpdateOne) SetNillableRegion(s *string) *NodeUpdateOne {
 // ClearRegion clears the value of the "region" field.
 func (nuo *NodeUpdateOne) ClearRegion() *NodeUpdateOne {
 	nuo.mutation.ClearRegion()
+	return nuo
+}
+
+// SetDataDir sets the "data_dir" field.
+func (nuo *NodeUpdateOne) SetDataDir(s string) *NodeUpdateOne {
+	nuo.mutation.SetDataDir(s)
+	return nuo
+}
+
+// SetNillableDataDir sets the "data_dir" field if the given value is not nil.
+func (nuo *NodeUpdateOne) SetNillableDataDir(s *string) *NodeUpdateOne {
+	if s != nil {
+		nuo.SetDataDir(*s)
+	}
 	return nuo
 }
 
@@ -501,6 +532,9 @@ func (nuo *NodeUpdateOne) sqlSave(ctx context.Context) (_node *Node, err error) 
 	}
 	if nuo.mutation.RegionCleared() {
 		_spec.ClearField(node.FieldRegion, field.TypeString)
+	}
+	if value, ok := nuo.mutation.DataDir(); ok {
+		_spec.SetField(node.FieldDataDir, field.TypeString, value)
 	}
 	if value, ok := nuo.mutation.Labels(); ok {
 		_spec.SetField(node.FieldLabels, field.TypeJSON, value)

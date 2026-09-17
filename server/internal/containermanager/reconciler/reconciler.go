@@ -255,6 +255,7 @@ func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *
 		Port:         st.Port,
 		Env:          st.Env,
 		HealthPath:   st.HealthPath,
+		Mounts:       toGwMounts(st.Mounts),
 	}
 	cctx, cancel := context.WithTimeout(ctx, replicaCallTimeout)
 	defer cancel()
@@ -311,6 +312,18 @@ func (r *Reconciler) removeReplica(ctx context.Context, c observer.ObservedConta
 	r.mu.Unlock()
 	r.logger.Info("replica removed",
 		zap.String("instance_id", c.InstanceID), zap.String("node", c.NodeName))
+}
+
+// toGwMounts 把期望态挂载项转为下发 Agent 的形态。
+func toGwMounts(ms []desired.Mount) []gwclient.Mount {
+	if len(ms) == 0 {
+		return nil
+	}
+	out := make([]gwclient.Mount, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, gwclient.Mount{Path: m.Path, Target: m.Target, ReadOnly: m.ReadOnly})
+	}
+	return out
 }
 
 // placementByNode 统计各节点当前承载的受管容器数（调度打散依据）。

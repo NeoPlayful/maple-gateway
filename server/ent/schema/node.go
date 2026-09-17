@@ -19,6 +19,9 @@ func (Node) Fields() []ent.Field {
 		field.String("name").NotEmpty(),
 		field.String("host").NotEmpty(),
 		field.String("region").Optional().Default(""),
+		// data_dir 是容器绑定挂载的宿主根目录：其下按 <租户>/<模板>/<项目> 分目录隔离。
+		// 为空表示未配置，不做绑定挂载。
+		field.String("data_dir").Default(""),
 		field.JSON("labels", map[string]string{}).Optional(),
 		field.String("status").Default("online"),
 		field.Int("weight").Default(1),

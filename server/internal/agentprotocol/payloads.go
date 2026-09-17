@@ -200,9 +200,11 @@ type LogsReadResult struct {
 // 取出后原样下发，Agent 落盘为临时 compose 文件再驱动 compose CLI。
 type ApplicationSpec struct {
 	ApplicationID string `json:"application_id"`
-	Version       string `json:"version"`
-	Project       string `json:"project"`
-	ComposeYAML   string `json:"compose_yaml"`
+	// TenantID 是应用所属租户（Gateway tenants.id，可空）；数据目录按租户隔离时用。
+	TenantID    string `json:"tenant_id,omitempty"`
+	Version     string `json:"version"`
+	Project     string `json:"project"`
+	ComposeYAML string `json:"compose_yaml"`
 }
 
 // ApplicationValidateResult 是 application.validate 的结果。

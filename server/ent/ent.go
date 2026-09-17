@@ -22,12 +22,14 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/gatewayinstance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
+	"github.com/NeoPlayful/maple-gateway/server/ent/project"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/ent/release"
 	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
+	"github.com/NeoPlayful/maple-gateway/server/ent/template"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 	"github.com/NeoPlayful/maple-gateway/server/ent/user"
@@ -101,12 +103,14 @@ func checkColumn(table, column string) error {
 			gatewayinstance.Table:      gatewayinstance.ValidColumn,
 			instance.Table:             instance.ValidColumn,
 			node.Table:                 node.ValidColumn,
+			project.Table:              project.ValidColumn,
 			ratelimit.Table:            ratelimit.ValidColumn,
 			release.Table:              release.ValidColumn,
 			releaseevent.Table:         releaseevent.ValidColumn,
 			service.Table:              service.ValidColumn,
 			setting.Table:              setting.ValidColumn,
 			settinghistory.Table:       settinghistory.ValidColumn,
+			template.Table:             template.ValidColumn,
 			tenant.Table:               tenant.ValidColumn,
 			trafficpolicy.Table:        trafficpolicy.ValidColumn,
 			user.Table:                 user.ValidColumn,

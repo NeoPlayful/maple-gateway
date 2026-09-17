@@ -18,6 +18,8 @@ const (
 	FieldHost = "host"
 	// FieldRegion holds the string denoting the region field in the database.
 	FieldRegion = "region"
+	// FieldDataDir holds the string denoting the data_dir field in the database.
+	FieldDataDir = "data_dir"
 	// FieldLabels holds the string denoting the labels field in the database.
 	FieldLabels = "labels"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -40,6 +42,7 @@ var Columns = []string{
 	FieldName,
 	FieldHost,
 	FieldRegion,
+	FieldDataDir,
 	FieldLabels,
 	FieldStatus,
 	FieldWeight,
@@ -65,6 +68,8 @@ var (
 	HostValidator func(string) error
 	// DefaultRegion holds the default value on creation for the "region" field.
 	DefaultRegion string
+	// DefaultDataDir holds the default value on creation for the "data_dir" field.
+	DefaultDataDir string
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// DefaultWeight holds the default value on creation for the "weight" field.
@@ -94,6 +99,11 @@ func ByHost(opts ...sql.OrderTermOption) OrderOption {
 // ByRegion orders the results by the region field.
 func ByRegion(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRegion, opts...).ToFunc()
+}
+
+// ByDataDir orders the results by the data_dir field.
+func ByDataDir(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDataDir, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

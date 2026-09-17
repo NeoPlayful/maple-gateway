@@ -35,6 +35,15 @@ type DesiredState struct {
 	HealthPath   string            `json:"health_path,omitempty"`
 	NodeSelector map[string]string `json:"node_selector,omitempty"`
 	Strategy     string            `json:"strategy,omitempty"`
+	// Mounts 是绑定挂载规格；path 相对节点数据根（形如 <租户>/<模板>/<项目>/<子目录>）。
+	Mounts []Mount `json:"mounts,omitempty"`
+}
+
+// Mount 是一次绑定挂载（与 Agent 侧契约字段一致）。
+type Mount struct {
+	Path     string `json:"path"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"read_only,omitempty"`
 }
 
 // Client 是 Gateway → CM 的 HTTP 客户端。

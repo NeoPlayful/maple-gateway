@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
+	"github.com/NeoPlayful/maple-gateway/server/ent/schema"
 	"github.com/google/uuid"
 )
 
@@ -42,6 +43,8 @@ type DeploymentVersion struct {
 	HealthPath string `json:"health_path,omitempty"`
 	// NodeSelector holds the value of the "node_selector" field.
 	NodeSelector map[string]string `json:"node_selector,omitempty"`
+	// Mounts holds the value of the "mounts" field.
+	Mounts []schema.MountSpec `json:"mounts,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -77,7 +80,7 @@ func (*DeploymentVersion) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case deploymentversion.FieldEnv, deploymentversion.FieldResources, deploymentversion.FieldNodeSelector:
+		case deploymentversion.FieldEnv, deploymentversion.FieldResources, deploymentversion.FieldNodeSelector, deploymentversion.FieldMounts:
 			values[i] = new([]byte)
 		case deploymentversion.FieldWeight, deploymentversion.FieldReplicas, deploymentversion.FieldPort:
 			values[i] = new(sql.NullInt64)
@@ -180,6 +183,14 @@ func (dv *DeploymentVersion) assignValues(columns []string, values []any) error 
 					return fmt.Errorf("unmarshal field node_selector: %w", err)
 				}
 			}
+		case deploymentversion.FieldMounts:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field mounts", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &dv.Mounts); err != nil {
+					return fmt.Errorf("unmarshal field mounts: %w", err)
+				}
+			}
 		case deploymentversion.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -265,6 +276,9 @@ func (dv *DeploymentVersion) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("node_selector=")
 	builder.WriteString(fmt.Sprintf("%v", dv.NodeSelector))
+	builder.WriteString(", ")
+	builder.WriteString("mounts=")
+	builder.WriteString(fmt.Sprintf("%v", dv.Mounts))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(dv.CreatedAt.Format(time.ANSIC))

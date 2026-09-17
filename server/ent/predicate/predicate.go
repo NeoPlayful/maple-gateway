@@ -36,6 +36,9 @@ type Instance func(*sql.Selector)
 // Node is the predicate function for node builders.
 type Node func(*sql.Selector)
 
+// Project is the predicate function for project builders.
+type Project func(*sql.Selector)
+
 // RateLimit is the predicate function for ratelimit builders.
 type RateLimit func(*sql.Selector)
 
@@ -53,6 +56,9 @@ type Setting func(*sql.Selector)
 
 // SettingHistory is the predicate function for settinghistory builders.
 type SettingHistory func(*sql.Selector)
+
+// Template is the predicate function for template builders.
+type Template func(*sql.Selector)
 
 // Tenant is the predicate function for tenant builders.
 type Tenant func(*sql.Selector)

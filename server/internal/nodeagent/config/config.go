@@ -36,6 +36,9 @@ type AgentConfig struct {
 	AllowedImages []string `yaml:"allowed_images"`
 	// ManagedLabel 受管容器标签键，Agent 只操作带此标签的容器。
 	ManagedLabel string `yaml:"managed_label"`
+	// DataRoot 本节点数据根目录（宿主机绝对路径）。容器绑定挂载的宿主路径必须
+	// 落在其下；为空表示未配置，此时一律拒绝受限挂载。
+	DataRoot string `yaml:"data_root"`
 	// NodeName 本节点标识（上报给 CM）。
 	NodeName string `yaml:"node_name"`
 	// ServerURL CM 的 WebSocket 接入地址（ws://cm-host:9093/agent/ws 或 wss://...）。
@@ -96,6 +99,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_AGENT_MANAGED_LABEL"); v != "" {
 		c.Agent.ManagedLabel = v
+	}
+	if v := os.Getenv("MAPLE_AGENT_DATA_ROOT"); v != "" {
+		c.Agent.DataRoot = v
 	}
 	if v := os.Getenv("MAPLE_AGENT_NODE_NAME"); v != "" {
 		c.Agent.NodeName = v

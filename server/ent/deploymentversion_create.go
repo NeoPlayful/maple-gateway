@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
+	"github.com/NeoPlayful/maple-gateway/server/ent/schema"
 	"github.com/google/uuid"
 )
 
@@ -137,6 +138,12 @@ func (dvc *DeploymentVersionCreate) SetNillableHealthPath(s *string) *Deployment
 // SetNodeSelector sets the "node_selector" field.
 func (dvc *DeploymentVersionCreate) SetNodeSelector(m map[string]string) *DeploymentVersionCreate {
 	dvc.mutation.SetNodeSelector(m)
+	return dvc
+}
+
+// SetMounts sets the "mounts" field.
+func (dvc *DeploymentVersionCreate) SetMounts(ss []schema.MountSpec) *DeploymentVersionCreate {
+	dvc.mutation.SetMounts(ss)
 	return dvc
 }
 
@@ -342,6 +349,10 @@ func (dvc *DeploymentVersionCreate) createSpec() (*DeploymentVersion, *sqlgraph.
 	if value, ok := dvc.mutation.NodeSelector(); ok {
 		_spec.SetField(deploymentversion.FieldNodeSelector, field.TypeJSON, value)
 		_node.NodeSelector = value
+	}
+	if value, ok := dvc.mutation.Mounts(); ok {
+		_spec.SetField(deploymentversion.FieldMounts, field.TypeJSON, value)
+		_node.Mounts = value
 	}
 	if value, ok := dvc.mutation.CreatedAt(); ok {
 		_spec.SetField(deploymentversion.FieldCreatedAt, field.TypeTime, value)
@@ -603,6 +614,24 @@ func (u *DeploymentVersionUpsert) UpdateNodeSelector() *DeploymentVersionUpsert 
 // ClearNodeSelector clears the value of the "node_selector" field.
 func (u *DeploymentVersionUpsert) ClearNodeSelector() *DeploymentVersionUpsert {
 	u.SetNull(deploymentversion.FieldNodeSelector)
+	return u
+}
+
+// SetMounts sets the "mounts" field.
+func (u *DeploymentVersionUpsert) SetMounts(v []schema.MountSpec) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldMounts, v)
+	return u
+}
+
+// UpdateMounts sets the "mounts" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateMounts() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldMounts)
+	return u
+}
+
+// ClearMounts clears the value of the "mounts" field.
+func (u *DeploymentVersionUpsert) ClearMounts() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldMounts)
 	return u
 }
 
@@ -883,6 +912,27 @@ func (u *DeploymentVersionUpsertOne) UpdateNodeSelector() *DeploymentVersionUpse
 func (u *DeploymentVersionUpsertOne) ClearNodeSelector() *DeploymentVersionUpsertOne {
 	return u.Update(func(s *DeploymentVersionUpsert) {
 		s.ClearNodeSelector()
+	})
+}
+
+// SetMounts sets the "mounts" field.
+func (u *DeploymentVersionUpsertOne) SetMounts(v []schema.MountSpec) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetMounts(v)
+	})
+}
+
+// UpdateMounts sets the "mounts" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateMounts() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateMounts()
+	})
+}
+
+// ClearMounts clears the value of the "mounts" field.
+func (u *DeploymentVersionUpsertOne) ClearMounts() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearMounts()
 	})
 }
 
@@ -1332,6 +1382,27 @@ func (u *DeploymentVersionUpsertBulk) UpdateNodeSelector() *DeploymentVersionUps
 func (u *DeploymentVersionUpsertBulk) ClearNodeSelector() *DeploymentVersionUpsertBulk {
 	return u.Update(func(s *DeploymentVersionUpsert) {
 		s.ClearNodeSelector()
+	})
+}
+
+// SetMounts sets the "mounts" field.
+func (u *DeploymentVersionUpsertBulk) SetMounts(v []schema.MountSpec) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetMounts(v)
+	})
+}
+
+// UpdateMounts sets the "mounts" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateMounts() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateMounts()
+	})
+}
+
+// ClearMounts clears the value of the "mounts" field.
+func (u *DeploymentVersionUpsertBulk) ClearMounts() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearMounts()
 	})
 }
 

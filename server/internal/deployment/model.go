@@ -63,6 +63,14 @@ const (
 	VersionInactive VersionStatus = "inactive"
 )
 
+// Mount 是一次绑定挂载：把节点数据根下的子目录映射进容器。
+// Path 相对节点 data_dir（形如 <租户>/<模板>/<项目>/<子目录>），宿主绝对路径由节点拼出。
+type Mount struct {
+	Path     string `json:"path"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"read_only,omitempty"`
+}
+
 // Version 是分流的最小单元。
 type Version struct {
 	ID           uuid.UUID       `json:"id"`
@@ -77,6 +85,7 @@ type Version struct {
 	Resources    json.RawMessage `json:"resources,omitempty"`
 	HealthPath   string          `json:"health_path,omitempty"`
 	NodeSelector map[string]string `json:"node_selector,omitempty"`
+	Mounts       []Mount         `json:"mounts,omitempty"`
 	CreatedAt    time.Time       `json:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at"`
 }
@@ -93,6 +102,7 @@ type NewVersion struct {
 	Resources    json.RawMessage   `json:"resources"`
 	HealthPath   string            `json:"health_path" validate:"max=255"`
 	NodeSelector map[string]string `json:"node_selector"`
+	Mounts       []Mount           `json:"mounts"`
 }
 
 // UpdateVersion 可修改字段。
@@ -106,6 +116,7 @@ type UpdateVersion struct {
 	Resources    json.RawMessage   `json:"resources"`
 	HealthPath   *string           `json:"health_path"`
 	NodeSelector map[string]string `json:"node_selector"`
+	Mounts       []Mount           `json:"mounts"`
 }
 
 // VersionWithOwner 是全局版本列表行：版本规格 + 所属服务/部署归属。

@@ -15,6 +15,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/gatewayinstance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
+	"github.com/NeoPlayful/maple-gateway/server/ent/project"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/ent/release"
 	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
@@ -22,6 +23,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
+	"github.com/NeoPlayful/maple-gateway/server/ent/template"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 	"github.com/NeoPlayful/maple-gateway/server/ent/user"
@@ -292,18 +294,48 @@ func init() {
 	nodeDescRegion := nodeFields[3].Descriptor()
 	// node.DefaultRegion holds the default value on creation for the region field.
 	node.DefaultRegion = nodeDescRegion.Default.(string)
+	// nodeDescDataDir is the schema descriptor for data_dir field.
+	nodeDescDataDir := nodeFields[4].Descriptor()
+	// node.DefaultDataDir holds the default value on creation for the data_dir field.
+	node.DefaultDataDir = nodeDescDataDir.Default.(string)
 	// nodeDescStatus is the schema descriptor for status field.
-	nodeDescStatus := nodeFields[5].Descriptor()
+	nodeDescStatus := nodeFields[6].Descriptor()
 	// node.DefaultStatus holds the default value on creation for the status field.
 	node.DefaultStatus = nodeDescStatus.Default.(string)
 	// nodeDescWeight is the schema descriptor for weight field.
-	nodeDescWeight := nodeFields[6].Descriptor()
+	nodeDescWeight := nodeFields[7].Descriptor()
 	// node.DefaultWeight holds the default value on creation for the weight field.
 	node.DefaultWeight = nodeDescWeight.Default.(int)
 	// nodeDescID is the schema descriptor for id field.
 	nodeDescID := nodeFields[0].Descriptor()
 	// node.DefaultID holds the default value on creation for the id field.
 	node.DefaultID = nodeDescID.Default.(func() uuid.UUID)
+	projectFields := schema.Project{}.Fields()
+	_ = projectFields
+	// projectDescName is the schema descriptor for name field.
+	projectDescName := projectFields[3].Descriptor()
+	// project.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	project.NameValidator = projectDescName.Validators[0].(func(string) error)
+	// projectDescDescription is the schema descriptor for description field.
+	projectDescDescription := projectFields[4].Descriptor()
+	// project.DefaultDescription holds the default value on creation for the description field.
+	project.DefaultDescription = projectDescDescription.Default.(string)
+	// projectDescStatus is the schema descriptor for status field.
+	projectDescStatus := projectFields[5].Descriptor()
+	// project.DefaultStatus holds the default value on creation for the status field.
+	project.DefaultStatus = projectDescStatus.Default.(string)
+	// projectDescNodeID is the schema descriptor for node_id field.
+	projectDescNodeID := projectFields[6].Descriptor()
+	// project.DefaultNodeID holds the default value on creation for the node_id field.
+	project.DefaultNodeID = projectDescNodeID.Default.(string)
+	// projectDescApplicationID is the schema descriptor for application_id field.
+	projectDescApplicationID := projectFields[7].Descriptor()
+	// project.DefaultApplicationID holds the default value on creation for the application_id field.
+	project.DefaultApplicationID = projectDescApplicationID.Default.(string)
+	// projectDescID is the schema descriptor for id field.
+	projectDescID := projectFields[0].Descriptor()
+	// project.DefaultID holds the default value on creation for the id field.
+	project.DefaultID = projectDescID.Default.(func() uuid.UUID)
 	ratelimitFields := schema.RateLimit{}.Fields()
 	_ = ratelimitFields
 	// ratelimitDescScope is the schema descriptor for scope field.
@@ -432,6 +464,32 @@ func init() {
 	settinghistoryDescID := settinghistoryFields[0].Descriptor()
 	// settinghistory.DefaultID holds the default value on creation for the id field.
 	settinghistory.DefaultID = settinghistoryDescID.Default.(func() uuid.UUID)
+	templateFields := schema.Template{}.Fields()
+	_ = templateFields
+	// templateDescName is the schema descriptor for name field.
+	templateDescName := templateFields[1].Descriptor()
+	// template.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	template.NameValidator = templateDescName.Validators[0].(func(string) error)
+	// templateDescSlug is the schema descriptor for slug field.
+	templateDescSlug := templateFields[2].Descriptor()
+	// template.SlugValidator is a validator for the "slug" field. It is called by the builders before save.
+	template.SlugValidator = templateDescSlug.Validators[0].(func(string) error)
+	// templateDescDescription is the schema descriptor for description field.
+	templateDescDescription := templateFields[3].Descriptor()
+	// template.DefaultDescription holds the default value on creation for the description field.
+	template.DefaultDescription = templateDescDescription.Default.(string)
+	// templateDescSpec is the schema descriptor for spec field.
+	templateDescSpec := templateFields[4].Descriptor()
+	// template.DefaultSpec holds the default value on creation for the spec field.
+	template.DefaultSpec = templateDescSpec.Default.(string)
+	// templateDescStatus is the schema descriptor for status field.
+	templateDescStatus := templateFields[6].Descriptor()
+	// template.DefaultStatus holds the default value on creation for the status field.
+	template.DefaultStatus = templateDescStatus.Default.(string)
+	// templateDescID is the schema descriptor for id field.
+	templateDescID := templateFields[0].Descriptor()
+	// template.DefaultID holds the default value on creation for the id field.
+	template.DefaultID = templateDescID.Default.(func() uuid.UUID)
 	tenantFields := schema.Tenant{}.Fields()
 	_ = tenantFields
 	// tenantDescName is the schema descriptor for name field.

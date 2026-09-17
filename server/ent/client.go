@@ -26,12 +26,14 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/gatewayinstance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/instance"
 	"github.com/NeoPlayful/maple-gateway/server/ent/node"
+	"github.com/NeoPlayful/maple-gateway/server/ent/project"
 	"github.com/NeoPlayful/maple-gateway/server/ent/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/ent/release"
 	"github.com/NeoPlayful/maple-gateway/server/ent/releaseevent"
 	"github.com/NeoPlayful/maple-gateway/server/ent/service"
 	"github.com/NeoPlayful/maple-gateway/server/ent/setting"
 	"github.com/NeoPlayful/maple-gateway/server/ent/settinghistory"
+	"github.com/NeoPlayful/maple-gateway/server/ent/template"
 	"github.com/NeoPlayful/maple-gateway/server/ent/tenant"
 	"github.com/NeoPlayful/maple-gateway/server/ent/trafficpolicy"
 	"github.com/NeoPlayful/maple-gateway/server/ent/user"
@@ -62,6 +64,8 @@ type Client struct {
 	Instance *InstanceClient
 	// Node is the client for interacting with the Node builders.
 	Node *NodeClient
+	// Project is the client for interacting with the Project builders.
+	Project *ProjectClient
 	// RateLimit is the client for interacting with the RateLimit builders.
 	RateLimit *RateLimitClient
 	// Release is the client for interacting with the Release builders.
@@ -74,6 +78,8 @@ type Client struct {
 	Setting *SettingClient
 	// SettingHistory is the client for interacting with the SettingHistory builders.
 	SettingHistory *SettingHistoryClient
+	// Template is the client for interacting with the Template builders.
+	Template *TemplateClient
 	// Tenant is the client for interacting with the Tenant builders.
 	Tenant *TenantClient
 	// TrafficPolicy is the client for interacting with the TrafficPolicy builders.
@@ -101,12 +107,14 @@ func (c *Client) init() {
 	c.GatewayInstance = NewGatewayInstanceClient(c.config)
 	c.Instance = NewInstanceClient(c.config)
 	c.Node = NewNodeClient(c.config)
+	c.Project = NewProjectClient(c.config)
 	c.RateLimit = NewRateLimitClient(c.config)
 	c.Release = NewReleaseClient(c.config)
 	c.ReleaseEvent = NewReleaseEventClient(c.config)
 	c.Service = NewServiceClient(c.config)
 	c.Setting = NewSettingClient(c.config)
 	c.SettingHistory = NewSettingHistoryClient(c.config)
+	c.Template = NewTemplateClient(c.config)
 	c.Tenant = NewTenantClient(c.config)
 	c.TrafficPolicy = NewTrafficPolicyClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -212,12 +220,14 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		GatewayInstance:      NewGatewayInstanceClient(cfg),
 		Instance:             NewInstanceClient(cfg),
 		Node:                 NewNodeClient(cfg),
+		Project:              NewProjectClient(cfg),
 		RateLimit:            NewRateLimitClient(cfg),
 		Release:              NewReleaseClient(cfg),
 		ReleaseEvent:         NewReleaseEventClient(cfg),
 		Service:              NewServiceClient(cfg),
 		Setting:              NewSettingClient(cfg),
 		SettingHistory:       NewSettingHistoryClient(cfg),
+		Template:             NewTemplateClient(cfg),
 		Tenant:               NewTenantClient(cfg),
 		TrafficPolicy:        NewTrafficPolicyClient(cfg),
 		User:                 NewUserClient(cfg),
@@ -250,12 +260,14 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		GatewayInstance:      NewGatewayInstanceClient(cfg),
 		Instance:             NewInstanceClient(cfg),
 		Node:                 NewNodeClient(cfg),
+		Project:              NewProjectClient(cfg),
 		RateLimit:            NewRateLimitClient(cfg),
 		Release:              NewReleaseClient(cfg),
 		ReleaseEvent:         NewReleaseEventClient(cfg),
 		Service:              NewServiceClient(cfg),
 		Setting:              NewSettingClient(cfg),
 		SettingHistory:       NewSettingHistoryClient(cfg),
+		Template:             NewTemplateClient(cfg),
 		Tenant:               NewTenantClient(cfg),
 		TrafficPolicy:        NewTrafficPolicyClient(cfg),
 		User:                 NewUserClient(cfg),
@@ -290,8 +302,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.ACMEAccount, c.AuditLog, c.Certificate, c.CertificateOperation, c.Deployment,
 		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
-		c.RateLimit, c.Release, c.ReleaseEvent, c.Service, c.Setting, c.SettingHistory,
-		c.Tenant, c.TrafficPolicy, c.User,
+		c.Project, c.RateLimit, c.Release, c.ReleaseEvent, c.Service, c.Setting,
+		c.SettingHistory, c.Template, c.Tenant, c.TrafficPolicy, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -303,8 +315,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.ACMEAccount, c.AuditLog, c.Certificate, c.CertificateOperation, c.Deployment,
 		c.DeploymentVersion, c.Domain, c.GatewayInstance, c.Instance, c.Node,
-		c.RateLimit, c.Release, c.ReleaseEvent, c.Service, c.Setting, c.SettingHistory,
-		c.Tenant, c.TrafficPolicy, c.User,
+		c.Project, c.RateLimit, c.Release, c.ReleaseEvent, c.Service, c.Setting,
+		c.SettingHistory, c.Template, c.Tenant, c.TrafficPolicy, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -333,6 +345,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Instance.mutate(ctx, m)
 	case *NodeMutation:
 		return c.Node.mutate(ctx, m)
+	case *ProjectMutation:
+		return c.Project.mutate(ctx, m)
 	case *RateLimitMutation:
 		return c.RateLimit.mutate(ctx, m)
 	case *ReleaseMutation:
@@ -345,6 +359,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Setting.mutate(ctx, m)
 	case *SettingHistoryMutation:
 		return c.SettingHistory.mutate(ctx, m)
+	case *TemplateMutation:
+		return c.Template.mutate(ctx, m)
 	case *TenantMutation:
 		return c.Tenant.mutate(ctx, m)
 	case *TrafficPolicyMutation:
@@ -1798,6 +1814,139 @@ func (c *NodeClient) mutate(ctx context.Context, m *NodeMutation) (Value, error)
 	}
 }
 
+// ProjectClient is a client for the Project schema.
+type ProjectClient struct {
+	config
+}
+
+// NewProjectClient returns a client for the Project from the given config.
+func NewProjectClient(c config) *ProjectClient {
+	return &ProjectClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `project.Hooks(f(g(h())))`.
+func (c *ProjectClient) Use(hooks ...Hook) {
+	c.hooks.Project = append(c.hooks.Project, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `project.Intercept(f(g(h())))`.
+func (c *ProjectClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Project = append(c.inters.Project, interceptors...)
+}
+
+// Create returns a builder for creating a Project entity.
+func (c *ProjectClient) Create() *ProjectCreate {
+	mutation := newProjectMutation(c.config, OpCreate)
+	return &ProjectCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Project entities.
+func (c *ProjectClient) CreateBulk(builders ...*ProjectCreate) *ProjectCreateBulk {
+	return &ProjectCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ProjectClient) MapCreateBulk(slice any, setFunc func(*ProjectCreate, int)) *ProjectCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ProjectCreateBulk{err: fmt.Errorf("calling to ProjectClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ProjectCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ProjectCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Project.
+func (c *ProjectClient) Update() *ProjectUpdate {
+	mutation := newProjectMutation(c.config, OpUpdate)
+	return &ProjectUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ProjectClient) UpdateOne(pr *Project) *ProjectUpdateOne {
+	mutation := newProjectMutation(c.config, OpUpdateOne, withProject(pr))
+	return &ProjectUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ProjectClient) UpdateOneID(id uuid.UUID) *ProjectUpdateOne {
+	mutation := newProjectMutation(c.config, OpUpdateOne, withProjectID(id))
+	return &ProjectUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Project.
+func (c *ProjectClient) Delete() *ProjectDelete {
+	mutation := newProjectMutation(c.config, OpDelete)
+	return &ProjectDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ProjectClient) DeleteOne(pr *Project) *ProjectDeleteOne {
+	return c.DeleteOneID(pr.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ProjectClient) DeleteOneID(id uuid.UUID) *ProjectDeleteOne {
+	builder := c.Delete().Where(project.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ProjectDeleteOne{builder}
+}
+
+// Query returns a query builder for Project.
+func (c *ProjectClient) Query() *ProjectQuery {
+	return &ProjectQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeProject},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Project entity by its id.
+func (c *ProjectClient) Get(ctx context.Context, id uuid.UUID) (*Project, error) {
+	return c.Query().Where(project.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ProjectClient) GetX(ctx context.Context, id uuid.UUID) *Project {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ProjectClient) Hooks() []Hook {
+	return c.hooks.Project
+}
+
+// Interceptors returns the client interceptors.
+func (c *ProjectClient) Interceptors() []Interceptor {
+	return c.inters.Project
+}
+
+func (c *ProjectClient) mutate(ctx context.Context, m *ProjectMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ProjectCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ProjectUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ProjectUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ProjectDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Project mutation op: %q", m.Op())
+	}
+}
+
 // RateLimitClient is a client for the RateLimit schema.
 type RateLimitClient struct {
 	config
@@ -2660,6 +2809,139 @@ func (c *SettingHistoryClient) mutate(ctx context.Context, m *SettingHistoryMuta
 	}
 }
 
+// TemplateClient is a client for the Template schema.
+type TemplateClient struct {
+	config
+}
+
+// NewTemplateClient returns a client for the Template from the given config.
+func NewTemplateClient(c config) *TemplateClient {
+	return &TemplateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `template.Hooks(f(g(h())))`.
+func (c *TemplateClient) Use(hooks ...Hook) {
+	c.hooks.Template = append(c.hooks.Template, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `template.Intercept(f(g(h())))`.
+func (c *TemplateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Template = append(c.inters.Template, interceptors...)
+}
+
+// Create returns a builder for creating a Template entity.
+func (c *TemplateClient) Create() *TemplateCreate {
+	mutation := newTemplateMutation(c.config, OpCreate)
+	return &TemplateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Template entities.
+func (c *TemplateClient) CreateBulk(builders ...*TemplateCreate) *TemplateCreateBulk {
+	return &TemplateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TemplateClient) MapCreateBulk(slice any, setFunc func(*TemplateCreate, int)) *TemplateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TemplateCreateBulk{err: fmt.Errorf("calling to TemplateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TemplateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TemplateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Template.
+func (c *TemplateClient) Update() *TemplateUpdate {
+	mutation := newTemplateMutation(c.config, OpUpdate)
+	return &TemplateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TemplateClient) UpdateOne(t *Template) *TemplateUpdateOne {
+	mutation := newTemplateMutation(c.config, OpUpdateOne, withTemplate(t))
+	return &TemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TemplateClient) UpdateOneID(id uuid.UUID) *TemplateUpdateOne {
+	mutation := newTemplateMutation(c.config, OpUpdateOne, withTemplateID(id))
+	return &TemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Template.
+func (c *TemplateClient) Delete() *TemplateDelete {
+	mutation := newTemplateMutation(c.config, OpDelete)
+	return &TemplateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TemplateClient) DeleteOne(t *Template) *TemplateDeleteOne {
+	return c.DeleteOneID(t.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TemplateClient) DeleteOneID(id uuid.UUID) *TemplateDeleteOne {
+	builder := c.Delete().Where(template.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TemplateDeleteOne{builder}
+}
+
+// Query returns a query builder for Template.
+func (c *TemplateClient) Query() *TemplateQuery {
+	return &TemplateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTemplate},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Template entity by its id.
+func (c *TemplateClient) Get(ctx context.Context, id uuid.UUID) (*Template, error) {
+	return c.Query().Where(template.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TemplateClient) GetX(ctx context.Context, id uuid.UUID) *Template {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TemplateClient) Hooks() []Hook {
+	return c.hooks.Template
+}
+
+// Interceptors returns the client interceptors.
+func (c *TemplateClient) Interceptors() []Interceptor {
+	return c.inters.Template
+}
+
+func (c *TemplateClient) mutate(ctx context.Context, m *TemplateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TemplateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TemplateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TemplateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Template mutation op: %q", m.Op())
+	}
+}
+
 // TenantClient is a client for the Tenant schema.
 type TenantClient struct {
 	config
@@ -3111,14 +3393,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		ACMEAccount, AuditLog, Certificate, CertificateOperation, Deployment,
-		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Release,
-		ReleaseEvent, Service, Setting, SettingHistory, Tenant, TrafficPolicy,
-		User []ent.Hook
+		DeploymentVersion, Domain, GatewayInstance, Instance, Node, Project, RateLimit,
+		Release, ReleaseEvent, Service, Setting, SettingHistory, Template, Tenant,
+		TrafficPolicy, User []ent.Hook
 	}
 	inters struct {
 		ACMEAccount, AuditLog, Certificate, CertificateOperation, Deployment,
-		DeploymentVersion, Domain, GatewayInstance, Instance, Node, RateLimit, Release,
-		ReleaseEvent, Service, Setting, SettingHistory, Tenant, TrafficPolicy,
-		User []ent.Interceptor
+		DeploymentVersion, Domain, GatewayInstance, Instance, Node, Project, RateLimit,
+		Release, ReleaseEvent, Service, Setting, SettingHistory, Template, Tenant,
+		TrafficPolicy, User []ent.Interceptor
 	}
 )

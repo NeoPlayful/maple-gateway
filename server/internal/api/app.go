@@ -17,8 +17,10 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ha"
+	"github.com/NeoPlayful/maple-gateway/server/internal/apptemplate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
 	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
+	"github.com/NeoPlayful/maple-gateway/server/internal/project"
 	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/node"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
@@ -202,8 +204,9 @@ func New(d Deps) *fiber.App {
 
 	// Container Manager 运行时运维代理：前端只与 Gateway 对话，会话/RBAC/审计自动继承。
 	// CM 未接入时各端点返回 503，前端据此显示"未启用运行时编排"。
+	var cmH *cmclient.Handler
 	if d.CMClient != nil {
-		cmH := cmclient.NewHandler(d.CMClient)
+		cmH = cmclient.NewHandler(d.CMClient)
 		cg := admin.Group("/cm")
 		cg.Get("/overview", cmH.Overview)
 		cg.Get("/nodes", cmH.Nodes)
@@ -235,6 +238,39 @@ func New(d Deps) *fiber.App {
 		cg.Post("/applications/:id/validate", cmH.ValidateApplication)
 		cg.Delete("/applications/:id", cmH.RemoveApplication)
 	}
+
+	// 应用模板：容器创建的规格来源（带 {{参数键}} 占位符的 Compose 规格 + 参数定义）。
+	templateH := apptemplate.NewHandler(apptemplate.NewRepository(d.Ent))
+	tpl := admin.Group("/templates")
+	tpl.Get("/", templateH.List)
+	tpl.Post("/", templateH.Create)
+	tpl.Get("/:id", templateH.Get)
+	tpl.Patch("/:id", templateH.Update)
+	tpl.Delete("/:id", templateH.Delete)
+	tpl.Post("/:id/enable", templateH.Enable)
+	tpl.Post("/:id/disable", templateH.Disable)
+
+	// 项目：租户 + 模板下的一个部署单元，项目名即数据目录第三段。
+	projectRepo := project.NewRepository(d.Ent)
+	projectH := project.NewHandler(projectRepo)
+	if cmH != nil {
+		projectH = projectH.WithInstantiator(project.NewInstantiator(
+			projectRepo,
+			tenant.NewRepository(d.Ent),
+			apptemplate.NewRepository(d.Ent),
+			d.CMClient,
+		))
+	}
+	pj := admin.Group("/projects")
+	pj.Get("/", projectH.List)
+	pj.Post("/", projectH.Create)
+	pj.Get("/:id", projectH.Get)
+	pj.Patch("/:id", projectH.Update)
+	pj.Delete("/:id", projectH.Delete)
+	pj.Post("/:id/instantiate", projectH.Instantiate)
+	pj.Post("/:id/enable", projectH.Enable)
+	pj.Post("/:id/disable", projectH.Disable)
+
 	dpl := admin.Group("/deployments")
 	dpl.Get("/", deployH.ListDeployments)
 	dpl.Post("/", deployH.CreateDeployment)

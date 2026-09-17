@@ -61,4 +61,13 @@ type CreateSpec struct {
 	Memory       string            `json:"memory,omitempty"`
 	Command      []string          `json:"command,omitempty"`
 	HealthPath   string            `json:"health_path,omitempty"`
+	// Mounts 是绑定挂载项；Path 为相对数据根的子路径，节点侧拼接宿主绝对路径。
+	Mounts []Mount `json:"mounts,omitempty"`
+}
+
+// Mount 是一次绑定挂载（与 nodeagent/docker.Mount 对应）。
+type Mount struct {
+	Path     string `json:"path"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"read_only,omitempty"`
 }

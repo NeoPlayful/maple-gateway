@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
-import type { Deployment, Service, VersionWithOwner } from '../../types';
+import type { Deployment, Mount, Service, VersionWithOwner } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
@@ -47,6 +47,7 @@ export default function VersionsPage() {
     health_path: '',
     env: '',
     node_selector: '',
+    mounts: [] as Mount[],
   });
 
   const loadServices = useCallback(async () => {
@@ -81,7 +82,7 @@ export default function VersionsPage() {
     setFormDeploys([]);
     setForm({
       svcId: '', depId: '', version: '', image: '', replicas: '1', port: '',
-      weight: '100', status: 'stable', health_path: '', env: '', node_selector: '',
+      weight: '100', status: 'stable', health_path: '', env: '', node_selector: '', mounts: [],
     });
     setModalOpen(true);
   };
@@ -101,9 +102,17 @@ export default function VersionsPage() {
       health_path: v.health_path ?? '',
       env: v.env ? Object.entries(v.env).map(([k, val]) => `${k}=${val}`).join('\n') : '',
       node_selector: v.node_selector ? Object.entries(v.node_selector).map(([k, val]) => `${k}=${val}`).join('\n') : '',
+      mounts: v.mounts ? v.mounts.map((m) => ({ ...m })) : [],
     });
     setModalOpen(true);
   };
+
+  // 挂载项增删改：path 相对节点数据根，target 为容器内绝对路径。
+  const addMount = () => setForm((f) => ({ ...f, mounts: [...f.mounts, { path: '', target: '' }] }));
+  const setMount = (i: number, patch: Partial<Mount>) =>
+    setForm((f) => ({ ...f, mounts: f.mounts.map((m, idx) => (idx === i ? { ...m, ...patch } : m)) }));
+  const removeMount = (i: number) =>
+    setForm((f) => ({ ...f, mounts: f.mounts.filter((_, idx) => idx !== i) }));
 
   // parseKV 把 "k=v" 多行文本解析为对象。
   const parseKV = (s: string): Record<string, string> => {
@@ -123,6 +132,10 @@ export default function VersionsPage() {
     try {
       const env = parseKV(form.env);
       const nodeSelector = parseKV(form.node_selector);
+      // 丢弃两字段皆空的行后整体提交（后端按当前表单整体替换）。
+      const mounts = form.mounts
+        .map((m) => ({ path: m.path.trim(), target: m.target.trim(), read_only: !!m.read_only }))
+        .filter((m) => m.path && m.target);
       const body = {
         version: form.version,
         image: form.image,
@@ -133,6 +146,7 @@ export default function VersionsPage() {
         health_path: form.health_path,
         env,
         node_selector: nodeSelector,
+        mounts,
       };
       if (editing) {
         await api.patch(`/api/admin/versions/${editing.id}`, body);
@@ -329,6 +343,53 @@ export default function VersionsPage() {
           <Field label={t('fields.nodeSelector')}>
             <textarea rows={3} value={form.node_selector} onChange={(e) => setForm({ ...form, node_selector: e.target.value })} placeholder={'region=cn-east'} className={inputCls} />
           </Field>
+        </div>
+
+        {/* 绑定挂载：把节点数据目录下的子目录映射进容器，用于持久化与共享数据。 */}
+        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('versions.mounts')}</span>
+            <button
+              type="button"
+              onClick={addMount}
+              className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              + {t('versions.addMount')}
+            </button>
+          </div>
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">{t('versions.mountsHint')}</p>
+          {form.mounts.length === 0 && (
+            <p className="text-xs text-slate-400 dark:text-slate-500">{t('versions.noMounts')}</p>
+          )}
+          <div className="space-y-2">
+            {form.mounts.map((m, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <input
+                  value={m.path}
+                  onChange={(e) => setMount(i, { path: e.target.value })}
+                  placeholder={t('versions.mountPathPh')}
+                  className={`${fieldCls} min-w-[12rem] flex-1`}
+                />
+                <input
+                  value={m.target}
+                  onChange={(e) => setMount(i, { target: e.target.value })}
+                  placeholder={t('versions.mountTargetPh')}
+                  className={`${fieldCls} min-w-[12rem] flex-1`}
+                />
+                <label className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={!!m.read_only} onChange={(e) => setMount(i, { read_only: e.target.checked })} />
+                  {t('versions.mountReadOnly')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => removeMount(i)}
+                  className="rounded px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30"
+                >
+                  {t('common.delete')}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </Modal>
 

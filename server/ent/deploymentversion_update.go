@@ -16,6 +16,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/ent/deployment"
 	"github.com/NeoPlayful/maple-gateway/server/ent/deploymentversion"
 	"github.com/NeoPlayful/maple-gateway/server/ent/predicate"
+	"github.com/NeoPlayful/maple-gateway/server/ent/schema"
 	"github.com/google/uuid"
 )
 
@@ -225,6 +226,24 @@ func (dvu *DeploymentVersionUpdate) ClearNodeSelector() *DeploymentVersionUpdate
 	return dvu
 }
 
+// SetMounts sets the "mounts" field.
+func (dvu *DeploymentVersionUpdate) SetMounts(ss []schema.MountSpec) *DeploymentVersionUpdate {
+	dvu.mutation.SetMounts(ss)
+	return dvu
+}
+
+// AppendMounts appends ss to the "mounts" field.
+func (dvu *DeploymentVersionUpdate) AppendMounts(ss []schema.MountSpec) *DeploymentVersionUpdate {
+	dvu.mutation.AppendMounts(ss)
+	return dvu
+}
+
+// ClearMounts clears the value of the "mounts" field.
+func (dvu *DeploymentVersionUpdate) ClearMounts() *DeploymentVersionUpdate {
+	dvu.mutation.ClearMounts()
+	return dvu
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (dvu *DeploymentVersionUpdate) SetUpdatedAt(t time.Time) *DeploymentVersionUpdate {
 	dvu.mutation.SetUpdatedAt(t)
@@ -368,6 +387,17 @@ func (dvu *DeploymentVersionUpdate) sqlSave(ctx context.Context) (n int, err err
 	}
 	if dvu.mutation.NodeSelectorCleared() {
 		_spec.ClearField(deploymentversion.FieldNodeSelector, field.TypeJSON)
+	}
+	if value, ok := dvu.mutation.Mounts(); ok {
+		_spec.SetField(deploymentversion.FieldMounts, field.TypeJSON, value)
+	}
+	if value, ok := dvu.mutation.AppendedMounts(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, deploymentversion.FieldMounts, value)
+		})
+	}
+	if dvu.mutation.MountsCleared() {
+		_spec.ClearField(deploymentversion.FieldMounts, field.TypeJSON)
 	}
 	if value, ok := dvu.mutation.UpdatedAt(); ok {
 		_spec.SetField(deploymentversion.FieldUpdatedAt, field.TypeTime, value)
@@ -614,6 +644,24 @@ func (dvuo *DeploymentVersionUpdateOne) ClearNodeSelector() *DeploymentVersionUp
 	return dvuo
 }
 
+// SetMounts sets the "mounts" field.
+func (dvuo *DeploymentVersionUpdateOne) SetMounts(ss []schema.MountSpec) *DeploymentVersionUpdateOne {
+	dvuo.mutation.SetMounts(ss)
+	return dvuo
+}
+
+// AppendMounts appends ss to the "mounts" field.
+func (dvuo *DeploymentVersionUpdateOne) AppendMounts(ss []schema.MountSpec) *DeploymentVersionUpdateOne {
+	dvuo.mutation.AppendMounts(ss)
+	return dvuo
+}
+
+// ClearMounts clears the value of the "mounts" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearMounts() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearMounts()
+	return dvuo
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (dvuo *DeploymentVersionUpdateOne) SetUpdatedAt(t time.Time) *DeploymentVersionUpdateOne {
 	dvuo.mutation.SetUpdatedAt(t)
@@ -787,6 +835,17 @@ func (dvuo *DeploymentVersionUpdateOne) sqlSave(ctx context.Context) (_node *Dep
 	}
 	if dvuo.mutation.NodeSelectorCleared() {
 		_spec.ClearField(deploymentversion.FieldNodeSelector, field.TypeJSON)
+	}
+	if value, ok := dvuo.mutation.Mounts(); ok {
+		_spec.SetField(deploymentversion.FieldMounts, field.TypeJSON, value)
+	}
+	if value, ok := dvuo.mutation.AppendedMounts(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, deploymentversion.FieldMounts, value)
+		})
+	}
+	if dvuo.mutation.MountsCleared() {
+		_spec.ClearField(deploymentversion.FieldMounts, field.TypeJSON)
 	}
 	if value, ok := dvuo.mutation.UpdatedAt(); ok {
 		_spec.SetField(deploymentversion.FieldUpdatedAt, field.TypeTime, value)

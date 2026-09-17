@@ -30,6 +30,15 @@ type State struct {
 	HealthPath   string            `json:"health_path,omitempty"`
 	NodeSelector map[string]string `json:"node_selector,omitempty"`
 	Strategy     string            `json:"strategy,omitempty"`
+	// Mounts 是绑定挂载规格；path 相对节点数据根，由节点拼出宿主绝对路径。
+	Mounts []Mount `json:"mounts,omitempty"`
+}
+
+// Mount 是一次绑定挂载（与 agentprotocol 契约字段一致）。
+type Mount struct {
+	Path     string `json:"path"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"read_only,omitempty"`
 }
 
 // Phase 是一次编排阶段状态（供状态查询）。
@@ -67,7 +76,7 @@ func (s *Store) Load(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT deployment_id::text, COALESCE(service_id::text,''), COALESCE(version_id::text,''),
 		       version, status, image, replicas, port, env, resources,
-		       health_path, node_selector, strategy, phase, phase_message, stopped
+		       health_path, node_selector, strategy, mounts, phase, phase_message, stopped
 		FROM cm_deployments`)
 	if err != nil {
 		return fmt.Errorf("load cm_deployments: %w", err)
@@ -77,11 +86,11 @@ func (s *Store) Load(ctx context.Context) error {
 		var (
 			st, sid, vid, version, status, image, healthPath, strategy, phase, phaseMsg string
 			replicas, port                                                              int
-			env, resources, selector                                                    []byte
+			env, resources, selector, mounts                                            []byte
 			stopped                                                                     bool
 		)
 		if err := rows.Scan(&st, &sid, &vid, &version, &status, &image, &replicas, &port,
-			&env, &resources, &healthPath, &selector, &strategy, &phase, &phaseMsg, &stopped); err != nil {
+			&env, &resources, &healthPath, &selector, &strategy, &mounts, &phase, &phaseMsg, &stopped); err != nil {
 			return fmt.Errorf("scan cm_deployment: %w", err)
 		}
 		did := uuid.MustParse(st)
@@ -100,6 +109,7 @@ func (s *Store) Load(ctx context.Context) error {
 				HealthPath:   healthPath,
 				NodeSelector: decodeStrMap(selector),
 				Strategy:     strategy,
+				Mounts:       decodeMounts(mounts),
 			}
 		}
 		s.phases[did] = Phase{Status: phase, Message: phaseMsg}
@@ -208,22 +218,24 @@ func (s *Store) persistState(st State, stopped bool) {
 	}
 	env, _ := json.Marshal(st.Env)
 	selector, _ := json.Marshal(st.NodeSelector)
+	mounts, _ := json.Marshal(st.Mounts)
 	if len(st.Resources) == 0 {
 		st.Resources = json.RawMessage("null")
 	}
 	_, err := s.db.ExecContext(context.Background(), `
 		INSERT INTO cm_deployments (deployment_id, service_id, version_id, version, status, image,
-			replicas, port, env, resources, health_path, node_selector, strategy,
+			replicas, port, env, resources, health_path, node_selector, strategy, mounts,
 			phase, phase_message, stopped, updated_at)
-		VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending','',$14,now())
+		VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending','',$15,now())
 		ON CONFLICT (deployment_id) DO UPDATE SET
 			service_id=EXCLUDED.service_id, version_id=EXCLUDED.version_id, version=EXCLUDED.version,
 			status=EXCLUDED.status, image=EXCLUDED.image, replicas=EXCLUDED.replicas, port=EXCLUDED.port,
 			env=EXCLUDED.env, resources=EXCLUDED.resources, health_path=EXCLUDED.health_path,
-			node_selector=EXCLUDED.node_selector, strategy=EXCLUDED.strategy,
+			node_selector=EXCLUDED.node_selector, strategy=EXCLUDED.strategy, mounts=EXCLUDED.mounts,
 			phase='pending', phase_message='', stopped=false, updated_at=now()`,
 		st.DeploymentID.String(), st.ServiceID.String(), st.VersionID.String(), st.Version, st.Status,
-		st.Image, st.Replicas, st.Port, env, []byte(st.Resources), st.HealthPath, selector, st.Strategy, stopped)
+		st.Image, st.Replicas, st.Port, env, []byte(st.Resources), st.HealthPath, selector, st.Strategy,
+		mounts, stopped)
 	if err != nil {
 		// 落库失败不阻断内存编排；下一次 Put 会重试覆盖。
 		return
@@ -259,4 +271,16 @@ func decodeStrMap(raw []byte) map[string]string {
 		return nil
 	}
 	return m
+}
+
+// decodeMounts 解析 mounts JSONB；空或非法返回 nil。
+func decodeMounts(raw []byte) []Mount {
+	if len(raw) == 0 {
+		return nil
+	}
+	var ms []Mount
+	if err := json.Unmarshal(raw, &ms); err != nil {
+		return nil
+	}
+	return ms
 }
