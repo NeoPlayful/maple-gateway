@@ -53,7 +53,15 @@ type Client struct {
 	// 统计为按需拉取（详情面板打开期间），首次采样无前值，速率返回 0。
 	statsMu    sync.Mutex
 	lastSample map[string]statSample
+
+	// imageMu 保护 imageRefs。镜像引用一经创建即不可变，故按「容器 ID + 镜像 ID」
+	// 缓存，命中即免去逐容器 Inspect；容器被替换或换镜像时键变化，自动重新解析。
+	imageMu   sync.Mutex
+	imageRefs map[string]string
 }
+
+// imageRefKey 是镜像引用缓存的键：容器与镜像 ID 都不变时引用必然不变。
+func imageRefKey(containerID, imageID string) string { return containerID + "|" + imageID }
 
 // statSample 是一次采样的累计计数器（网络收发、块设备读写）与时刻。
 type statSample struct {
@@ -76,7 +84,13 @@ func New(host, managedLabel, dataRoot string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("docker client: %w", err)
 	}
-	return &Client{cli: cli, managedLabel: managedLabel, dataRoot: normalizeRoot(dataRoot), lastSample: map[string]statSample{}}, nil
+	return &Client{
+		cli:          cli,
+		managedLabel: managedLabel,
+		dataRoot:     normalizeRoot(dataRoot),
+		lastSample:   map[string]statSample{},
+		imageRefs:    map[string]string{},
+	}, nil
 }
 
 // Close 释放底层连接。
@@ -635,7 +649,7 @@ func (c *Client) FindByInstance(ctx context.Context, instanceID string) (Contain
 	if len(list) == 0 {
 		return Container{}, false, nil
 	}
-	return fromSummary(list[0]), true, nil
+	return fromSummary(list[0], c.containerImages(ctx, list)[list[0].ID]), true, nil
 }
 
 // ListManaged 列出全部受管容器。
@@ -644,9 +658,10 @@ func (c *Client) ListManaged(ctx context.Context) ([]Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list managed containers: %w", err)
 	}
+	images := c.containerImages(ctx, list)
 	out := make([]Container, 0, len(list))
 	for _, s := range list {
-		out = append(out, fromSummary(s))
+		out = append(out, fromSummary(s, images[s.ID]))
 	}
 	return out, nil
 }
@@ -673,16 +688,23 @@ func (c *Client) Info(ctx context.Context) (NodeInfo, error) {
 }
 
 // fromSummary 把 Docker 容器摘要映射为受管容器视图。
-func fromSummary(s types.Container) Container {
+//
+// image 为该容器自身的 Config.Image（创建时写入的镜像引用，永不漂移），而非摘要里的
+// s.Image —— 后者是按镜像 ID 反查当前 tag 的结果，镜像失去全部 tag（悬空）后会退化
+// 成哈希。调用方已按需解析并传入；解析失败时回退为摘要值，保证列表仍可用。
+func fromSummary(s types.Container, image string) Container {
 	name := ""
 	if len(s.Names) > 0 {
 		name = strings.TrimPrefix(s.Names[0], "/")
+	}
+	if image == "" {
+		image = s.Image
 	}
 	hostPort, containerPort := portPairFromPorts(s.Ports)
 	c := Container{
 		ID:            s.ID,
 		Name:          name,
-		Image:         s.Image,
+		Image:         image,
 		State:         s.State,
 		Status:        s.Status,
 		Labels:        s.Labels,
@@ -697,6 +719,33 @@ func fromSummary(s types.Container) Container {
 		c.ExitCode, c.OOMKilled = parseExit(s.Status)
 	}
 	return c
+}
+
+// containerImages 解析每个容器的镜像引用（Config.Image），按容器与镜像 ID 缓存：
+// 仅在首次见到某容器（或它换了镜像）时做一次 Inspect。任一容器解析失败都退回
+// 摘要里的镜像字段，单个失败不影响整表。
+func (c *Client) containerImages(ctx context.Context, list []types.Container) map[string]string {
+	out := make(map[string]string, len(list))
+	if len(list) == 0 {
+		return out
+	}
+
+	c.imageMu.Lock()
+	defer c.imageMu.Unlock()
+	for _, s := range list {
+		key := imageRefKey(s.ID, s.ImageID)
+		ref, ok := c.imageRefs[key]
+		if !ok {
+			insp, err := c.cli.ContainerInspect(ctx, s.ID)
+			if err != nil || insp.Config == nil || insp.Config.Image == "" {
+				continue // 不回填缓存：下次仍会重试，避免把失败结果固化
+			}
+			ref = insp.Config.Image
+			c.imageRefs[key] = ref
+		}
+		out[s.ID] = ref
+	}
+	return out
 }
 
 // parseExit 从 "Exited (137) ..." / "Exited (0) ..." 解析退出码；137 常见于 OOM/SIGKILL。
