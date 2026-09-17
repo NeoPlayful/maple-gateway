@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Driver 用 compose CLI 管理应用（按 project 名隔离）。
@@ -217,7 +219,49 @@ func (d *Driver) Ps(ctx context.Context, project string) ([]Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parsePs(out), nil
+	svcs := parsePs(out)
+	applyConfigImages(svcs, readServiceImages(file))
+	return svcs, nil
+}
+
+// readServiceImages 从项目组成文件读取各服务的镜像引用（服务名 → image）。
+//
+// 镜像列不能直接用 compose ps 的 Image 字段：它取自容器上的 compose 镜像标签，
+// 镜像失去全部 tag（悬空）时会退化成完整 sha256 摘要。组成文件里的 image 是
+// 创建时确定的引用，永不漂移。读不到（文件缺失 / 解析失败 / 非字符串）即返回空，
+// 由调用方保留 ps 原值。
+func readServiceImages(file string) map[string]string {
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return nil
+	}
+	var doc struct {
+		Services map[string]struct {
+			Image string `yaml:"image"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil
+	}
+	out := make(map[string]string, len(doc.Services))
+	for name, svc := range doc.Services {
+		if svc.Image != "" {
+			out[name] = svc.Image
+		}
+	}
+	return out
+}
+
+// applyConfigImages 用组成文件里的镜像引用覆盖 ps 给出的值（缺项保留原值）。
+func applyConfigImages(svcs []Service, images map[string]string) {
+	if len(images) == 0 {
+		return
+	}
+	for i := range svcs {
+		if ref := images[svcs[i].Service]; ref != "" {
+			svcs[i].Image = ref
+		}
+	}
 }
 
 // parsePs 解析 compose ps --format json 输出：逐行一个 JSON 对象，兼容整体数组两种形态。
