@@ -7,6 +7,7 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"go.uber.org/zap"
 )
 
@@ -22,18 +23,10 @@ func NewController(store *Store, registry *agentregistry.Registry, logger *zap.L
 	return &Controller{store: store, registry: registry, logger: logger}
 }
 
-// project 是 Compose 项目名的确定规则：应用 ID（去连字符）做隔离前缀，节点间不冲突。
+// project 是 Compose 项目名的确定规则：应用 ID 的短标识做隔离前缀，节点间不冲突。
+// 与声明式容器名同形态（maple-<12>），仅容器名另有 -<service>-1 后缀可区分。
 func project(a Application) string {
-	s := ""
-	for _, r := range a.ID {
-		if r != '-' {
-			s += string(r)
-		}
-	}
-	if len(s) > 24 {
-		s = s[:24]
-	}
-	return "maple-app-" + s
+	return "maple-" + pkg.ShortID(a.ID)
 }
 
 // spec 组装下发给 Agent 的 Compose 规格。
