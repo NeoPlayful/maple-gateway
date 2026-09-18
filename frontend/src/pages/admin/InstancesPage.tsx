@@ -52,7 +52,8 @@ export default function InstancesPage() {
   const [verId, setVerId] = useState('');
   const [nodeId, setNodeId] = useState('');
   const [address, setAddress] = useState('');
-  const [port, setPort] = useState('8080');
+  // 端口默认留空：不预设端口，由用户自行决定是否指定（留空则端点走 scheme 默认端口）。
+  const [port, setPort] = useState('');
   const [weight, setWeight] = useState('1');
   const [protocol, setProtocol] = useState('http');
 
@@ -154,7 +155,7 @@ export default function InstancesPage() {
     setNodeId('');
     setVersions([]);
     setAddress('');
-    setPort('8080');
+    setPort('');
     setWeight('1');
     setProtocol('http');
     setFormOpen(true);
@@ -169,7 +170,7 @@ export default function InstancesPage() {
     setVerId(r.version_id || '');
     setNodeId(r.node_id || '');
     setAddress(r.address);
-    setPort(String(r.port));
+    setPort(r.port ? String(r.port) : '');
     setWeight(String(r.weight));
     setProtocol(r.protocol || 'http');
     setVersions([]);
@@ -198,7 +199,7 @@ export default function InstancesPage() {
         // 编辑仅改运行参数；归属（deployment/version/node）经 mount 接口单独调整，此处不动。
         await update('/api/admin/instances', editing.id, {
           address,
-          port: Number(port),
+          port: port ? Number(port) : 0,
           protocol,
           weight: Number(weight) || 1,
         });
@@ -210,7 +211,7 @@ export default function InstancesPage() {
           ...(verId ? { version_id: verId } : {}),
           ...(nodeId ? { node_id: nodeId } : {}),
           address,
-          port: Number(port),
+          port: port ? Number(port) : 0,
           weight: Number(weight) || 1,
           protocol,
         });
@@ -339,8 +340,8 @@ export default function InstancesPage() {
               <option value="https">https</option>
             </select>
           </Field>
-          <Field label={t('fields.port')}>
-            <input type="number" value={port} onChange={(e) => setPort(e.target.value)} className={inputCls} />
+          <Field label={t('instances.portOptional')} hint={t('instances.portHint')}>
+            <input type="number" min={0} max={65535} value={port} onChange={(e) => setPort(e.target.value)} placeholder={t('instances.portPh')} className={inputCls} />
           </Field>
           <Field label={t('fields.weight')}>
             <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} className={inputCls} />
@@ -392,7 +393,7 @@ export default function InstancesPage() {
                   {svcName(r.service_id)}
                   <span className="ml-1 text-xs text-slate-400">{r.version}</span>
                 </td>
-                <td className="px-4 py-2 font-mono text-xs">{r.address}:{r.port}</td>
+                <td className="px-4 py-2 font-mono text-xs">{r.port > 0 ? `${r.address}:${r.port}` : r.address}</td>
                 <td className="px-4 py-2">{nodeLabel(r)}</td>
                 <td className="px-4 py-2 font-mono text-xs">
                   {cmEnabled && ct?.ip ? ct.ip : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}

@@ -28,7 +28,7 @@ function InstanceRow({
         <span className={`h-2 w-2 shrink-0 rounded-full ${inst.health === 'healthy' ? 'bg-emerald-500' : inst.health === 'unhealthy' ? 'bg-rose-500' : 'bg-slate-400'}`} />
         <span className="font-mono text-slate-600 dark:text-slate-300">{inst.id.slice(0, 8)}</span>
         <span className="text-slate-400">{nodeName}</span>
-        <span className="font-mono text-slate-400">{inst.address}:{inst.port}</span>
+        <span className="font-mono text-slate-400">{inst.port > 0 ? `${inst.address}:${inst.port}` : inst.address}</span>
         <StatusBadge value={inst.health} />
         <StatusBadge value={inst.status} />
       </div>

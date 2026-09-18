@@ -29,7 +29,7 @@ type SyncInstance struct {
 	VersionID    *uuid.UUID `json:"version_id"`
 	Version      string     `json:"version"`
 	Address      string     `json:"address" validate:"required"`
-	Port         int        `json:"port" validate:"required,min=1,max=65535"`
+	Port         int        `json:"port" validate:"min=0,max=65535"`
 	Protocol     string     `json:"protocol"`
 	Weight       int        `json:"weight"`
 }

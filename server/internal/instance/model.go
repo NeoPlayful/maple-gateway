@@ -57,7 +57,9 @@ type New struct {
 	NodeID       *uuid.UUID `json:"node_id"`
 	Version      string     `json:"version"`
 	Address      string     `json:"address" validate:"required"`
-	Port         int        `json:"port" validate:"required,min=1,max=65535"`
+	// Port 为上游监听端口；留空（0）表示端点只写地址、不带端口，
+	// 由 scheme 的默认端口（http 80 / https 443）决定。默认不强制填写。
+	Port         int        `json:"port" validate:"min=0,max=65535"`
 	Protocol     string     `json:"protocol" validate:"omitempty,oneof=http https"`
 	Weight       int        `json:"weight" validate:"min=0,max=1000"`
 }
