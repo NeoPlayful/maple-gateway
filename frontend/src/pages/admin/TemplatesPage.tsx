@@ -17,7 +17,8 @@ const TEMPLATE_FILTERS: FilterDef[] = [
   { type: 'select', key: 'status', placeholder: 'common.filterAllStatus' },
 ];
 
-// 一份可直接套用的示例：服务名与镜像由参数渲染，数据目录用 {{data_path}} 引用。
+// 一份可直接套用的示例：服务名与镜像由参数渲染；宿主端口 {{port}} 由系统自动分配，
+// 数据目录用内置 {{data_dir}}（节点数据根）+ {{data_path}}（项目相对路径）组合引用。
 const SAMPLE_SPEC = `services:
   web:
     image: {{image}}
@@ -25,7 +26,7 @@ const SAMPLE_SPEC = `services:
     ports:
       - "{{port}}:80"
     volumes:
-      - /srv/maple/{{data_path}}/web:/usr/share/nginx/html
+      - {{data_dir}}/{{data_path}}/web:/usr/share/nginx/html
 `;
 
 const PARAM_TYPES: TemplateParam['type'][] = ['string', 'number', 'bool', 'select'];

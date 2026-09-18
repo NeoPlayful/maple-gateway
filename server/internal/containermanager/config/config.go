@@ -42,6 +42,10 @@ type CMConfig struct {
 	// DatabaseURL PostgreSQL 连接串（与 Gateway 同库）。空则回退内存模式，
 	// 节点/令牌/任务/期望态不持久化（仅开发用）。
 	DatabaseURL string `yaml:"database_url"`
+	// PortRangeStart/PortRangeEnd 是集中分配的本机端口区间（闭区间）。
+	// 模板实例化时按需从这个区间取空闲端口注入容器映射，避免多项目抢占同一宿主端口。
+	PortRangeStart int `yaml:"port_range_start"`
+	PortRangeEnd   int `yaml:"port_range_end"`
 	// Nodes 静态登记的节点清单：CM 据此探测 Agent 并采集容器状态。
 	// 生产可由 Agent 自注册扩展；本期以配置登记为主。
 	Nodes []NodeConfig `yaml:"nodes"`
@@ -77,6 +81,8 @@ func Default() *Config {
 			DefaultReplicas:    1,
 			TaskTimeout:        5 * time.Minute,
 			EnrollmentRequired: false,
+			PortRangeStart:     20000,
+			PortRangeEnd:       30000,
 		},
 		Logging: LoggingConfig{Level: "info"},
 	}
@@ -142,6 +148,16 @@ func (c *Config) applyEnv() {
 		c.CM.DatabaseURL = v
 	} else if v := os.Getenv("MAPLE_DATABASE_URL"); v != "" {
 		c.CM.DatabaseURL = v
+	}
+	if v := os.Getenv("MAPLE_CM_PORT_RANGE_START"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.CM.PortRangeStart = n
+		}
+	}
+	if v := os.Getenv("MAPLE_CM_PORT_RANGE_END"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.CM.PortRangeEnd = n
+		}
 	}
 	if v := os.Getenv("MAPLE_LOG_LEVEL"); v != "" {
 		c.Logging.Level = v

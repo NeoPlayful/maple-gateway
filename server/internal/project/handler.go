@@ -103,6 +103,10 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 	if err := h.repo.Delete(c.Context(), id); err != nil {
 		return pkg.Err(c, err)
 	}
+	// 项目删除即归还其占用的端口；归还失败不阻断删除（记录仍在，无人再用该端口）。
+	if h.inst != nil {
+		_ = h.inst.ReleasePort(c.Context(), id)
+	}
 	return pkg.OK(c, fiber.Map{"deleted": true})
 }
 

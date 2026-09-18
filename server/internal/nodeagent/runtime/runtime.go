@@ -31,6 +31,11 @@ func New(d *docker.Client, allowedImages []string) *Runtime {
 	}
 }
 
+// PrepareCompose 加工 CM 下发的 Compose 规格：替换数据根占位符、注入受管标签。
+func (r *Runtime) PrepareCompose(spec, appID string) (string, error) {
+	return compose.Prepare(spec, r.docker.DataRoot(), r.docker.ManagedLabel(), appID)
+}
+
 // Compose 返回 Compose 驱动（供执行器驱动应用部署）。
 func (r *Runtime) Compose() *compose.Driver { return r.compose }
 

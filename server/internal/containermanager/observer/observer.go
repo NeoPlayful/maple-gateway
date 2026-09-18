@@ -77,11 +77,14 @@ type Observer struct {
 	containerCt int
 	nodeUpCt    int
 	snapshot    map[string]ObservedContainer
-	metrics     map[string]NodeMetric
-	info        map[string]NodeInfo
-	errors      []RuntimeError
-	events      []DockerEvent
-	eventKeys   map[string]struct{} // 事件去重键集合
+	// byContainerID 是按容器 ID 索引的全量受管容器（含无 instance_id 的 Compose 容器），
+	// 供容器列表展示与按容器 ID 的人工操作；对账仍只读 instance_id 索引的 snapshot。
+	byContainerID map[string]ObservedContainer
+	metrics       map[string]NodeMetric
+	info          map[string]NodeInfo
+	errors        []RuntimeError
+	events        []DockerEvent
+	eventKeys     map[string]struct{} // 事件去重键集合
 
 	// observeHealth 记录各节点连续观测失败次数与退避窗口（由 mu 保护）。
 	observeHealth map[string]*nodeHealth
@@ -179,6 +182,7 @@ func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval 
 		logger:        logger,
 		kick:          make(chan struct{}, 1),
 		snapshot:      map[string]ObservedContainer{},
+		byContainerID: map[string]ObservedContainer{},
 		metrics:       map[string]NodeMetric{},
 		info:          map[string]NodeInfo{},
 		eventKeys:     map[string]struct{}{},
@@ -267,6 +271,7 @@ func (o *Observer) tick(ctx context.Context) {
 	upCt, ct := 0, 0
 	var firstErr error
 	snap := make(map[string]ObservedContainer)
+	byCID := make(map[string]ObservedContainer)
 	metrics := make(map[string]NodeMetric, len(nodes))
 	infos := make(map[string]NodeInfo, len(nodes))
 	var runtimeErrs []RuntimeError
@@ -320,6 +325,9 @@ func (o *Observer) tick(ctx context.Context) {
 		ct += len(containers)
 		observedNodes[n.Name] = true
 		for _, c := range containers {
+			if c.ID != "" {
+				byCID[c.ID] = ObservedContainer{NodeName: n.Name, InstanceID: c.InstanceID, Container: c}
+			}
 			if c.InstanceID != "" {
 				snap[c.InstanceID] = ObservedContainer{NodeName: n.Name, InstanceID: c.InstanceID, Container: c}
 			}
@@ -338,6 +346,7 @@ func (o *Observer) tick(ctx context.Context) {
 	o.nodeUpCt = upCt
 	o.containerCt = ct
 	o.snapshot = snap
+	o.byContainerID = byCID
 	o.metrics = metrics
 	o.info = infos
 	o.errors = runtimeErrs
@@ -375,6 +384,18 @@ func (o *Observer) Snapshot() map[string]ObservedContainer {
 	defer o.mu.Unlock()
 	out := make(map[string]ObservedContainer, len(o.snapshot))
 	for k, v := range o.snapshot {
+		out[k] = v
+	}
+	return out
+}
+
+// Containers 返回最近一轮观测到的全部受管容器（含无 instance_id 的 Compose 容器），
+// 供容器列表展示与人工操作读取。
+func (o *Observer) Containers() map[string]ObservedContainer {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make(map[string]ObservedContainer, len(o.byContainerID))
+	for k, v := range o.byContainerID {
 		out[k] = v
 	}
 	return out

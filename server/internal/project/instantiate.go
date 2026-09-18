@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/apptemplate"
@@ -27,17 +28,31 @@ type AppSaver interface {
 	SaveApplication(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 }
 
+// PortAllocator 从控制面集中端口池分配/归还本机端口（模板未钉死端口时用）。
+type PortAllocator interface {
+	AllocatePort(ctx context.Context, resourceID, kind, nodeID string) (int, error)
+	ReleasePort(ctx context.Context, resourceID string) error
+}
+
 // Instantiator 把「租户 + 模板 + 项目 + 参数」渲染为一份 Compose 规格并落成 Application。
 type Instantiator struct {
 	projects  *Repository
 	tenants   SlugResolver
 	templates TemplateSource
 	apps      AppSaver
+	// ports 可空；未接入 CM 时为 nil，模板引用内置 {{port}} 且未声明为参数时拒绝实例化。
+	ports PortAllocator
 }
 
 // NewInstantiator 构造。
 func NewInstantiator(projects *Repository, tenants SlugResolver, templates TemplateSource, apps AppSaver) *Instantiator {
 	return &Instantiator{projects: projects, tenants: tenants, templates: templates, apps: apps}
+}
+
+// WithPortAllocator 注入端口池（模板未钉死宿主端口时由系统分配）。
+func (i *Instantiator) WithPortAllocator(p PortAllocator) *Instantiator {
+	i.ports = p
+	return i
 }
 
 // InstantiateInput 是一次实例化请求。
@@ -80,6 +95,9 @@ func (i *Instantiator) Instantiate(ctx context.Context, projectID uuid.UUID, in 
 	// 数据目录相对路径是内置参数，规格可直接用 {{data_path}} 引用而无需声明；
 	// 此处无条件注入，渲染器会校验规格确实引用了它时取值非空。
 	values[apptemplate.BuiltinDataPathKey] = dataPath.Rel
+	if err := i.injectPort(ctx, projectID, tmpl, values); err != nil {
+		return nil, err
+	}
 	rendered, err := apptemplate.Render(tmpl, values)
 	if err != nil {
 		return nil, err
@@ -114,6 +132,52 @@ func (i *Instantiator) Instantiate(ctx context.Context, projectID uuid.UUID, in 
 		return nil, err
 	}
 	return out2, nil
+}
+
+// injectPort 处理模板对宿主端口的引用：规格用了 {{port}} 且未将它声明为参数时，
+// 从控制面端口池分配一个空闲端口注入渲染（占位落在项目 ID 上），避免多项目抢占同一端口。
+// 已声明为参数的 port 视作用户钉死的固定端口，不参与分配。
+func (i *Instantiator) injectPort(ctx context.Context, projectID uuid.UUID, tmpl *apptemplate.Template, values map[string]string) error {
+	if !referencesPort(tmpl) {
+		return nil
+	}
+	if i.ports == nil {
+		return pkg.ErrSystem("模板引用了宿主端口但未接入端口分配")
+	}
+	port, err := i.ports.AllocatePort(ctx, projectID.String(), "project", "")
+	if err != nil {
+		return pkg.ErrSystem("分配端口失败: " + err.Error())
+	}
+	values[apptemplate.BuiltinPortKey] = strconv.Itoa(port)
+	return nil
+}
+
+// referencesPort 报告模板规格是否引用了内置 port 占位符，且未将其声明为参数。
+func referencesPort(tmpl *apptemplate.Template) bool {
+	if !strings.Contains(tmpl.Spec, "{{") {
+		return false
+	}
+	declared := map[string]bool{}
+	for _, p := range tmpl.Params {
+		declared[p.Key] = true
+	}
+	if declared[apptemplate.BuiltinPortKey] {
+		return false
+	}
+	for _, key := range apptemplate.Placeholders(tmpl.Spec) {
+		if key == apptemplate.BuiltinPortKey {
+			return true
+		}
+	}
+	return false
+}
+
+// ReleasePort 归还项目占用的全部端口（项目删除时调用）。
+func (i *Instantiator) ReleasePort(ctx context.Context, projectID uuid.UUID) error {
+	if i.ports == nil {
+		return nil
+	}
+	return i.ports.ReleasePort(ctx, projectID.String())
 }
 
 // extractID 从 CM 的响应体里取出应用 id（保持对包装结构不敏感的宽松解析）。

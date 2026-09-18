@@ -282,7 +282,7 @@ export default function RuntimePage() {
   const [expandedContainers, setExpandedContainers] = useState<Set<string>>(new Set());
   const [containerStats, setContainerStats] = useState<Record<string, CMContainerStats>>({});
   const [containerStatsErr, setContainerStatsErr] = useState<Record<string, string>>({});
-  // 待删除容器（instance_id）：非空时显示确认弹窗。
+  // 待删除容器的操作标识（instance_id 或容器 ID）：非空时显示确认弹窗。
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, name: string) =>
@@ -367,7 +367,8 @@ export default function RuntimePage() {
     }
   };
 
-  // 删除受管容器：经 CM 按 instance_id 定位节点强制移除，用于清理孤儿/未纳管容器。
+  // 删除受管容器：经 CM 按标识（instance_id 或容器 ID）定位节点强制移除，
+  // 用于清理孤儿/未纳管容器与模板（Compose）容器。
   const doRemove = async () => {
     if (!removeId) return;
     setRemoving(true);
@@ -732,16 +733,18 @@ export default function RuntimePage() {
               const inst = instanceById.get(ct.instance_id);
               const version = inst?.version ?? '';
               const running = ct.state === 'running';
-              const open = expandedContainers.has(ct.instance_id);
+              // 操作标识：优先 instance_id（声明式容器），无则退回容器 ID（Compose 容器）。
+              const cid = ct.instance_id || ct.container_id;
+              const open = expandedContainers.has(cid);
               return (
                 <Fragment key={ct.container_id}>
                   <tr
-                    onClick={() => toggleSet(setExpandedContainers, ct.instance_id)}
+                    onClick={() => toggleSet(setExpandedContainers, cid)}
                     className="cursor-pointer border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
                   >
                     <td className="px-2 py-2 text-center text-slate-400">{open ? '▾' : '▸'}</td>
                     <td className="px-4 py-2 font-mono text-xs">
-                      {ct.instance_id.slice(0, 8)}
+                      {ct.instance_id ? ct.instance_id.slice(0, 8) : '-'}
                       {!inst && (
                         <span
                           title={t('runtime.unmanagedHint')}
@@ -761,12 +764,12 @@ export default function RuntimePage() {
                     <td className="px-4 py-2 font-mono text-xs">{fmtPortPair(ct.host_port, ct.container_port)}</td>
                     <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-wrap gap-1">
-                        <ActionBtn onClick={() => openLogs(ct.instance_id)}>{t('deployments.logs')}</ActionBtn>
-                        <ActionBtn onClick={() => act(ct.instance_id, 'restart')}>{t('deployments.restart')}</ActionBtn>
+                        <ActionBtn onClick={() => openLogs(cid)}>{t('deployments.logs')}</ActionBtn>
+                        <ActionBtn onClick={() => act(cid, 'restart')}>{t('deployments.restart')}</ActionBtn>
                         {running
-                          ? <ActionBtn onClick={() => act(ct.instance_id, 'stop')}>{t('deployments.stop')}</ActionBtn>
-                          : <ActionBtn onClick={() => act(ct.instance_id, 'start')}>{t('deployments.start')}</ActionBtn>}
-                        <ActionBtn danger onClick={() => setRemoveId(ct.instance_id)}>{t('common.delete')}</ActionBtn>
+                          ? <ActionBtn onClick={() => act(cid, 'stop')}>{t('deployments.stop')}</ActionBtn>
+                          : <ActionBtn onClick={() => act(cid, 'start')}>{t('deployments.start')}</ActionBtn>}
+                        <ActionBtn danger onClick={() => setRemoveId(cid)}>{t('common.delete')}</ActionBtn>
                       </div>
                     </td>
                   </tr>
@@ -774,8 +777,8 @@ export default function RuntimePage() {
                     <tr className="border-b border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/30">
                       <td colSpan={11} className="px-6 py-4">
                         <ContainerDetail
-                          stats={containerStats[ct.instance_id] ?? null}
-                          error={containerStatsErr[ct.instance_id] ?? ''}
+                          stats={containerStats[cid] ?? null}
+                          error={containerStatsErr[cid] ?? ''}
                           t={t}
                         />
                       </td>
