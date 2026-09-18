@@ -59,7 +59,9 @@ type Mgmt struct {
 	Restart    func(instanceID string) error
 	Stop       func(instanceID string) error
 	Start      func(instanceID string) error
-	Logs       func(instanceID string, tail int) (string, error)
+	// Remove 删除实例容器；force 为真时连同运行中的容器一并强制移除。
+	Remove func(instanceID string, force bool) error
+	Logs   func(instanceID string, tail int) (string, error)
 	// FollowLogs 打开一条实时日志流；返回的分片通道、完成通道与是否溢出。
 	FollowLogs func(ctx context.Context, instanceID string, tail int) (chunks <-chan []byte, done <-chan struct{}, overflow func() bool, err error)
 	// InstanceStats 采集单容器资源用量（CPU/内存/网络/磁盘 IO），供详情面板按需轮询。
@@ -151,6 +153,18 @@ func registerMgmt(app *fiber.App, token string, m Mgmt) {
 			return fiber.NewError(fiber.StatusBadGateway, err.Error())
 		}
 		return c.JSON(fiber.Map{"started": true})
+	})
+
+	// 人工删除：彻底移除容器（默认强制，免去先 stop 再删的两步）。
+	g.Post("/instances/:id/remove", func(c fiber.Ctx) error {
+		if m.Remove == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用人工控制")
+		}
+		force := c.Query("force", "true") != "false"
+		if err := m.Remove(c.Params("id"), force); err != nil {
+			return fiber.NewError(fiber.StatusBadGateway, err.Error())
+		}
+		return c.JSON(fiber.Map{"removed": true})
 	})
 
 	g.Get("/instances/:id/logs", func(c fiber.Ctx) error {

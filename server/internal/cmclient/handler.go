@@ -26,6 +26,7 @@ type Proxier interface {
 	RestartInstance(ctx context.Context, instanceID string) error
 	StopInstance(ctx context.Context, instanceID string) error
 	StartInstance(ctx context.Context, instanceID string) error
+	RemoveInstance(ctx context.Context, instanceID string, force bool) error
 	InstanceLogs(ctx context.Context, instanceID string, tail int) (json.RawMessage, error)
 	InstanceStats(ctx context.Context, instanceID string) (json.RawMessage, error)
 	FollowInstanceLogs(ctx context.Context, instanceID string, tail int) (*http.Response, error)
@@ -172,6 +173,19 @@ func (h *Handler) StartInstance(c fiber.Ctx) error {
 		return pkg.Err(c, pkg.ErrSystem("启动实例失败: "+err.Error()))
 	}
 	return pkg.OK(c, fiber.Map{"started": true})
+}
+
+// RemoveInstance DELETE /api/admin/cm/instances/:id
+// 删除受管容器：按 instance_id 经 CM 定位节点并强制移除，用于清理孤儿/未纳管容器。
+func (h *Handler) RemoveInstance(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	force := c.Query("force", "true") != "false"
+	if err := h.cm.RemoveInstance(c.Context(), c.Params("id"), force); err != nil {
+		return pkg.Err(c, pkg.ErrSystem("删除实例失败: "+err.Error()))
+	}
+	return pkg.OK(c, fiber.Map{"removed": true})
 }
 
 // InstanceLogs GET /api/admin/cm/instances/:id/logs?tail=200

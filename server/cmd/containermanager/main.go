@@ -182,6 +182,7 @@ func run(configPath string) error {
 		Restart: func(id string) error { return ctrl.Restart(ctx, id) },
 		Stop:    func(id string) error { return ctrl.Stop(ctx, id) },
 		Start:   func(id string) error { return ctrl.Start(ctx, id) },
+		Remove:  func(id string, force bool) error { return ctrl.Remove(ctx, id, force) },
 		Logs:    func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
 		FollowLogs: func(cctx context.Context, id string, tail int) (<-chan []byte, <-chan struct{}, func() bool, error) {
 			st, err := ctrl.FollowLogs(cctx, id, tail)

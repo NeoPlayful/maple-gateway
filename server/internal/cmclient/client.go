@@ -152,6 +152,12 @@ func (c *Client) StartInstance(ctx context.Context, instanceID string) error {
 	return c.instanceAction(ctx, instanceID, "start")
 }
 
+// RemoveInstance 人工删除实例容器：POST {cm}/api/mgmt/instances/{id}/remove?force=。
+// force 默认由 CM 侧按 true 处理；此处显式传参以便未来放开。
+func (c *Client) RemoveInstance(ctx context.Context, instanceID string, force bool) error {
+	return c.instanceAction(ctx, instanceID, fmt.Sprintf("remove?force=%t", force))
+}
+
 // InstanceLogs 读取实例容器日志：GET {cm}/api/mgmt/instances/{id}/logs?tail=n。
 func (c *Client) InstanceLogs(ctx context.Context, instanceID string, tail int) (json.RawMessage, error) {
 	if !c.Enabled() {
