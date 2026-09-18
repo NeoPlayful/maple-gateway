@@ -11,7 +11,7 @@ import (
 func TestFromSummaryPrefersResolvedImage(t *testing.T) {
 	s := types.Container{
 		ID:      "abc123",
-		Names:   []string{"/maple-app-x-web-1"},
+		Names:   []string{"/maple-31c6635dffc5-web-1"},
 		Image:   "72ba65eb42c1", // 摘要里的退化值
 		ImageID: "sha256:72ba65eb42c10344912a84ff42408db7d34f2feb642204570ab8fc5ffd29f1d3",
 		State:   "running",

@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
@@ -816,11 +817,7 @@ func hostPortFromInspect(insp types.ContainerJSON, containerPort int) int {
 
 // shortID 取实例 ID 前 12 位用于容器名（UUID 去连字符后）。
 func shortID(id string) string {
-	s := strings.ReplaceAll(id, "-", "")
-	if len(s) > 12 {
-		return s[:12]
-	}
-	return s
+	return pkg.ShortID(id)
 }
 
 // parseMemory 把 "256m"/"1g"/"512m" 解析为字节；解析失败返回 0。
