@@ -104,6 +104,63 @@ func TestRenderBuiltinDataPath(t *testing.T) {
 	}
 }
 
+func TestRenderBuiltinPort(t *testing.T) {
+	// port 未声明为参数：应由系统注入取值（CM 分配）后渲染成功。
+	tmpl := &Template{
+		Slug:   "webapp",
+		Spec:   "web:\n  image: {{image}}\n  ports:\n    - \"{{port}}:80\"\n",
+		Params: []Param{{Key: "image", Type: ParamString, Required: true}},
+	}
+	out, err := Render(tmpl, map[string]string{"image": "nginx", "port": "25000"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(out, `"25000:80"`) {
+		t.Errorf("builtin port not injected:\n%s", out)
+	}
+
+	// 未注入内置 port 取值 → 拒绝。
+	if _, err := Render(tmpl, map[string]string{"image": "nginx"}); err == nil {
+		t.Error("expected error when builtin port is not injected")
+	}
+
+	// port 声明为参数：按用户填写值渲染（钉死固定端口），且不再要求系统注入。
+	pinned := &Template{
+		Slug: "webapp",
+		Spec: "web:\n  ports:\n    - \"{{port}}:80\"\n",
+		Params: []Param{
+			{Key: "port", Type: ParamNumber, Default: "8080"},
+		},
+	}
+	out, err = Render(pinned, map[string]string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(out, `"8080:80"`) {
+		t.Errorf("declared port default not applied:\n%s", out)
+	}
+}
+
+func TestRenderPassthroughDataDir(t *testing.T) {
+	// data_dir 为透传键：渲染期保留字面量，交节点运行期替换。
+	tmpl := &Template{
+		Slug:   "webapp",
+		Spec:   "web:\n  image: {{image}}\n  volumes:\n    - {{data_dir}}/{{data_path}}/web:/html\n",
+		Params: []Param{{Key: "image", Type: ParamString, Required: true}},
+	}
+	out, err := Render(tmpl, map[string]string{"image": "nginx", "data_path": "t1/webapp/p1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(out, "{{data_dir}}/t1/webapp/p1/web") {
+		t.Errorf("data_dir should be passed through, got:\n%s", out)
+	}
+	// data_dir 声明为参数应被拒绝（保留键）。
+	if err := ValidateParams([]Param{{Key: "data_dir", Type: ParamString}}); err == nil {
+		t.Error("expected error when declaring reserved key data_dir")
+	}
+}
+
 func TestPlaceholders(t *testing.T) {
 	got := Placeholders("a: {{x}}\nb: {{ y }}\nc: {{x}}\n")
 	if len(got) != 2 || got[0] != "x" || got[1] != "y" {

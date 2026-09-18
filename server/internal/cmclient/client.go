@@ -358,6 +358,35 @@ func (c *Client) ValidateApplication(ctx context.Context, id string) (json.RawMe
 	return out, nil
 }
 
+// AllocatePort 向 CM 申请一个本机端口：POST {cm}/api/mgmt/ports/allocate。
+// resourceID 是占用方标识（如项目 ID），kind 记录占用类型，nodeID 为落点（可空）。
+func (c *Client) AllocatePort(ctx context.Context, resourceID, kind, nodeID string) (int, error) {
+	if !c.Enabled() {
+		return 0, fmt.Errorf("container manager 未接入")
+	}
+	body := map[string]string{"resource_id": resourceID, "kind": kind, "node_id": nodeID}
+	var out struct {
+		Port int `json:"port"`
+	}
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/ports/allocate", body, &raw); err != nil {
+		return 0, err
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return 0, fmt.Errorf("decode port response: %w", err)
+	}
+	return out.Port, nil
+}
+
+// ReleasePort 归还某资源的全部端口占用：POST {cm}/api/mgmt/ports/release。
+func (c *Client) ReleasePort(ctx context.Context, resourceID string) error {
+	if !c.Enabled() {
+		return nil
+	}
+	return c.do(ctx, http.MethodPost, "/api/mgmt/ports/release",
+		map[string]string{"resource_id": resourceID}, nil)
+}
+
 // instanceAction 发起一次人工实例操作。
 func (c *Client) instanceAction(ctx context.Context, instanceID, action string) error {
 	if !c.Enabled() {

@@ -30,6 +30,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/logstream"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/ports"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/reconciler"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
@@ -99,6 +100,11 @@ func run(configPath string) error {
 	appStore := applications.NewStore(sqlDB)
 	if err := appStore.Load(ctx); err != nil {
 		return fmt.Errorf("load applications: %w", err)
+	}
+	// 集中式端口池：模板实例化经此分配宿主端口，避免多项目抢占同一端口。
+	portStore := ports.NewStore(sqlDB, cfg.CM.PortRangeStart, cfg.CM.PortRangeEnd)
+	if err := portStore.Load(ctx); err != nil {
+		return fmt.Errorf("load port allocations: %w", err)
 	}
 	registry := agentregistry.New(cfg.CM.Nodes, tasks, nodeStore)
 	obs := observer.New(registry, gw, cfg.CM.ObserveInterval, logger)
@@ -194,9 +200,11 @@ func run(configPath string) error {
 		InstanceStats: func(cctx context.Context, id string) (gwclient.ContainerStats, error) {
 			return ctrl.Stats(cctx, id)
 		},
+		AllocatePort: portStore.Allocate,
+		ReleasePort:  portStore.Release,
 		Events:  obs.Events,
 		Containers: func() []api.ContainerStatus {
-			snap := obs.Snapshot()
+			snap := obs.Containers()
 			out := make([]api.ContainerStatus, 0, len(snap))
 			for _, oc := range snap {
 				c := oc.Container

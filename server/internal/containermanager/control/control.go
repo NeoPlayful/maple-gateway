@@ -22,6 +22,8 @@ import (
 // ActualReader 提供最近一轮观测快照（由 observer.Observer 实现），用于定位实例所在节点。
 type ActualReader interface {
 	Snapshot() map[string]observer.ObservedContainer
+	// Containers 按容器 ID 索引的全量受管容器，供无 instance_id 的容器（如 Compose 容器）定位。
+	Containers() map[string]observer.ObservedContainer
 }
 
 // Controller 执行人工实例操作。
@@ -38,15 +40,19 @@ func New(registry *agentregistry.Registry, actual ActualReader, store *desired.S
 	return &Controller{registry: registry, actual: actual, store: store, streams: streams, logger: logger}
 }
 
-// locate 依据最近观测快照找到实例所在节点。
-func (c *Controller) locate(instanceID string) (*agentregistry.Node, observer.ObservedContainer, error) {
-	oc, ok := c.actual.Snapshot()[instanceID]
+// locate 依据最近观测快照找到容器所在节点。标识既可为 instance_id（声明式容器），
+// 也可为容器 ID（无 instance_id 的 Compose 容器）：先按 instance_id 匹配，未命中再按容器 ID。
+func (c *Controller) locate(id string) (*agentregistry.Node, observer.ObservedContainer, error) {
+	oc, ok := c.actual.Snapshot()[id]
 	if !ok {
-		return nil, observer.ObservedContainer{}, fmt.Errorf("实例 %s 不在最近观测范围内", instanceID)
+		oc, ok = c.actual.Containers()[id]
+	}
+	if !ok {
+		return nil, observer.ObservedContainer{}, fmt.Errorf("容器 %s 不在最近观测范围内", id)
 	}
 	node, ok := c.registry.Get(oc.NodeName)
 	if !ok {
-		return nil, observer.ObservedContainer{}, fmt.Errorf("实例所在节点 %s 不可用", oc.NodeName)
+		return nil, observer.ObservedContainer{}, fmt.Errorf("容器所在节点 %s 不可用", oc.NodeName)
 	}
 	return node, oc, nil
 }

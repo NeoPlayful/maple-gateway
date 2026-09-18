@@ -16,12 +16,37 @@ var placeholderRe = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_]+)\s*\}\}`)
 // paramKeyRe 校验参数键的字符集（与占位符保持一致）。
 var paramKeyRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
-// BuiltinDataPathKey 是内置的数据目录占位符键。它在规格中可被直接引用而无需在
-// 参数定义里声明——取值由实例化时按 <租户标识>/<模板标识>/<项目标识> 注入。
-const BuiltinDataPathKey = "data_path"
+// 内置占位符键。三类语义：
+//
+//   - data_path：实例化时按 <租户标识>/<模板标识>/<项目标识> 注入相对数据路径。
+//   - port：宿主端口。未声明为参数时由系统分配（CM 集中分配空闲端口）并注入；
+//     声明为参数时按用户填写值渲染（用于钉死固定端口）。
+//   - data_dir：透传键。渲染期保留字面量，由节点运行期替换为本机数据根目录，
+//     使模板无需写死宿主路径。
+const (
+	BuiltinDataPathKey = "data_path"
+	BuiltinPortKey     = "port"
+	BuiltinDataDirKey  = "data_dir"
+)
 
-// IsBuiltin 报告某个占位符键是否为内置键（无需用户声明、由系统注入取值）。
-func IsBuiltin(key string) bool { return key == BuiltinDataPathKey }
+// IsBuiltin 报告某个占位符键是否为内置键（无需用户声明、由系统注入或透传）。
+func IsBuiltin(key string) bool {
+	switch key {
+	case BuiltinDataPathKey, BuiltinPortKey, BuiltinDataDirKey:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsReserved 报告某个内置键是否禁止由用户声明（其取值只能由系统注入）。
+// port 例外：它既是内置键，也允许声明为参数以钉死固定端口。
+func IsReserved(key string) bool {
+	return key == BuiltinDataPathKey || key == BuiltinDataDirKey
+}
+
+// IsPassthrough 报告某个内置键是否在渲染期保留字面量、交运行期（节点侧）替换。
+func IsPassthrough(key string) bool { return key == BuiltinDataDirKey }
 
 // ValidateParams 校验参数定义：键唯一且仅含字母数字下划线，select 必须有选项。
 func ValidateParams(ps []Param) error {
@@ -31,7 +56,8 @@ func ValidateParams(ps []Param) error {
 			return pkg.ErrValidation(fmt.Sprintf("参数 %d：键只能包含字母、数字与下划线", i+1))
 		}
 		// 保留键不得由用户声明：其取值由实例化按数据路径注入，自行声明会被静默覆盖。
-		if IsBuiltin(p.Key) {
+		// port 是例外——允许声明以钉死固定端口。
+		if IsReserved(p.Key) {
 			return pkg.ErrValidation(fmt.Sprintf("参数键 %q 是内置参数，无需声明", p.Key))
 		}
 		if seen[p.Key] {
@@ -86,9 +112,16 @@ func Render(tmpl *Template, values map[string]string) (string, error) {
 	}
 
 	// 内置键取值由调用方（实例化）注入；若未注入则拒绝，避免渲染出空段。
+	// 例外：透传键（data_dir）保留字面量交运行期替换；已声明为参数的内置键（port）按参数值渲染。
 	if strings.Contains(tmpl.Spec, "{{") {
 		for _, key := range Placeholders(tmpl.Spec) {
-			if IsBuiltin(key) && strings.TrimSpace(values[key]) == "" {
+			if IsPassthrough(key) || !IsBuiltin(key) {
+				continue
+			}
+			if _, decl := declared[key]; decl {
+				continue
+			}
+			if strings.TrimSpace(values[key]) == "" {
 				return "", pkg.ErrValidation(fmt.Sprintf("内置参数 %q 未能注入取值", key))
 			}
 		}
@@ -114,6 +147,10 @@ func Render(tmpl *Template, values map[string]string) (string, error) {
 
 	out := placeholderRe.ReplaceAllStringFunc(tmpl.Spec, func(m string) string {
 		key := placeholderRe.FindStringSubmatch(m)[1]
+		// 透传键保留字面量，交节点运行期替换（如本机数据根）。
+		if IsPassthrough(key) {
+			return m
+		}
 		return values[key]
 	})
 	return out, nil

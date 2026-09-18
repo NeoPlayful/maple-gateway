@@ -66,6 +66,10 @@ type Mgmt struct {
 	FollowLogs func(ctx context.Context, instanceID string, tail int) (chunks <-chan []byte, done <-chan struct{}, overflow func() bool, err error)
 	// InstanceStats 采集单容器资源用量（CPU/内存/网络/磁盘 IO），供详情面板按需轮询。
 	InstanceStats func(ctx context.Context, instanceID string) (gwclient.ContainerStats, error)
+	// AllocatePort 为某资源分配一个本机端口（模板实例化注入容器映射用）。
+	AllocatePort func(ctx context.Context, resourceID, kind, nodeID string) (int, error)
+	// ReleasePort 归还某资源的全部端口占用。
+	ReleasePort func(ctx context.Context, resourceID string) error
 }
 
 // registerMgmt 挂载管理读接口与人工控制接口（令牌认证，供 Gateway 聚合代理调用）。
@@ -177,6 +181,43 @@ func registerMgmt(app *fiber.App, token string, m Mgmt) {
 			return fiber.NewError(fiber.StatusBadGateway, err.Error())
 		}
 		return c.JSON(fiber.Map{"logs": logs})
+	})
+
+	// POST /api/mgmt/ports/allocate 分配一个本机端口（模板实例化注入容器映射）。
+	g.Post("/ports/allocate", func(c fiber.Ctx) error {
+		if m.AllocatePort == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用端口分配")
+		}
+		var in struct {
+			ResourceID string `json:"resource_id"`
+			Kind       string `json:"kind"`
+			NodeID     string `json:"node_id"`
+		}
+		if err := c.Bind().Body(&in); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "请求体格式错误")
+		}
+		port, err := m.AllocatePort(c.Context(), in.ResourceID, in.Kind, in.NodeID)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadGateway, err.Error())
+		}
+		return c.JSON(fiber.Map{"port": port})
+	})
+
+	// POST /api/mgmt/ports/release 归还某资源的全部端口占用。
+	g.Post("/ports/release", func(c fiber.Ctx) error {
+		if m.ReleasePort == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用端口分配")
+		}
+		var in struct {
+			ResourceID string `json:"resource_id"`
+		}
+		if err := c.Bind().Body(&in); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "请求体格式错误")
+		}
+		if err := m.ReleasePort(c.Context(), in.ResourceID); err != nil {
+			return fiber.NewError(fiber.StatusBadGateway, err.Error())
+		}
+		return c.JSON(fiber.Map{"released": true})
 	})
 
 	// GET /api/mgmt/instances/:id/stats 单容器资源用量（详情面板按需轮询）。

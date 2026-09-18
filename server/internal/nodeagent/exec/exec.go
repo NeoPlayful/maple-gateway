@@ -220,9 +220,23 @@ func specParam(raw json.RawMessage) (agentprotocol.ApplicationSpec, error) {
 	return p, nil
 }
 
+// prepParam 解出规格并就地加工（替换数据根、注入受管标签），供 up/validate 使用。
+func (e *Executor) prepParam(raw json.RawMessage) (agentprotocol.ApplicationSpec, error) {
+	p, err := specParam(raw)
+	if err != nil {
+		return p, err
+	}
+	prepared, err := e.rt.PrepareCompose(p.ComposeYAML, p.ApplicationID)
+	if err != nil {
+		return p, err
+	}
+	p.ComposeYAML = prepared
+	return p, nil
+}
+
 // appValidate 校验 Compose 规格。
 func (e *Executor) appValidate(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
-	p, err := specParam(raw)
+	p, err := e.prepParam(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +259,7 @@ func (e *Executor) appValidate(ctx context.Context, raw json.RawMessage) (json.R
 
 // appDeploy 部署 Application（compose up -d）。
 func (e *Executor) appDeploy(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
-	p, err := specParam(raw)
+	p, err := e.prepParam(raw)
 	if err != nil {
 		return nil, err
 	}

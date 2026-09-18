@@ -15,6 +15,10 @@ cm:
   observe_interval: 10s           # 采集节点容器/资源状态周期
   task_timeout: 5m                # 单条下发任务的执行时限
   default_replicas: 1             # 期望态缺省副本数
+  # 集中分配的本机端口区间（闭区间）：模板实例化时从此区间取空闲端口注入容器映射，
+  # 避免多项目抢占同一宿主端口。MAPLE_CM_PORT_RANGE_START/END 可覆盖。
+  port_range_start: 20000
+  port_range_end: 30000
   # 静态登记的节点清单：仅提供节点名与调度属性。节点身份（UUID）在 Agent 首次连接时
   # 经由 Gateway 的 /api/internal/nodes/register 按名幂等解析，无需在此配 Agent 地址。
   # name 必须与对应 Agent 的 node_name 一致。

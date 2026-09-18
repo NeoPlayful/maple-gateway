@@ -260,7 +260,7 @@ func New(d Deps) *fiber.App {
 			tenant.NewRepository(d.Ent),
 			apptemplate.NewRepository(d.Ent),
 			d.CMClient,
-		))
+		).WithPortAllocator(d.CMClient))
 	}
 	pj := admin.Group("/projects")
 	pj.Get("/", projectH.List)

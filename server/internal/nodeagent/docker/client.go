@@ -96,6 +96,12 @@ func New(host, managedLabel, dataRoot string) (*Client, error) {
 // Close 释放底层连接。
 func (c *Client) Close() error { return c.cli.Close() }
 
+// DataRoot 返回本节点数据根目录（宿主绝对路径；未配置时为空）。
+func (c *Client) DataRoot() string { return c.dataRoot }
+
+// ManagedLabel 返回受管容器标签键。
+func (c *Client) ManagedLabel() string { return c.managedLabel }
+
 // Ping 探测 Docker 引擎是否响应（连接建立后的存活检测）。
 func (c *Client) Ping(ctx context.Context) error {
 	if _, err := c.cli.Ping(ctx); err != nil {
