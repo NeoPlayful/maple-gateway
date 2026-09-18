@@ -94,6 +94,24 @@ func (c *Controller) Start(ctx context.Context, instanceID string) error {
 	return nil
 }
 
+// Remove 删除实例容器（强制）。依据观测快照定位节点，不强依赖 Gateway 实例表：
+// 未被纳管（注册失败）的容器同样可经此删除，避免留下无法管理的孤儿容器。
+// 删除是否会被对账器补回，取决于该容器是否对应一份期望态——有期望态则下轮重建，
+// 无期望态（如手工贴标签的容器）则就此消失。
+func (c *Controller) Remove(ctx context.Context, instanceID string, force bool) error {
+	node, _, err := c.locate(instanceID)
+	if err != nil {
+		return err
+	}
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: instanceID, Force: force}); err != nil {
+		return err
+	}
+	c.store.Resume(instanceID)
+	c.logger.Info("instance removed by operator",
+		zap.String("instance_id", instanceID), zap.String("node", node.Name), zap.Bool("force", force))
+	return nil
+}
+
 // Logs 读取实例容器最近 tail 行日志。
 func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (string, error) {
 	node, _, err := c.locate(instanceID)

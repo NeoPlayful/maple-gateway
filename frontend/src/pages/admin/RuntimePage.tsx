@@ -9,6 +9,7 @@ import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { Modal } from '../../components/admin/Modal';
 import { Pagination } from '../../components/admin/Pagination';
+import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 
 // 子组件共用的翻译函数签名（来自 useTranslation('admin')）。
 type TFn = (key: string, opts?: Record<string, unknown>) => string;
@@ -281,6 +282,9 @@ export default function RuntimePage() {
   const [expandedContainers, setExpandedContainers] = useState<Set<string>>(new Set());
   const [containerStats, setContainerStats] = useState<Record<string, CMContainerStats>>({});
   const [containerStatsErr, setContainerStatsErr] = useState<Record<string, string>>({});
+  // 待删除容器（instance_id）：非空时显示确认弹窗。
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, name: string) =>
     setter((prev) => {
       const next = new Set(prev);
@@ -360,6 +364,22 @@ export default function RuntimePage() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('common.operateFailed'));
+    }
+  };
+
+  // 删除受管容器：经 CM 按 instance_id 定位节点强制移除，用于清理孤儿/未纳管容器。
+  const doRemove = async () => {
+    if (!removeId) return;
+    setRemoving(true);
+    try {
+      await api.delete(`/api/admin/cm/instances/${removeId}`);
+      toast.success(t('runtime.removeSuccess'));
+      setRemoveId(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('common.operateFailed'));
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -720,7 +740,17 @@ export default function RuntimePage() {
                     className="cursor-pointer border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
                   >
                     <td className="px-2 py-2 text-center text-slate-400">{open ? '▾' : '▸'}</td>
-                    <td className="px-4 py-2 font-mono text-xs">{ct.instance_id.slice(0, 8)}</td>
+                    <td className="px-4 py-2 font-mono text-xs">
+                      {ct.instance_id.slice(0, 8)}
+                      {!inst && (
+                        <span
+                          title={t('runtime.unmanagedHint')}
+                          className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 font-sans text-[10px] text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                        >
+                          {t('runtime.unmanaged')}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 font-mono text-xs" title={ct.container_id}>{ct.container_id.slice(0, 12)}</td>
                     <td className="px-4 py-2">{ct.name || ct.container_id.slice(0, 12)}</td>
                     <td className="px-4 py-2 font-mono text-xs">{ct.image}</td>
@@ -736,6 +766,7 @@ export default function RuntimePage() {
                         {running
                           ? <ActionBtn onClick={() => act(ct.instance_id, 'stop')}>{t('deployments.stop')}</ActionBtn>
                           : <ActionBtn onClick={() => act(ct.instance_id, 'start')}>{t('deployments.start')}</ActionBtn>}
+                        <ActionBtn danger onClick={() => setRemoveId(ct.instance_id)}>{t('common.delete')}</ActionBtn>
                       </div>
                     </td>
                   </tr>
@@ -858,6 +889,15 @@ export default function RuntimePage() {
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={removeId !== null}
+        title={t('common.confirmTitle')}
+        message={t('runtime.confirmRemove')}
+        busy={removing}
+        onConfirm={doRemove}
+        onCancel={() => setRemoveId(null)}
+      />
     </div>
   );
 }
