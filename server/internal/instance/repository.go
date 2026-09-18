@@ -408,7 +408,11 @@ func (r *Repository) validateMount(ctx context.Context, serviceID uuid.UUID,
 	return nil
 }
 
-// addrJoin 拼 host:port（IPv6 兼容）。
+// addrJoin 拼 host:port（IPv6 兼容）。port <= 0 表示未设端口，端点仅保留地址，
+// 使上游走 scheme 默认端口（http 80 / https 443），而非拼接出 ":0"。
 func addrJoin(address string, port int) string {
+	if port <= 0 {
+		return address
+	}
 	return net.JoinHostPort(address, strconv.Itoa(port))
 }

@@ -119,7 +119,7 @@ export default function HealthPage() {
                     : inst.health === 'unhealthy' ? 'bg-rose-500'
                     : 'bg-slate-400'
                   }`} />
-                  <span className="font-mono text-slate-700 dark:text-slate-300">{inst.address}:{inst.port}</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">{inst.port > 0 ? `${inst.address}:${inst.port}` : inst.address}</span>
                   <StatusBadge value={inst.health} />
                   <StatusBadge value={inst.status} />
                 </div>
