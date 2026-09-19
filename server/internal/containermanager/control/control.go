@@ -118,6 +118,35 @@ func (c *Controller) Remove(ctx context.Context, instanceID string, force bool) 
 	return nil
 }
 
+// RemoveDeployment 强制移除某部署名下的全部受管容器（按 maple.deployment_id 标签匹配）。
+// 用于「删除部署/停止部署」时清理残留容器：调用前期望态应已摘除，否则对账器会把删掉的容器补回。
+// 返回成功删除的容器数；单个失败仅记警告、不中断其余删除。
+func (c *Controller) RemoveDeployment(ctx context.Context, deploymentID string) int {
+	if deploymentID == "" {
+		return 0
+	}
+	removed := 0
+	for _, oc := range c.actual.Containers() {
+		if oc.InstanceID == "" || oc.Container.Labels["maple.deployment_id"] != deploymentID {
+			continue
+		}
+		node, ok := c.registry.Get(oc.NodeName)
+		if !ok {
+			continue
+		}
+		if _, err := node.Call(ctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: oc.InstanceID, Force: true}); err != nil {
+			c.logger.Warn("remove deployment container failed",
+				zap.String("deployment_id", deploymentID),
+				zap.String("instance_id", oc.InstanceID), zap.Error(err))
+			continue
+		}
+		removed++
+		c.logger.Info("deployment container removed",
+			zap.String("deployment_id", deploymentID), zap.String("instance_id", oc.InstanceID))
+	}
+	return removed
+}
+
 // Logs 读取实例容器最近 tail 行日志。
 func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (string, error) {
 	node, _, err := c.locate(instanceID)

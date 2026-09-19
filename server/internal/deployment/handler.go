@@ -84,6 +84,44 @@ func cmMounts(ms []Mount) []cmclient.Mount {
 	return out
 }
 
+// syncDeployment 在版本集合变化（新建/删除）后重新对齐 CM 期望态：
+// 仍有可下发版本则下发首要版本，全无则通知 CM 停止并回收容器。
+// 否则 CM 侧会残留孤儿期望态，继续按旧副本数补建容器。
+func (h *Handler) syncDeployment(c fiber.Ctx, deploymentID uuid.UUID) {
+	if h.pusher == nil || !h.isLeader() {
+		return
+	}
+	versions, err := h.repo.ListVersions(c.Context(), deploymentID)
+	if err != nil {
+		return
+	}
+	target := primaryVersion(versions)
+	if target == nil || target.Image == "" {
+		if err := h.pusher.StopDeploy(c.Context(), deploymentID); err != nil {
+			pkg.Log().Warn("stop deployment intent to cm failed: " + err.Error())
+		}
+		return
+	}
+	h.pushVersion(c, target, "")
+}
+
+// primaryVersion 从版本集合中挑出应下发的首要版本：优先 stable，其次任意带镜像的版本。
+func primaryVersion(versions []*Version) *Version {
+	var fallback *Version
+	for _, v := range versions {
+		if v == nil || v.Image == "" {
+			continue
+		}
+		if v.Status == VersionStable {
+			return v
+		}
+		if fallback == nil {
+			fallback = v
+		}
+	}
+	return fallback
+}
+
 func parseID(c fiber.Ctx, name string) (uuid.UUID, error) {
 	id, err := uuid.Parse(c.Params(name))
 	if err != nil {
@@ -168,6 +206,7 @@ func (h *Handler) UpdateDeployment(c fiber.Ctx) error {
 }
 
 // DeleteDeployment DELETE /api/admin/deployments/:id
+// 删除后通知 CM 停止该部署并回收容器，避免 CM 侧残留孤儿期望态继续补建。
 func (h *Handler) DeleteDeployment(c fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -175,6 +214,11 @@ func (h *Handler) DeleteDeployment(c fiber.Ctx) error {
 	}
 	if err := h.repo.DeleteDeployment(c.Context(), id); err != nil {
 		return pkg.Err(c, err)
+	}
+	if h.pusher != nil && h.isLeader() {
+		if err := h.pusher.StopDeploy(c.Context(), id); err != nil {
+			pkg.Log().Warn("stop deployment intent to cm failed: " + err.Error())
+		}
 	}
 	return pkg.OK(c, fiber.Map{"deleted": true})
 }
@@ -289,14 +333,21 @@ func (h *Handler) UpdateVersion(c fiber.Ctx) error {
 }
 
 // DeleteVersion DELETE /api/admin/versions/:id
+// 删除后重新对齐 CM 期望态：若该部署已无版本则通知 CM 停止并回收容器，
+// 否则用剩余首要版本覆盖，避免 CM 侧残留孤儿期望态继续补建。
 func (h *Handler) DeleteVersion(c fiber.Ctx) error {
 	id, err := parseID(c, "id")
+	if err != nil {
+		return pkg.Err(c, err)
+	}
+	v, err := h.repo.GetVersion(c.Context(), id)
 	if err != nil {
 		return pkg.Err(c, err)
 	}
 	if err := h.repo.DeleteVersion(c.Context(), id); err != nil {
 		return pkg.Err(c, err)
 	}
+	h.syncDeployment(c, v.DeploymentID)
 	return pkg.OK(c, fiber.Map{"deleted": true})
 }
 

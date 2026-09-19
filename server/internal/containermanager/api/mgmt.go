@@ -62,7 +62,9 @@ type Mgmt struct {
 	Start      func(instanceID string) error
 	// Remove 删除实例容器；force 为真时连同运行中的容器一并强制移除。
 	Remove func(instanceID string, force bool) error
-	Logs   func(instanceID string, tail int) (string, error)
+	// RemoveDeployment 强制移除某部署名下的全部受管容器（停止/删除部署时清理残留用）。
+	RemoveDeployment func(ctx context.Context, deploymentID string) int
+	Logs             func(instanceID string, tail int) (string, error)
 	// FollowLogs 打开一条实时日志流；返回的分片通道、完成通道与是否溢出。
 	FollowLogs func(ctx context.Context, instanceID string, tail int) (chunks <-chan []byte, done <-chan struct{}, overflow func() bool, err error)
 	// InstanceStats 采集单容器资源用量（CPU/内存/网络/磁盘 IO），供详情面板按需轮询。
@@ -184,6 +186,14 @@ func registerMgmt(app *fiber.App, token string, m Mgmt) {
 			return fiber.NewError(fiber.StatusBadGateway, err.Error())
 		}
 		return c.JSON(fiber.Map{"removed": true})
+	})
+
+	// 按部署回收容器：移除该部署名下全部受管容器（Gateway 删除部署/版本时调用）。
+	g.Post("/deployments/:id/remove", func(c fiber.Ctx) error {
+		if m.RemoveDeployment == nil {
+			return fiber.NewError(fiber.StatusNotImplemented, "未启用部署回收")
+		}
+		return c.JSON(fiber.Map{"removed": m.RemoveDeployment(c.Context(), c.Params("id"))})
 	})
 
 	g.Get("/instances/:id/logs", func(c fiber.Ctx) error {

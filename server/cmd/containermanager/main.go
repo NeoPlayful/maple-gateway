@@ -230,6 +230,9 @@ func run(configPath string) error {
 		Stop:    func(id string) error { return ctrl.Stop(ctx, id) },
 		Start:   func(id string) error { return ctrl.Start(ctx, id) },
 		Remove:  func(id string, force bool) error { return ctrl.Remove(ctx, id, force) },
+		RemoveDeployment: func(cctx context.Context, deploymentID string) int {
+			return ctrl.RemoveDeployment(cctx, deploymentID)
+		},
 		Logs:    func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
 		FollowLogs: func(cctx context.Context, id string, tail int) (<-chan []byte, <-chan struct{}, func() bool, error) {
 			st, err := ctrl.FollowLogs(cctx, id, tail)
