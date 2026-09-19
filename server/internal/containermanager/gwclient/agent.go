@@ -7,12 +7,12 @@ package gwclient
 
 // Container 是 Agent 上报的受管容器视图（与 nodeagent/docker.Container 对应）。
 type Container struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Image      string            `json:"image"`
-	State      string            `json:"state"`
-	Status     string            `json:"status"`
-	Labels     map[string]string `json:"labels"`
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Image         string            `json:"image"`
+	State         string            `json:"state"`
+	Status        string            `json:"status"`
+	Labels        map[string]string `json:"labels"`
 	InstanceID    string            `json:"instance_id"`
 	HostPort      int               `json:"host_port"`
 	ContainerPort int               `json:"container_port"`

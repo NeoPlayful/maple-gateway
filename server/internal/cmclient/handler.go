@@ -47,6 +47,12 @@ type Proxier interface {
 	RemoveApplication(ctx context.Context, id string) error
 	ApplicationPs(ctx context.Context, id string) (json.RawMessage, error)
 	ValidateApplication(ctx context.Context, id string) (json.RawMessage, error)
+	NetworkPools(ctx context.Context, nodeID string) (json.RawMessage, error)
+	CreateNetworkPool(ctx context.Context, nodeID string, body json.RawMessage) (json.RawMessage, error)
+	UpdateNetworkPool(ctx context.Context, nodeID, poolID string, body json.RawMessage) (json.RawMessage, error)
+	DeleteNetworkPool(ctx context.Context, nodeID, poolID string) error
+	CheckNetworkPool(ctx context.Context, nodeID, poolID string) (json.RawMessage, error)
+	ProjectNetwork(ctx context.Context, projectID string) (json.RawMessage, error)
 }
 
 // Handler 是 CM 管理代理的 HTTP handler。
@@ -433,6 +439,85 @@ func (h *Handler) ValidateApplication(c fiber.Ctx) error {
 	out, err := h.cm.ValidateApplication(c.Context(), c.Params("id"))
 	if err != nil {
 		return pkg.Err(c, pkg.ErrSystem("校验应用失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// NetworkPools GET /api/admin/cm/nodes/:nodeId/network-pools
+func (h *Handler) NetworkPools(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	out, err := h.cm.NetworkPools(c.Context(), c.Params("nodeId"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("拉取网络池失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// CreateNetworkPool POST /api/admin/cm/nodes/:nodeId/network-pools
+func (h *Handler) CreateNetworkPool(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	body := c.Body()
+	if len(body) == 0 {
+		body = []byte(`{}`)
+	}
+	out, err := h.cm.CreateNetworkPool(c.Context(), c.Params("nodeId"), json.RawMessage(body))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("新增网络池失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// UpdateNetworkPool PATCH /api/admin/cm/nodes/:nodeId/network-pools/:poolId
+func (h *Handler) UpdateNetworkPool(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	body := c.Body()
+	if len(body) == 0 {
+		body = []byte(`{}`)
+	}
+	out, err := h.cm.UpdateNetworkPool(c.Context(), c.Params("nodeId"), c.Params("poolId"), json.RawMessage(body))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("更新网络池失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// DeleteNetworkPool DELETE /api/admin/cm/nodes/:nodeId/network-pools/:poolId
+func (h *Handler) DeleteNetworkPool(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	if err := h.cm.DeleteNetworkPool(c.Context(), c.Params("nodeId"), c.Params("poolId")); err != nil {
+		return pkg.Err(c, pkg.ErrSystem("删除网络池失败: "+err.Error()))
+	}
+	return pkg.OK(c, fiber.Map{"deleted": true})
+}
+
+// CheckNetworkPool POST /api/admin/cm/nodes/:nodeId/network-pools/:poolId/check
+func (h *Handler) CheckNetworkPool(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	out, err := h.cm.CheckNetworkPool(c.Context(), c.Params("nodeId"), c.Params("poolId"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("复检网络池失败: "+err.Error()))
+	}
+	return raw(c, out)
+}
+
+// ProjectNetwork GET /api/admin/cm/projects/:id/network
+func (h *Handler) ProjectNetwork(c fiber.Ctx) error {
+	if err := h.enabled(); err != nil {
+		return pkg.Err(c, err)
+	}
+	out, err := h.cm.ProjectNetwork(c.Context(), c.Params("id"))
+	if err != nil {
+		return pkg.Err(c, pkg.ErrSystem("拉取项目网络失败: "+err.Error()))
 	}
 	return raw(c, out)
 }

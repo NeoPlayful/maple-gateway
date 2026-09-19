@@ -18,13 +18,13 @@ import (
 
 // Application 是一个 Compose 应用。
 type Application struct {
-	ID          string    `json:"id"`
-	TenantID    string    `json:"tenant_id,omitempty"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Status      string    `json:"status"` // active / stopped / removed
-	NodeID      string    `json:"node_id,omitempty"`
-	ServiceID   string    `json:"service_id,omitempty"` // 关联的 Gateway 服务（可空）
+	ID          string `json:"id"`
+	TenantID    string `json:"tenant_id,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status"` // active / stopped / removed
+	NodeID      string `json:"node_id,omitempty"`
+	ServiceID   string `json:"service_id,omitempty"` // 关联的 Gateway 服务（可空）
 	// Version 是当前部署的版本号；Spec 为该版本 Compose 规格（YAML 原文）。
 	Version      string    `json:"version,omitempty"`
 	Spec         string    `json:"spec,omitempty"`

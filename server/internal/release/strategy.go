@@ -45,12 +45,12 @@ type createPlan struct {
 
 // actionResult 是一次动作的产出。
 type actionResult struct {
-	Phase       Phase
+	Phase           Phase
 	PrimaryWeight   int
 	SecondaryWeight int
-	SetStart    bool
-	SetFinish   bool
-	allocations []allocation
+	SetStart        bool
+	SetFinish       bool
+	allocations     []allocation
 }
 
 // ---------------------------------------------------------------- canary
@@ -89,7 +89,7 @@ func (canaryStrategy) validateCreate(ctx context.Context, c *ent.Client, in NewR
 		ServiceID:          in.ServiceID,
 		Name:               in.Name,
 		Phase:              PhaseCreated,
-		PrimaryVersionID:   in.PrimaryVersionID, // stable
+		PrimaryVersionID:   in.PrimaryVersionID,   // stable
 		SecondaryVersionID: in.SecondaryVersionID, // canary
 		PrimaryWeight:      100,
 		SecondaryWeight:    0,

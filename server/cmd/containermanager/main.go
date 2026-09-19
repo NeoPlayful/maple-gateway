@@ -20,14 +20,15 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentconn"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
-	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/applications"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/api"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/applications"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/config"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/control"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/enrollment"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/logstream"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/netpools"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/ports"
@@ -47,6 +48,21 @@ func main() {
 	if err := run(*configPath); err != nil {
 		log.Fatalf("containermanager: %v", err)
 	}
+}
+
+// registryNodeResolver 把 agentregistry.Registry 适配为 netpools.NodeResolver：
+// 按节点 ID 取在线的下发通道。
+type registryNodeResolver struct{ reg *agentregistry.Registry }
+
+func (r registryNodeResolver) Node(nodeID string) (netpools.AgentCaller, error) {
+	n, ok := r.reg.GetByID(nodeID)
+	if !ok {
+		return nil, fmt.Errorf("节点不存在: %s", nodeID)
+	}
+	if !n.Online() {
+		return nil, fmt.Errorf("节点离线: %s", nodeID)
+	}
+	return n, nil
 }
 
 func run(configPath string) error {
@@ -106,10 +122,27 @@ func run(configPath string) error {
 	if err := portStore.Load(ctx); err != nil {
 		return fmt.Errorf("load port allocations: %w", err)
 	}
+	// 项目级 IP 池：网络池与项目网络两张表；部署时按池分配子网并建 Docker 网络。
+	poolStore := netpools.NewPoolStore(sqlDB)
+	if err := poolStore.Load(ctx); err != nil {
+		return fmt.Errorf("load network pools: %w", err)
+	}
+	netStore := netpools.NewNetworkStore(sqlDB)
+	if err := netStore.Load(ctx); err != nil {
+		return fmt.Errorf("load project networks: %w", err)
+	}
+	allocator := netpools.NewAllocator(poolStore, netStore, sqlDB)
+
 	registry := agentregistry.New(cfg.CM.Nodes, tasks, nodeStore)
 	obs := observer.New(registry, gw, cfg.CM.ObserveInterval, logger)
 	rec := reconciler.New(store, obs, registry, gw, cfg.CM.ReconcileInterval, logger)
-	appCtl := applications.NewController(appStore, registry, logger)
+	provisioner := netpools.NewProvisioner(allocator, registryNodeResolver{registry}, logger)
+	netChecker := netpools.NewNodeChecker(registryNodeResolver{registry})
+	netService := netpools.NewService(poolStore, netStore, allocator, netChecker).WithDefaultPool(netpools.DefaultPoolConfig{
+		AddressPool:   cfg.CM.DefaultNetworkPool,
+		ProjectPrefix: cfg.CM.DefaultProjectPrefix,
+	})
+	appCtl := applications.NewController(appStore, registry, logger).WithNetworkProvisioner(provisioner)
 	go obs.Run(ctx)
 	go rec.Run(ctx)
 
@@ -126,6 +159,10 @@ func run(configPath string) error {
 			// 依节点登记名把视图绑定到 Gateway 节点 UUID（node_id）。
 			if r, ok := nodeStore.Get(nodeID); ok && r.Name != "" {
 				registry.Bind(r.Name, nodeID)
+			}
+			// 新节点自动初始化默认网络池（幂等；已有池不重复建）。
+			if err := netService.EnsureDefaultForNode(ctx, nodeID); err != nil {
+				logger.Warn("初始化节点默认网络池失败", zap.String("node", nodeID), zap.Error(err))
 			}
 		},
 		OnSessionEnd: func(nodeID string, _ bool) { nodeStore.Disconnect(nodeID) },
@@ -202,27 +239,37 @@ func run(configPath string) error {
 		},
 		AllocatePort: portStore.Allocate,
 		ReleasePort:  portStore.Release,
-		Events:  obs.Events,
+
+		NetworkPools:      netService.List,
+		CreateNetworkPool: netService.Create,
+		UpdateNetworkPool: netService.Update,
+		DeleteNetworkPool: netService.Delete,
+		CheckNetworkPool:  netService.Check,
+		ProjectNetwork: func(projectID string) (netpools.ProjectNetwork, bool) {
+			return netStore.GetByProject(projectID)
+		},
+
+		Events: obs.Events,
 		Containers: func() []api.ContainerStatus {
 			snap := obs.Containers()
 			out := make([]api.ContainerStatus, 0, len(snap))
 			for _, oc := range snap {
 				c := oc.Container
 				out = append(out, api.ContainerStatus{
-					InstanceID:  c.InstanceID,
-					ContainerID: c.ID,
-					Name:        c.Name,
-					Image:       c.Image,
-					State:       c.State,
-					Status:      c.Status,
-					Labels:      c.Labels,
+					InstanceID:    c.InstanceID,
+					ContainerID:   c.ID,
+					Name:          c.Name,
+					Image:         c.Image,
+					State:         c.State,
+					Status:        c.Status,
+					Labels:        c.Labels,
 					NodeName:      oc.NodeName,
 					HostPort:      c.HostPort,
 					ContainerPort: c.ContainerPort,
 					IP:            c.IP,
-					ExitCode:    c.ExitCode,
-					OOMKilled:   c.OOMKilled,
-					FinishedAt:  c.FinishedAt,
+					ExitCode:      c.ExitCode,
+					OOMKilled:     c.OOMKilled,
+					FinishedAt:    c.FinishedAt,
 				})
 			}
 			// 观测快照是映射表，遍历顺序随机；按 节点名 → 容器名 → 实例 ID 稳定排序，

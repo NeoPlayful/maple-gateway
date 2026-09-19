@@ -414,3 +414,42 @@ export interface Project {
   created_at: string;
   updated_at: string;
 }
+
+// 节点上的一个项目级网络池（IPAM）：一段地址池按项目前缀切分给各项目。
+export interface NetworkPool {
+  id: string;
+  node_id: string;
+  name: string;
+  description?: string;
+  address_pool: string;
+  project_prefix: number;
+  priority: number;
+  status: string;
+  next_index: number;
+  reuse_enabled: boolean;
+  reuse_delay_seconds: number;
+  is_system_default: boolean;
+  last_conflict_reason?: string;
+  capacity: number;
+  allocated: number;
+  reserved: number;
+  released_waiting: number;
+  available: number;
+  usage: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 一个项目占用的网段及其 Docker 网络。
+export interface ProjectNetwork {
+  id: string;
+  node_id: string;
+  project_id: string;
+  pool_id: string;
+  subnet_index: number;
+  subnet: string;
+  gateway: string;
+  docker_network_name: string;
+  status: string;
+  last_error?: string;
+}

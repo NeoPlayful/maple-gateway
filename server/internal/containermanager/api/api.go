@@ -37,6 +37,7 @@ func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats Sta
 		registerStats(app, cfg.CM.Token, stats)
 	}
 	registerMgmt(app, cfg.CM.Token, mgmt)
+	registerNetPools(app, cfg.CM.Token, mgmt)
 	if tokens != nil {
 		registerEnrollment(app, cfg.CM.Token, tokens)
 	}

@@ -73,21 +73,21 @@ type Mount struct {
 
 // Version 是分流的最小单元。
 type Version struct {
-	ID           uuid.UUID       `json:"id"`
-	DeploymentID uuid.UUID       `json:"deployment_id"`
-	Version      string          `json:"version"`
-	Image        string          `json:"image,omitempty"`
-	Weight       int             `json:"weight"`
-	Status       VersionStatus   `json:"status"`
-	Replicas     int             `json:"replicas"`
-	Port         int             `json:"port,omitempty"`
+	ID           uuid.UUID         `json:"id"`
+	DeploymentID uuid.UUID         `json:"deployment_id"`
+	Version      string            `json:"version"`
+	Image        string            `json:"image,omitempty"`
+	Weight       int               `json:"weight"`
+	Status       VersionStatus     `json:"status"`
+	Replicas     int               `json:"replicas"`
+	Port         int               `json:"port,omitempty"`
 	Env          map[string]string `json:"env,omitempty"`
-	Resources    json.RawMessage `json:"resources,omitempty"`
-	HealthPath   string          `json:"health_path,omitempty"`
+	Resources    json.RawMessage   `json:"resources,omitempty"`
+	HealthPath   string            `json:"health_path,omitempty"`
 	NodeSelector map[string]string `json:"node_selector,omitempty"`
-	Mounts       []Mount         `json:"mounts,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	Mounts       []Mount           `json:"mounts,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
 }
 
 // NewVersion 创建版本输入。

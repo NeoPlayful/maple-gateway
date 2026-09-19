@@ -103,7 +103,9 @@ func (i *Instantiator) Instantiate(ctx context.Context, projectID uuid.UUID, in 
 		return nil, err
 	}
 
-	appID := p.ApplicationID
+	// Application ID 统一取 Gateway 项目 ID：这样 Compose 项目名与项目网络名
+	// 都落在 maple-<shortID(projectID)> 上，二者逐字相同，避免两套标识漂移。
+	appID := p.ID.String()
 	body := map[string]any{
 		"id":          appID,
 		"tenant_id":   p.TenantID.String(),
@@ -121,8 +123,12 @@ func (i *Instantiator) Instantiate(ctx context.Context, projectID uuid.UUID, in 
 	if err != nil {
 		return nil, pkg.ErrSystem("创建应用失败: " + err.Error())
 	}
-	// 回读 CM 生成的 Application ID（首次创建时由 CM 分配）。
-	if id := extractID(out); id != "" && id != appID {
+	// Application ID 即项目 ID；若与库中记录不一致（如历史遗留的 CM 生成 ID），回写对齐。
+	if p.ApplicationID != appID {
+		id := extractID(out)
+		if id == "" {
+			id = appID
+		}
 		if err := i.projects.SetApplicationID(ctx, projectID, id); err != nil {
 			return nil, err
 		}

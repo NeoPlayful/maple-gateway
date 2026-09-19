@@ -14,7 +14,7 @@ func TestPlanSurgeBeforeDrain(t *testing.T) {
 	newv := desired.State{DeploymentID: dep, VersionID: uuid.New(), Version: "v2", Status: "stable", Replicas: 2}
 
 	actual := Actual{
-		old.VersionID.String(): 2,
+		old.VersionID.String():  2,
 		newv.VersionID.String(): 0,
 	}
 	ops := Plan([]desired.State{old, newv}, actual)
