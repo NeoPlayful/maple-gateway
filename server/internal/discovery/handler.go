@@ -184,7 +184,7 @@ func (h *Handler) ReportHealth(c fiber.Ctx) error {
 }
 
 // HeartbeatInstance POST /api/internal/instances/:id/heartbeat
-// 可选携带 node_id：实例尚无节点归属时回填（观测侧上报当前节点用）。
+// 可选携带 node_id（实例尚无节点归属时回填）与 port（宿主端口尚未就绪时回填）。
 func (h *Handler) HeartbeatInstance(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
@@ -192,13 +192,14 @@ func (h *Handler) HeartbeatInstance(c fiber.Ctx) error {
 	}
 	var body struct {
 		NodeID *uuid.UUID `json:"node_id"`
+		Port   *int       `json:"port"`
 	}
 	if len(c.Body()) > 0 {
 		if err := c.Bind().Body(&body); err != nil {
 			return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
 		}
 	}
-	i, err := h.instances.HeartbeatWithNode(c.Context(), id, body.NodeID)
+	i, err := h.instances.HeartbeatWithNode(c.Context(), id, body.NodeID, body.Port)
 	if err != nil {
 		return pkg.Err(c, err)
 	}

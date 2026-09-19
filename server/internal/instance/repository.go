@@ -256,17 +256,19 @@ func (r *Repository) SetHealth(ctx context.Context, id uuid.UUID, h Health) (*In
 
 // Heartbeat 刷新实例"最后被 CM 看见"时间（last_seen_at），不改变状态与健康。
 func (r *Repository) Heartbeat(ctx context.Context, id uuid.UUID) (*Instance, error) {
-	return r.HeartbeatWithNode(ctx, id, nil)
+	return r.HeartbeatWithNode(ctx, id, nil, nil)
 }
 
-// HeartbeatWithNode 刷新心跳，并在实例尚无节点归属时回填 nodeID（仅补空，不覆盖已有归属）。
-// 观测侧容器上报会带上当前节点，实例早期入库漏填 node_id 时借此补齐。
-func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID *uuid.UUID) (*Instance, error) {
+// HeartbeatWithNode 刷新心跳，并按需回填归属信息：
+// nodeID 仅在实例尚无归属时补空（不覆盖已有归属）；port 则在观测到的宿主端口
+// 与当前值不同时同步——动态分配的宿主端口每次容器重启都会变化，实例端点须随之
+// 跟住实际映射，否则会指向已失效的旧端口。上报端口为 0（映射尚未就绪）时不改。
+func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID *uuid.UUID, port *int) (*Instance, error) {
 	now := time.Now()
 	upd := r.ent.Instance.UpdateOneID(id).
 		SetLastSeenAt(now).
 		SetUpdatedAt(now)
-	if nodeID != nil {
+	if nodeID != nil || (port != nil && *port > 0) {
 		cur, err := r.ent.Instance.Get(ctx, id)
 		if err != nil {
 			if ent.IsNotFound(err) {
@@ -274,8 +276,11 @@ func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID
 			}
 			return nil, fmt.Errorf("get instance for heartbeat: %w", err)
 		}
-		if cur.NodeID == nil {
+		if nodeID != nil && cur.NodeID == nil {
 			upd = upd.SetNillableNodeID(nodeID)
+		}
+		if port != nil && *port > 0 && cur.Port != *port {
+			upd = upd.SetPort(*port)
 		}
 	}
 	e, err := upd.Save(ctx)

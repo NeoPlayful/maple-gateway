@@ -545,7 +545,8 @@ func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, n
 
 // reportInstance 上报单个容器对应的实例：优先心跳（已注册），失败则注册。
 func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, nodeID string, ct gwclient.Container) {
-	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID, nodeID); err == nil {
+	// 心跳带上宿主端口：容器创建时端口映射尚未就绪（读到 0），就绪后经此补正实例端口。
+	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID, nodeID, ct.HostPort); err == nil {
 		return
 	}
 	rep := gwclient.InstanceReport{
