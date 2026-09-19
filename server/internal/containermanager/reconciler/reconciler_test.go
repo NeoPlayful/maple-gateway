@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -26,6 +27,7 @@ type fakeCommander struct {
 	mu      sync.Mutex
 	calls   []string
 	results map[string]json.RawMessage
+	fail    map[string]bool // 该 action 是否固定失败
 }
 
 func newFakeCommander() *fakeCommander {
@@ -38,6 +40,9 @@ func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.R
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, action)
+	if f.fail[action] {
+		return nil, errors.New("boom")
+	}
 	if r, ok := f.results[action]; ok {
 		return r, nil
 	}
@@ -210,5 +215,71 @@ func TestReconcileScaleDownDrainsFirst(t *testing.T) {
 	if cmd.count(agentprotocol.ActionContainerStop) != 1 || cmd.count(agentprotocol.ActionContainerRemove) != 1 {
 		t.Errorf("stopped=%d removed=%d, want 1/1",
 			cmd.count(agentprotocol.ActionContainerStop), cmd.count(agentprotocol.ActionContainerRemove))
+	}
+}
+
+// 创建持续失败场景：失败计数按部署聚合，达 maxFailures 后停止补副本，
+// 避免每次新 instance_id 导致计数不累加、无限重建。
+func TestReconcileStopsAfterRepeatedCreateFailure(t *testing.T) {
+	cmd := newFakeCommander()
+	cmd.fail = map[string]bool{agentprotocol.ActionContainerCreate: true}
+	reg := newOnlineRegistry(cmd)
+
+	verID := uuid.New()
+	depID := uuid.New()
+	fd := &fakeDesired{states: []desired.State{{
+		DeploymentID: depID, ServiceID: uuid.New(), VersionID: verID,
+		Image: "x", Port: 80, Replicas: 1,
+	}}}
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+
+	for i := 0; i < maxFailures+5; i++ {
+		r.Reconcile(context.Background())
+	}
+
+	if got := cmd.count(agentprotocol.ActionContainerCreate); got != maxFailures {
+		t.Errorf("created = %d, want %d (bounded retry)", got, maxFailures)
+	}
+	if fd.phases[depID].Status != "failed" {
+		t.Errorf("phase = %q, want failed", fd.phases[depID].Status)
+	}
+}
+
+// 崩溃副本场景：在途副本被观测为 exited 时应被回收（强制删除），
+// 而非留在原地或反复新建。
+func TestReconcileRecyclesCrashedReplica(t *testing.T) {
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
+
+	verID := uuid.New()
+	depID := uuid.New()
+	fd := &fakeDesired{states: []desired.State{{
+		DeploymentID: depID, ServiceID: uuid.New(), VersionID: verID,
+		Image: "bad:latest", Port: 80, Replicas: 1,
+	}}}
+	iid := uuid.NewString()
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{
+		iid: {
+			NodeName: "n1", InstanceID: iid,
+			Container: gwclient.Container{
+				ID: "c1", State: "exited", InstanceID: iid,
+				Labels: map[string]string{"maple.version_id": verID.String()},
+			},
+		},
+	}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+	r.pending[iid] = pendingRpl{versionID: verID.String(), deploymentID: depID.String(), createdAt: time.Now()}
+
+	r.Reconcile(context.Background())
+
+	if got := cmd.count(agentprotocol.ActionContainerRemove); got != 1 {
+		t.Errorf("recycled = %d, want 1", got)
+	}
+	// 崩溃副本被回收后补一个新副本（未达失败上限）。
+	if got := cmd.count(agentprotocol.ActionContainerCreate); got != 1 {
+		t.Errorf("created = %d, want 1", got)
 	}
 }

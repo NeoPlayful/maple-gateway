@@ -54,15 +54,16 @@ type Reconciler struct {
 	// instance 记录：instance_id → 其归属部署/版本（CM 生成 instance_id 时登记）。
 	mu            sync.Mutex
 	instanceOf    map[string]string     // instance_id → version_id
-	pending       map[string]pendingRpl // 已创建但观测尚未确认的副本（instance_id → 元数据）
-	failures      map[string]int        // instance_id → 连续失败次数（退避/告警）
-	failedDeploys map[string]bool       // deployment_id → 是否已因连续失败标记为 failed
+	pending       map[string]pendingRpl // 已创建但尚未就绪的副本（instance_id → 元数据）
+	failures      map[string]int        // deployment_id → 连续失败次数（达上限即判 failed）
+	failedDeploys map[string]bool       // deployment_id → 是否已因连续失败判停
 }
 
-// pendingRpl 是一次"已下发创建、尚待观测确认"的副本。
+// pendingRpl 是一次"已下发创建、尚未就绪"的副本。
 type pendingRpl struct {
-	versionID string
-	createdAt time.Time
+	versionID    string
+	deploymentID string
+	createdAt    time.Time
 }
 
 // pendingTTL 是 pending 副本的存活上限：超过仍未被观测确认则视为创建失败并丢弃。
@@ -99,7 +100,8 @@ func (r *Reconciler) Run(ctx context.Context) {
 	}
 }
 
-// maxFailures 是单个 instance 的连续失败上限，超过不再无限重试。
+// maxFailures 是单个部署的连续失败上限：达到即判 failed 并停止补副本，
+// 避免崩溃副本触发无限重建。
 const maxFailures = 5
 
 // Reconcile 执行一轮对账：先用 rollout.Plan 生成有序操作（先起后停），再逐条执行。
@@ -107,9 +109,9 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	states := r.desired.All()
 	actual := r.actual.Snapshot()
 
-	// 按版本聚合实际容器：version_id → []容器（含非 running，供删除时区分）。
+	// 按版本聚合实际容器：version_id → []容器（含非 running，供删除与回收区分）。
 	byVersion := map[string][]observer.ObservedContainer{}
-	runningCount := map[string]int{}
+	running := map[string]int{} // 仅健康 running，供收敛重置与失败判定
 	for _, ac := range actual {
 		vid := ac.Container.Labels["maple.version_id"]
 		if vid == "" {
@@ -117,39 +119,67 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 		}
 		byVersion[vid] = append(byVersion[vid], ac)
 		if ac.Container.State == "running" {
-			runningCount[vid]++
+			running[vid]++
 		}
 	}
+	// 生效副本数 = 健康 running + 在途副本。在途副本（已创建、尚未 running）计入实际数，
+	// 避免"创建 → 观测滞后"窗口内重复创建导致超配。
+	effective := map[string]int{}
+	for vid, n := range running {
+		effective[vid] = n
+	}
 
-	// 归并 in-flight 副本：已下发创建但观测尚未确认的，计入实际数，
-	// 避免"创建 → 观测滞后"窗口内重复创建导致超配。同时清理超时未确认的 pending。
+	// 处理在途副本：就绪即结清；未就绪即崩溃则回收并计失败；超时未出现同样计失败。
+	var dead []observer.ObservedContainer
+	var failDepIDs []string
 	r.mu.Lock()
 	for iid, pr := range r.pending {
-		if _, seen := actual[iid]; seen {
-			delete(r.pending, iid) // 已被观测确认，交由实际态计数
-			continue
+		ac, seen := actual[iid]
+		switch {
+		case !seen:
+			if time.Since(pr.createdAt) > pendingTTL {
+				delete(r.pending, iid) // 超时未被观测到，视为创建失败
+				delete(r.instanceOf, iid)
+				failDepIDs = append(failDepIDs, pr.deploymentID)
+			} else {
+				effective[pr.versionID]++
+			}
+		case ac.Container.State == "running":
+			delete(r.pending, iid) // 已就绪，交由实际态计数
+		case isTerminal(ac.Container.State):
+			delete(r.pending, iid) // 未就绪即崩溃：回收容器并计失败
+			delete(r.instanceOf, iid)
+			dead = append(dead, ac)
+			failDepIDs = append(failDepIDs, pr.deploymentID)
+		default:
+			effective[pr.versionID]++ // created/starting：仍在启动，窗口内计入
 		}
-		if time.Since(pr.createdAt) > pendingTTL {
-			delete(r.pending, iid) // 超时未确认，视为失败丢弃
-			r.instanceOf[iid] = "" // 保留失败记录
-			continue
-		}
-		runningCount[pr.versionID]++
 	}
 	r.mu.Unlock()
 
+	for _, dep := range failDepIDs {
+		r.noteFailure(dep, "", "replica did not become healthy")
+	}
+	for _, c := range dead {
+		r.removeDead(ctx, c)
+	}
+
 	// 人工维护的实例计入实际副本数：管理员手动停掉的实例不再被对账器补回。
 	for vid, n := range r.desired.PausedCount() {
-		runningCount[vid] += n
+		effective[vid] += n
 	}
 
 	// 生成有序操作：同部署内 surge 全部先于 drain（先起后停，保最低可用数）。
-	ops := rollout.Plan(states, runningCount)
+	ops := rollout.Plan(states, effective)
 	placement := r.placementByNode(actual)
 	for _, op := range ops {
 		cur := byVersion[op.State.VersionID.String()]
 		switch op.Kind {
 		case rollout.KindSurge:
+			// 该部署已因连续失败判停：不再补副本，避免崩溃容器触发无限重建。
+			if r.isFailed(op.State.DeploymentID.String()) {
+				continue
+			}
 			r.surge(ctx, op, placement)
 		case rollout.KindDrain:
 			r.drain(ctx, cur, op.Count)
@@ -157,19 +187,20 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	}
 
 	// 结算编排进度：把本轮结果聚合为各部署的 phase，供管理端展示。
-	r.settlePhases(states, runningCount)
+	r.settlePhases(states, effective, running)
 }
 
 // settlePhases 依据本轮收敛情况回写各部署的编排阶段：
 //
 //	任一版本存在连续失败 → failed
-//	所有版本实际数（含 in-flight 与人工维护）== 期望数 → ready
+//	所有版本实际数（含在途与人工维护）== 期望数 → ready
 //	仍有差异（本轮已下发增删，待下轮观测确认） → reconciling
-func (r *Reconciler) settlePhases(states []desired.State, runningCount map[string]int) {
+//
+// 健康副本达标即视为收敛：清除该部署累积的失败计数，恢复自动补拉。
+func (r *Reconciler) settlePhases(states []desired.State, effective, running map[string]int) {
 	// 按部署聚合其版本目标与实际，判定该部署整体是否收敛。
 	type agg struct {
-		target, actual int
-		failed         bool
+		target, actual, healthy int
 	}
 	byDeploy := map[uuid.UUID]*agg{}
 	for _, st := range states {
@@ -183,20 +214,24 @@ func (r *Reconciler) settlePhases(states []desired.State, runningCount map[strin
 			target = 0
 		}
 		a.target += target
-		a.actual += runningCount[st.VersionID.String()]
+		a.actual += effective[st.VersionID.String()]
+		a.healthy += running[st.VersionID.String()]
 	}
-
-	r.mu.Lock()
-	failed := make(map[string]bool, len(r.failedDeploys))
-	for k, v := range r.failedDeploys {
-		failed[k] = v
-	}
-	r.mu.Unlock()
 
 	for did, a := range byDeploy {
+		if a.healthy >= a.target {
+			r.mu.Lock()
+			delete(r.failures, did.String())
+			delete(r.failedDeploys, did.String())
+			r.mu.Unlock()
+		}
+		r.mu.Lock()
+		failed := r.failedDeploys[did.String()]
+		r.mu.Unlock()
+
 		var phase desired.Phase
 		switch {
-		case failed[did.String()]:
+		case failed:
 			phase = desired.Phase{Status: "failed", Message: "副本创建连续失败"}
 		case a.target == a.actual:
 			phase = desired.Phase{Status: "ready"}
@@ -204,6 +239,23 @@ func (r *Reconciler) settlePhases(states []desired.State, runningCount map[strin
 			phase = desired.Phase{Status: "reconciling"}
 		}
 		r.desired.SetPhase(did, phase)
+	}
+}
+
+// isFailed 报告某部署是否已因连续失败判停（不再补副本）。
+func (r *Reconciler) isFailed(deploymentID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.failedDeploys[deploymentID]
+}
+
+// isTerminal 报告容器状态是否为"已终止"（不会再自行转入 running）。
+func isTerminal(state string) bool {
+	switch state {
+	case "exited", "dead", "removing":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -268,11 +320,12 @@ func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *
 	_ = json.Unmarshal(raw, &res)
 	r.mu.Lock()
 	r.instanceOf[instanceID] = st.VersionID.String()
-	// 登记为 in-flight：观测确认前计入实际数，避免窗口内重复创建。
-	r.pending[instanceID] = pendingRpl{versionID: st.VersionID.String(), createdAt: time.Now()}
-	delete(r.failures, instanceID)
-	// 本部署有副本成功创建：清除先前标记的失败态，交回收敛判定。
-	delete(r.failedDeploys, st.DeploymentID.String())
+	// 登记为在途副本：就绪（running）或超时前计入实际副本数，避免窗口内重复创建。
+	r.pending[instanceID] = pendingRpl{
+		versionID:    st.VersionID.String(),
+		deploymentID: st.DeploymentID.String(),
+		createdAt:    time.Now(),
+	}
 	r.mu.Unlock()
 	r.logger.Info("replica created",
 		zap.String("deployment_id", st.DeploymentID.String()),
@@ -335,22 +388,41 @@ func (r *Reconciler) placementByNode(actual map[string]observer.ObservedContaine
 	return out
 }
 
-// noteFailure 记录一次失败并达上限时告警（有界重试，不无限重试）。
-// deploymentID 用于把达上限的失败聚合为部署级 failed 阶段。
+// removeDead 强制删除一个"创建后未就绪即崩溃"的副本，避免残留死容器与重复占用。
+// 仅针对仍在在途登记中的副本，故不会误删人工停用（paused）的实例。
+func (r *Reconciler) removeDead(ctx context.Context, c observer.ObservedContainer) {
+	node, ok := r.registry.Get(c.NodeName)
+	if !ok {
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, replicaCallTimeout)
+	defer cancel()
+	if _, err := node.Call(cctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: c.InstanceID, Force: true}); err != nil {
+		r.logger.Warn("recycle dead replica failed",
+			zap.String("instance_id", c.InstanceID), zap.String("node", c.NodeName), zap.Error(err))
+		return
+	}
+	r.logger.Info("dead replica recycled",
+		zap.String("instance_id", c.InstanceID), zap.String("node", c.NodeName))
+}
+
+// noteFailure 记录一次失败并按部署聚合（有界重试，不无限重试）。
+// 连续失败达上限即把该部署标记为 failed，surge 随之停止。
 func (r *Reconciler) noteFailure(deploymentID, instanceID, msg string) {
 	r.mu.Lock()
-	r.failures[instanceID]++
-	n := r.failures[instanceID]
+	r.failures[deploymentID]++
+	n := r.failures[deploymentID]
 	if n >= maxFailures {
 		r.failedDeploys[deploymentID] = true
 	}
 	r.mu.Unlock()
 	if n >= maxFailures {
-		r.logger.Error("replica create repeatedly failed",
+		r.logger.Error("replica repeatedly failed; stop surge for deployment",
 			zap.String("deployment_id", deploymentID),
 			zap.String("instance_id", instanceID), zap.Int("attempts", n), zap.String("err", msg))
 	} else {
 		r.logger.Warn("replica create failed",
+			zap.String("deployment_id", deploymentID),
 			zap.String("instance_id", instanceID), zap.Int("attempts", n), zap.String("err", msg))
 	}
 }
