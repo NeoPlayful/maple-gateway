@@ -15,6 +15,10 @@ import (
 type DeployPusher interface {
 	PushDeploy(ctx context.Context, in cmclient.DesiredState) error
 	StopDeploy(ctx context.Context, deploymentID uuid.UUID) error
+	// ForgetDeploy 清除 CM 侧某部署的期望态（不回收容器）。
+	ForgetDeploy(ctx context.Context, deploymentID uuid.UUID) error
+	// RemoveVersion 回收某部署下指定版本的容器（删除版本时仅回收该版本，不动其它版本）。
+	RemoveVersion(ctx context.Context, deploymentID, versionID uuid.UUID) error
 }
 
 // Handler 暴露 Deployment / Version 的 Management API。
@@ -84,9 +88,35 @@ func cmMounts(ms []Mount) []cmclient.Mount {
 	return out
 }
 
-// syncDeployment 在版本集合变化（新建/删除）后重新对齐 CM 期望态：
-// 仍有可下发版本则下发首要版本，全无则通知 CM 停止并回收容器。
-// 否则 CM 侧会残留孤儿期望态，继续按旧副本数补建容器。
+// syncAction 是 syncDeployment 的决策结果。
+type syncAction int
+
+const (
+	syncNone   syncAction = iota // 无需动作
+	syncStop                     // 无版本：停止部署并回收容器
+	syncPush                     // 有可下发版本：重指期望态到该版本
+	syncForget                   // 有版本但全无镜像：清除孤儿期望态，保留容器
+)
+
+// decideSync 依据剩余版本集合决定如何对齐 CM 期望态：
+//
+//	无版本            → stop（停止部署、回收容器）
+//	有带镜像的首要版本 → push（重指期望态到该版本）
+//	有版本但全无镜像   → forget（清掉可能指向已删版本的孤儿期望态，不动幸存容器）
+//
+// 关键：绝不因「挑不出带镜像版本」就发 stop——stop 会按 deployment_id 回收该部署
+// 名下全部容器，把仍在的其他版本一并删掉。forget 只摘期望态、不删容器。
+func decideSync(versions []*Version) (syncAction, *Version) {
+	if len(versions) == 0 {
+		return syncStop, nil
+	}
+	if target := primaryVersion(versions); target != nil && target.Image != "" {
+		return syncPush, target
+	}
+	return syncForget, nil
+}
+
+// syncDeployment 在版本集合变化后按 decideSync 的决策对齐 CM 期望态。
 func (h *Handler) syncDeployment(c fiber.Ctx, deploymentID uuid.UUID) {
 	if h.pusher == nil || !h.isLeader() {
 		return
@@ -95,14 +125,29 @@ func (h *Handler) syncDeployment(c fiber.Ctx, deploymentID uuid.UUID) {
 	if err != nil {
 		return
 	}
-	target := primaryVersion(versions)
-	if target == nil || target.Image == "" {
+	switch action, target := decideSync(versions); action {
+	case syncStop:
 		if err := h.pusher.StopDeploy(c.Context(), deploymentID); err != nil {
 			pkg.Log().Warn("stop deployment intent to cm failed: " + err.Error())
 		}
+	case syncPush:
+		h.pushVersion(c, target, "")
+	case syncForget:
+		// 清掉 CM 侧仍指向被删版本的期望态，避免对账器继续补建；幸存版本容器不受影响。
+		if err := h.pusher.ForgetDeploy(c.Context(), deploymentID); err != nil {
+			pkg.Log().Warn("forget deployment intent to cm failed: " + err.Error())
+		}
+	}
+}
+
+// reclaimVersion 回收被删版本的容器（仅该版本，不波及同部署其他版本）。
+func (h *Handler) reclaimVersion(c fiber.Ctx, deploymentID, versionID uuid.UUID) {
+	if h.pusher == nil || !h.isLeader() {
 		return
 	}
-	h.pushVersion(c, target, "")
+	if err := h.pusher.RemoveVersion(c.Context(), deploymentID, versionID); err != nil {
+		pkg.Log().Warn("remove version containers from cm failed: " + err.Error())
+	}
 }
 
 // primaryVersion 从版本集合中挑出应下发的首要版本：优先 stable，其次任意带镜像的版本。
@@ -333,8 +378,8 @@ func (h *Handler) UpdateVersion(c fiber.Ctx) error {
 }
 
 // DeleteVersion DELETE /api/admin/versions/:id
-// 删除后重新对齐 CM 期望态：若该部署已无版本则通知 CM 停止并回收容器，
-// 否则用剩余首要版本覆盖，避免 CM 侧残留孤儿期望态继续补建。
+// 删除后：先把 CM 期望态重指到剩余版本（若该部署已无版本则停止，避免孤儿期望态
+// 继续补建），再仅回收被删版本的容器——不触碰同部署其他版本的实例。
 func (h *Handler) DeleteVersion(c fiber.Ctx) error {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -348,6 +393,7 @@ func (h *Handler) DeleteVersion(c fiber.Ctx) error {
 		return pkg.Err(c, err)
 	}
 	h.syncDeployment(c, v.DeploymentID)
+	h.reclaimVersion(c, v.DeploymentID, id)
 	return pkg.OK(c, fiber.Map{"deleted": true})
 }
 

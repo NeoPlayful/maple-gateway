@@ -87,6 +87,26 @@ func (c *Client) StopDeploy(ctx context.Context, deploymentID uuid.UUID) error {
 		fmt.Sprintf("/api/deployments/%s/stop", deploymentID), nil, nil)
 }
 
+// ForgetDeploy 清除某部署的期望态（不回收容器）：POST {cm}/api/deployments/{id}/forget。
+// 用于删除版本后该部署已无可下发版本、但幸存版本容器须保留时，清掉 CM 侧孤儿期望态。
+func (c *Client) ForgetDeploy(ctx context.Context, deploymentID uuid.UUID) error {
+	if !c.Enabled() {
+		return nil
+	}
+	return c.do(ctx, http.MethodPost,
+		fmt.Sprintf("/api/deployments/%s/forget", deploymentID), nil, nil)
+}
+
+// RemoveVersion 回收某部署下指定版本的容器：POST {cm}/api/deployments/{id}/versions/{vid}/remove。
+// 仅移除该版本的容器，不波及其它版本（区别于按部署停止）。
+func (c *Client) RemoveVersion(ctx context.Context, deploymentID, versionID uuid.UUID) error {
+	if !c.Enabled() {
+		return nil
+	}
+	return c.do(ctx, http.MethodPost,
+		fmt.Sprintf("/api/deployments/%s/versions/%s/remove", deploymentID, versionID), nil, nil)
+}
+
 // Status 查询编排进度：GET {cm}/api/deployments/{id}/status，返回原始 JSON。
 func (c *Client) Status(ctx context.Context, deploymentID uuid.UUID) (json.RawMessage, error) {
 	if !c.Enabled() {
