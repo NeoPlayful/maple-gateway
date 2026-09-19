@@ -82,15 +82,15 @@ func newOnlineRegistry(cmd agentregistry.Commander) *agentregistry.Registry {
 // fakeDesired 是可控的期望态读取器。
 type fakeDesired struct {
 	states []desired.State
-	paused map[string]int
+	paused map[string]string // instance_id → version_id
 	phases map[uuid.UUID]desired.Phase
 }
 
 func (f *fakeDesired) All() []desired.State { return f.states }
 
-func (f *fakeDesired) PausedCount() map[string]int {
+func (f *fakeDesired) PausedInstances() map[string]string {
 	if f.paused == nil {
-		return map[string]int{}
+		return map[string]string{}
 	}
 	return f.paused
 }
@@ -163,7 +163,7 @@ func TestReconcileRespectsOperatorPaused(t *testing.T) {
 			DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: verID,
 			Image: "nginx:alpine", Port: 80, Replicas: 2,
 		}},
-		paused: map[string]int{verID.String(): 1},
+		paused: map[string]string{"i-paused": verID.String()},
 	}
 	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
 	gw := gwclient.NewGatewayClient("", "")
@@ -172,6 +172,49 @@ func TestReconcileRespectsOperatorPaused(t *testing.T) {
 
 	if got := cmd.count(agentprotocol.ActionContainerCreate); got != 1 {
 		t.Errorf("created = %d, want 1 (paused instance counts toward replicas)", got)
+	}
+}
+
+// 停止滞后误删场景（回归）：管理员手动 stop 后，观测快照尚未刷新为 exited，
+// 该实例仍以 running 出现；此时它既在 paused 集合里、又在 running 计数里。
+// 正确行为：该实例只计一份 → 实际数 == 目标数 → 既不下发 stop 也不下发 remove。
+// 修复前 running + paused 被算成两份，对账器判定超编并把管理员刚停的实例删掉。
+func TestReconcileDoesNotDrainPausedInstanceOnObserveLag(t *testing.T) {
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
+
+	verID := uuid.New()
+	depID := uuid.New()
+	pausedID := uuid.NewString()
+	fd := &fakeDesired{
+		states: []desired.State{{
+			DeploymentID: depID, ServiceID: uuid.New(), VersionID: verID,
+			Image: "nginx:alpine", Port: 80, Replicas: 1,
+		}},
+		paused: map[string]string{pausedID: verID.String()},
+	}
+	// 快照里该实例仍是 running（停止尚未被观测到）。
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{
+		pausedID: {
+			NodeName: "n1", InstanceID: pausedID,
+			Container: gwclient.Container{
+				ID: "c1", State: "running", InstanceID: pausedID,
+				Labels: map[string]string{"maple.version_id": verID.String()},
+			},
+		},
+	}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+	r.Reconcile(context.Background())
+
+	if got := cmd.count(agentprotocol.ActionContainerStop); got != 0 {
+		t.Errorf("stop = %d, want 0 (paused instance must not be stopped)", got)
+	}
+	if got := cmd.count(agentprotocol.ActionContainerRemove); got != 0 {
+		t.Errorf("remove = %d, want 0 (paused instance must not be drained)", got)
+	}
+	if got := cmd.count(agentprotocol.ActionContainerCreate); got != 0 {
+		t.Errorf("create = %d, want 0 (target already satisfied by paused instance)", got)
 	}
 }
 

@@ -201,13 +201,15 @@ func (s *Store) Resume(instanceID string) {
 	delete(s.paused, instanceID)
 }
 
-// PausedCount 返回各版本被人工置为维护的实例数（instance 计入实际副本数用）。
-func (s *Store) PausedCount() map[string]int {
+// PausedInstances 返回当前被人工置为维护的实例集合（instance_id → version_id 的副本）。
+// 对账器用它把暂停实例从 running 计数中剔除，并避免把它们当作缩容目标删除；
+// 逐版本数量可由该集合聚合得出，故不再单列计数接口。
+func (s *Store) PausedInstances() map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make(map[string]int, len(s.paused))
-	for _, vid := range s.paused {
-		out[vid]++
+	out := make(map[string]string, len(s.paused))
+	for iid, vid := range s.paused {
+		out[iid] = vid
 	}
 	return out
 }
