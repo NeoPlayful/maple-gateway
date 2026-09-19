@@ -294,6 +294,10 @@ func (c *Client) Ensure(ctx context.Context, spec CreateSpec, allowedImages []st
 		hostCfg.PortBindings = nat.PortMap{
 			containerPort: []nat.PortBinding{{HostIP: "", HostPort: hostPort}},
 		}
+	} else {
+		// 未声明容器端口：按镜像 EXPOSE 的端口动态发布，宿主端口由 Docker 分配。
+		// 不发布则容器无宿主入口，实例端点无从可达（端口 0 ≠ 不绑）。
+		hostCfg.PublishAllPorts = true
 	}
 	if spec.Memory != "" {
 		hostCfg.Resources.Memory = parseMemory(spec.Memory)
@@ -311,21 +315,20 @@ func (c *Client) Ensure(ctx context.Context, spec CreateSpec, allowedImages []st
 
 	// 回读实际映射端口（动态分配时 Docker 才给出最终端口）。
 	// 端口绑定在启动后由引擎异步填充，首次 Inspect 可能读不到，短暂重试。
+	// spec.Port 为 0 时走动态发布，同样需回读引擎实际分配的宿主端口。
 	hostPort := spec.HostPort
-	if spec.Port > 0 {
-		for i := 0; i < 10; i++ {
-			insp, err := c.cli.ContainerInspect(ctx, created.ID)
-			if err == nil {
-				if p := hostPortFromInspect(insp, spec.Port); p > 0 {
-					hostPort = p
-					break
-				}
+	for i := 0; i < 10; i++ {
+		insp, err := c.cli.ContainerInspect(ctx, created.ID)
+		if err == nil {
+			if p := hostPortFromInspect(insp, spec.Port); p > 0 {
+				hostPort = p
+				break
 			}
-			select {
-			case <-ctx.Done():
-				return created.ID, hostPort, nil
-			case <-time.After(150 * time.Millisecond):
-			}
+		}
+		select {
+		case <-ctx.Done():
+			return created.ID, hostPort, nil
+		case <-time.After(150 * time.Millisecond):
 		}
 	}
 	return created.ID, hostPort, nil
@@ -799,14 +802,31 @@ func containerIP(ns *types.SummaryNetworkSettings) string {
 	return ""
 }
 
-// hostPortFromInspect 从 Inspect 结果取指定容器端口对应的本机端口。
+// hostPortFromInspect 从 Inspect 结果取本机映射端口。
+// containerPort > 0 时按该容器端口精确匹配；为 0 表示容器端口未声明（动态发布），
+// 此时取首个有宿主端口的映射——端口映射按容器端口排序，取首个保证结果稳定。
 func hostPortFromInspect(insp types.ContainerJSON, containerPort int) int {
 	if insp.NetworkSettings == nil {
 		return 0
 	}
-	key := nat.Port(fmt.Sprintf("%d/tcp", containerPort))
-	if bindings, ok := insp.NetworkSettings.Ports[key]; ok {
-		for _, b := range bindings {
+	if containerPort > 0 {
+		key := nat.Port(fmt.Sprintf("%d/tcp", containerPort))
+		if bindings, ok := insp.NetworkSettings.Ports[key]; ok {
+			for _, b := range bindings {
+				if b.HostPort != "" {
+					return atoiSafe(b.HostPort)
+				}
+			}
+		}
+		return 0
+	}
+	keys := make([]string, 0, len(insp.NetworkSettings.Ports))
+	for k := range insp.NetworkSettings.Ports {
+		keys = append(keys, string(k))
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		for _, b := range insp.NetworkSettings.Ports[nat.Port(k)] {
 			if b.HostPort != "" {
 				return atoiSafe(b.HostPort)
 			}

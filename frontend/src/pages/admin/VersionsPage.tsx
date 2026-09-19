@@ -336,7 +336,7 @@ export default function VersionsPage() {
             </select>
           </Field>
           <Field label={t('fields.healthPath')}>
-            <input value={form.health_path} onChange={(e) => setForm({ ...form, health_path: e.target.value })} placeholder="/healthz" className={inputCls} />
+            <input value={form.health_path} onChange={(e) => setForm({ ...form, health_path: e.target.value })} placeholder="/health" className={inputCls} />
           </Field>
           <Field label={t('fields.env')}>
             <textarea rows={3} value={form.env} onChange={(e) => setForm({ ...form, env: e.target.value })} placeholder={'KEY=VALUE'} className={inputCls} />

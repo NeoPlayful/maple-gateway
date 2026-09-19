@@ -194,6 +194,57 @@ func TestObserverReportsContainers(t *testing.T) {
 	}
 }
 
+// 端口回填：容器创建时端口映射尚未就绪（host_port=0）即被注册，就绪后经心跳
+// 带上真实宿主端口，Gateway 借此把实例端点从 0（退化为默认端口）补正为宿主端口。
+func TestObserverHeartbeatCarriesHostPort(t *testing.T) {
+	const iid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+	// 首轮：容器已就绪但映射尚未填充 → host_port=0。
+	cmd := newFakeCommander(`[{"id":"c1","state":"running","instance_id":"` + iid + `","host_port":0,
+		"labels":{"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`)
+	reg := onlineRegistry(cmd)
+
+	var mu sync.Mutex
+	var hbPorts []int
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case r.URL.Path == "/api/internal/nodes/register":
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"node-uuid-1"}}`))
+		case r.URL.Path == "/api/internal/instances/register":
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"` + iid + `"}}`))
+		case r.URL.Path == "/api/internal/instances/"+iid+"/heartbeat":
+			var body struct {
+				Port int `json:"port"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			hbPorts = append(hbPorts, body.Port)
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		}
+	}))
+	defer gateway.Close()
+
+	gw := gwclient.NewGatewayClient(gateway.URL, "internal-tok")
+	obs := New(reg, gw, time.Second, zap.NewNop())
+
+	obs.tick(context.Background()) // 首轮：host_port=0，注册
+	cmd.Set(agentprotocol.ActionContainerList, `[{"id":"c1","state":"running","instance_id":"`+iid+
+		`","host_port":64563,"labels":{"maple.service_id":"11111111-1111-1111-1111-111111111111"}}]`)
+	obs.tick(context.Background()) // 次轮：映射就绪，心跳应带上 64563
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(hbPorts) == 0 {
+		t.Fatal("no instance heartbeat sent")
+	}
+	if got := hbPorts[len(hbPorts)-1]; got != 64563 {
+		t.Errorf("last heartbeat port = %d, want 64563 (host port must be reported once ready)", got)
+	}
+}
+
 // 容器消失：上一轮见过、本轮不在（节点仍可观测）→ 通知 Gateway 注销实例。
 func TestObserverDeregistersVanished(t *testing.T) {
 	const iid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
