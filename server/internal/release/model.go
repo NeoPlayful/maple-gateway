@@ -71,35 +71,35 @@ const (
 // primary=基准版本（canary 的 stable / bluegreen 的 active）；
 // secondary=挑战版本（canary 的 canary / bluegreen 的另一色）。
 type Release struct {
-	ID                uuid.UUID       `json:"id"`
-	Strategy          Strategy        `json:"strategy"`
-	DeploymentID      uuid.UUID       `json:"deployment_id"`
-	ServiceID         *uuid.UUID      `json:"service_id,omitempty"`
-	Name              string          `json:"name"`
-	Phase             Phase           `json:"phase"`
-	PrimaryVersionID  uuid.UUID       `json:"primary_version_id"`
-	SecondaryVersionID uuid.UUID      `json:"secondary_version_id"`
-	PrimaryWeight     int             `json:"primary_weight"`
-	SecondaryWeight   int             `json:"secondary_weight"`
-	PreviousPrimaryID *uuid.UUID      `json:"previous_primary_id,omitempty"`
-	Config            json.RawMessage `json:"config"`
-	StartedAt         *time.Time      `json:"started_at,omitempty"`
-	FinishedAt        *time.Time      `json:"finished_at,omitempty"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+	ID                 uuid.UUID       `json:"id"`
+	Strategy           Strategy        `json:"strategy"`
+	DeploymentID       uuid.UUID       `json:"deployment_id"`
+	ServiceID          *uuid.UUID      `json:"service_id,omitempty"`
+	Name               string          `json:"name"`
+	Phase              Phase           `json:"phase"`
+	PrimaryVersionID   uuid.UUID       `json:"primary_version_id"`
+	SecondaryVersionID uuid.UUID       `json:"secondary_version_id"`
+	PrimaryWeight      int             `json:"primary_weight"`
+	SecondaryWeight    int             `json:"secondary_weight"`
+	PreviousPrimaryID  *uuid.UUID      `json:"previous_primary_id,omitempty"`
+	Config             json.RawMessage `json:"config"`
+	StartedAt          *time.Time      `json:"started_at,omitempty"`
+	FinishedAt         *time.Time      `json:"finished_at,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 // Event 是发布事件流水。
 type Event struct {
-	ID         uuid.UUID  `json:"id"`
-	ReleaseID  uuid.UUID  `json:"release_id"`
-	Action     Action     `json:"action"`
-	FromWeight *int       `json:"from_weight,omitempty"`
-	ToWeight   *int       `json:"to_weight,omitempty"`
+	ID          uuid.UUID  `json:"id"`
+	ReleaseID   uuid.UUID  `json:"release_id"`
+	Action      Action     `json:"action"`
+	FromWeight  *int       `json:"from_weight,omitempty"`
+	ToWeight    *int       `json:"to_weight,omitempty"`
 	FromVersion *uuid.UUID `json:"from_version,omitempty"`
 	ToVersion   *uuid.UUID `json:"to_version,omitempty"`
-	Detail     string     `json:"detail"`
-	CreatedAt  time.Time  `json:"created_at"`
+	Detail      string     `json:"detail"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 // CanaryConfig 是 canary 策略的专属配置（存 releases.config）。
@@ -116,10 +116,10 @@ type BlueGreenConfig struct {
 
 // NewRelease 创建发布输入（通用体，按 strategy 解释字段）。
 type NewRelease struct {
-	Strategy          Strategy   `json:"strategy" validate:"required"`
-	ServiceID         *uuid.UUID `json:"service_id"`
-	Name              string     `json:"name" validate:"required,min=1,max=64"`
-	DeploymentID      uuid.UUID  `json:"deployment_id"`
+	Strategy     Strategy   `json:"strategy" validate:"required"`
+	ServiceID    *uuid.UUID `json:"service_id"`
+	Name         string     `json:"name" validate:"required,min=1,max=64"`
+	DeploymentID uuid.UUID  `json:"deployment_id"`
 	// canary: PrimaryVersionID=stable, SecondaryVersionID=canary
 	// bluegreen: PrimaryVersionID=缺省激活色(可选), SecondaryVersionID 不用
 	PrimaryVersionID   uuid.UUID `json:"primary_version_id"`
@@ -153,8 +153,8 @@ type SwitchInput struct {
 // View 是带版本/服务名快照的发布详情（handler 组装用）。
 type View struct {
 	Release
-	ServiceName    string `json:"service_name,omitempty"`
-	DeploymentName string `json:"deployment_name,omitempty"`
-	PrimaryVersion string `json:"primary_version,omitempty"`
+	ServiceName      string `json:"service_name,omitempty"`
+	DeploymentName   string `json:"deployment_name,omitempty"`
+	PrimaryVersion   string `json:"primary_version,omitempty"`
 	SecondaryVersion string `json:"secondary_version,omitempty"`
 }

@@ -75,12 +75,12 @@ func TestLatency_Aggregation(t *testing.T) {
 
 func TestIsErrLabel(t *testing.T) {
 	cases := map[string]bool{
-		"host=a.com,status=500":   true,
-		"host=a.com,status=502":   true,
+		"host=a.com,status=500":      true,
+		"host=a.com,status=502":      true,
 		"host=a.com,status=rejected": true,
-		"host=a.com,status=200":   false,
-		"host=a.com,status=404":   false,
-		"host=a.com,status=503":   true,
+		"host=a.com,status=200":      false,
+		"host=a.com,status=404":      false,
+		"host=a.com,status=503":      true,
 	}
 	for labels, want := range cases {
 		if got := isErrLabel(labels); got != want {

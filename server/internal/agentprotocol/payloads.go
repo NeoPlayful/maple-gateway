@@ -21,10 +21,10 @@ type HelloPayload struct {
 
 // ReadyPayload 是 CM 对 Agent 握手的回应：发放节点身份与心跳参数。
 type ReadyPayload struct {
-	NodeID          string `json:"node_id"`
-	NodeCredential  string `json:"node_credential,omitempty"` // 首次注册时下发，Agent 需落盘
-	HeartbeatSec    int    `json:"heartbeat_sec"`
-	ServerTime      int64  `json:"server_time"`
+	NodeID         string `json:"node_id"`
+	NodeCredential string `json:"node_credential,omitempty"` // 首次注册时下发，Agent 需落盘
+	HeartbeatSec   int    `json:"heartbeat_sec"`
+	ServerTime     int64  `json:"server_time"`
 }
 
 // HeartbeatPayload 是心跳载荷。
@@ -125,8 +125,8 @@ type ContainerSnapshotPayload struct {
 // TaskExecutePayload 是下发任务的载荷。
 type TaskExecutePayload struct {
 	TaskID string          `json:"task_id"`
-	Action string          `json:"action"`            // 见 Action 白名单
-	Params json.RawMessage `json:"params,omitempty"`  // 各 action 自定义参数
+	Action string          `json:"action"`           // 见 Action 白名单
+	Params json.RawMessage `json:"params,omitempty"` // 各 action 自定义参数
 }
 
 // TaskAckPayload 是 Agent 接受任务的上报。
@@ -143,10 +143,10 @@ type TaskProgressPayload struct {
 
 // TaskResultPayload 是任务结果上报。
 type TaskResultPayload struct {
-	TaskID  string          `json:"task_id"`
-	Status  string          `json:"status"` // success / failed / timeout / cancelled
-	Error   string          `json:"error,omitempty"`
-	Result  json.RawMessage `json:"result,omitempty"`
+	TaskID string          `json:"task_id"`
+	Status string          `json:"status"` // success / failed / timeout / cancelled
+	Error  string          `json:"error,omitempty"`
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
 // TaskCancelPayload 是取消任务的下发。
@@ -193,6 +193,54 @@ type LogsReadResult struct {
 	Logs string `json:"logs"`
 }
 
+// ---- 网络类 ----
+
+// NetworkCreateParams 是 network.create 入参。
+type NetworkCreateParams struct {
+	NetworkName string `json:"network_name"`
+	Driver      string `json:"driver,omitempty"`
+	Subnet      string `json:"subnet"`
+	Gateway     string `json:"gateway,omitempty"`
+}
+
+// NetworkCreateResult 是 network.create 的结果。
+type NetworkCreateResult struct {
+	NetworkID     string `json:"network_id"`
+	NetworkName   string `json:"network_name"`
+	AlreadyExists bool   `json:"already_exists"`
+}
+
+// NetworkRefParams 是按网络名操作的入参（delete/inspect）。
+type NetworkRefParams struct {
+	NetworkName string `json:"network_name"`
+}
+
+// NetworkInfoPayload 是单个网络的视图（inspect 结果）。
+type NetworkInfoPayload struct {
+	NetworkID   string   `json:"network_id"`
+	NetworkName string   `json:"network_name"`
+	Driver      string   `json:"driver,omitempty"`
+	Subnet      string   `json:"subnet,omitempty"`
+	Gateway     string   `json:"gateway,omitempty"`
+	Managed     bool     `json:"managed"`
+	Containers  []string `json:"containers,omitempty"`
+}
+
+// NetworkListResult 是 network.list_managed 的结果。
+type NetworkListResult struct {
+	Networks []NetworkInfoPayload `json:"networks"`
+}
+
+// NetworkCheckResult 是 network.check 的结果：本机网络占用情况，供冲突检测。
+type NetworkCheckResult struct {
+	// HostRoutes 是本机路由表网段（CIDR 文本）。
+	HostRoutes []string `json:"host_routes"`
+	// DockerNetworks 是 Docker 已存在的网络（含非受管，仅参与冲突检测）。
+	DockerNetworks []NetworkInfoPayload `json:"docker_networks"`
+	// InterfaceNetworks 是主要网络接口的网段（含 VPN/overlay）。
+	InterfaceNetworks []string `json:"interface_networks"`
+}
+
 // ---- Application（Compose）类 ----
 
 // ApplicationSpec 是一份 Docker Compose 规格（原样 YAML 文本 + 项目名）。
@@ -201,9 +249,12 @@ type LogsReadResult struct {
 type ApplicationSpec struct {
 	ApplicationID string `json:"application_id"`
 	// TenantID 是应用所属租户（Gateway tenants.id，可空）；数据目录按租户隔离时用。
-	TenantID    string `json:"tenant_id,omitempty"`
-	Version     string `json:"version"`
-	Project     string `json:"project"`
+	TenantID string `json:"tenant_id,omitempty"`
+	Version  string `json:"version"`
+	Project  string `json:"project"`
+	// NetworkName 是项目占用的外部网络名（maple-<12>）。非空时 Agent 会把它接入
+	// Compose 规格（external 网络），网段由 CM 统一分配；为空则沿用 Compose 默认网络。
+	NetworkName string `json:"network_name,omitempty"`
 	ComposeYAML string `json:"compose_yaml"`
 }
 
@@ -216,21 +267,21 @@ type ApplicationValidateResult struct {
 
 // ApplicationActionResult 是 deploy/stop/restart/remove 的结果。
 type ApplicationActionResult struct {
-	Project    string             `json:"project"`
-	State      string             `json:"state"` // running / stopped / removed
-	Services   []ApplicationService `json:"services,omitempty"`
-	Output     string             `json:"output,omitempty"`
+	Project  string               `json:"project"`
+	State    string               `json:"state"` // running / stopped / removed
+	Services []ApplicationService `json:"services,omitempty"`
+	Output   string               `json:"output,omitempty"`
 }
 
 // ApplicationService 是 Compose 项目中的一个服务运行态（来自 compose ps）。
 type ApplicationService struct {
-	Name        string `json:"name"`
-	Service     string `json:"service"`
-	State       string `json:"state"`
-	Status      string `json:"status,omitempty"`
-	Health      string `json:"health,omitempty"`
-	Image       string `json:"image,omitempty"`
-	ContainerID string `json:"container_id,omitempty"`
+	Name        string                     `json:"name"`
+	Service     string                     `json:"service"`
+	State       string                     `json:"state"`
+	Status      string                     `json:"status,omitempty"`
+	Health      string                     `json:"health,omitempty"`
+	Image       string                     `json:"image,omitempty"`
+	ContainerID string                     `json:"container_id,omitempty"`
 	Publishers  []ApplicationPortPublisher `json:"publishers,omitempty"`
 }
 

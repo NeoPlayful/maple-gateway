@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/ent"
+	"github.com/NeoPlayful/maple-gateway/server/internal/apptemplate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/auth"
 	"github.com/NeoPlayful/maple-gateway/server/internal/cache"
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate"
@@ -17,12 +18,11 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/discovery"
 	"github.com/NeoPlayful/maple-gateway/server/internal/domain"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ha"
-	"github.com/NeoPlayful/maple-gateway/server/internal/apptemplate"
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
 	"github.com/NeoPlayful/maple-gateway/server/internal/logs"
-	"github.com/NeoPlayful/maple-gateway/server/internal/project"
 	"github.com/NeoPlayful/maple-gateway/server/internal/metrics"
 	"github.com/NeoPlayful/maple-gateway/server/internal/node"
+	"github.com/NeoPlayful/maple-gateway/server/internal/project"
 	"github.com/NeoPlayful/maple-gateway/server/internal/ratelimit"
 	"github.com/NeoPlayful/maple-gateway/server/internal/rbac"
 	"github.com/NeoPlayful/maple-gateway/server/internal/release"
@@ -238,6 +238,13 @@ func New(d Deps) *fiber.App {
 		cg.Post("/applications/:id/restart", cmH.RestartApplication)
 		cg.Post("/applications/:id/validate", cmH.ValidateApplication)
 		cg.Delete("/applications/:id", cmH.RemoveApplication)
+		// 项目级 IP 池：节点网络池管理与项目网段查询。
+		cg.Get("/nodes/:nodeId/network-pools", cmH.NetworkPools)
+		cg.Post("/nodes/:nodeId/network-pools", cmH.CreateNetworkPool)
+		cg.Patch("/nodes/:nodeId/network-pools/:poolId", cmH.UpdateNetworkPool)
+		cg.Delete("/nodes/:nodeId/network-pools/:poolId", cmH.DeleteNetworkPool)
+		cg.Post("/nodes/:nodeId/network-pools/:poolId/check", cmH.CheckNetworkPool)
+		cg.Get("/projects/:id/network", cmH.ProjectNetwork)
 	}
 
 	// 应用模板：容器创建的规格来源（带 {{参数键}} 占位符的 Compose 规格 + 参数定义）。

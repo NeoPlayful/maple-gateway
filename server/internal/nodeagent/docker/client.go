@@ -66,10 +66,10 @@ func imageRefKey(containerID, imageID string) string { return containerID + "|" 
 
 // statSample 是一次采样的累计计数器（网络收发、块设备读写）与时刻。
 type statSample struct {
-	at        time.Time
-	rx, tx    uint64
-	blkRead   uint64
-	blkWrite  uint64
+	at       time.Time
+	rx, tx   uint64
+	blkRead  uint64
+	blkWrite uint64
 }
 
 // New 构造。managedLabel 为受管标签键；host 为空则用 SDK 平台默认端点
@@ -143,12 +143,12 @@ type Mount struct {
 
 // Container 是受管容器的观测视图。
 type Container struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Image      string            `json:"image"`
-	State      string            `json:"state"`  // created / running / exited / …
-	Status     string            `json:"status"` // 人类可读状态
-	Labels     map[string]string `json:"labels"`
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Image         string            `json:"image"`
+	State         string            `json:"state"`  // created / running / exited / …
+	Status        string            `json:"status"` // 人类可读状态
+	Labels        map[string]string `json:"labels"`
 	InstanceID    string            `json:"instance_id"`
 	HostPort      int               `json:"host_port"`      // 本机映射端口（从端口映射解析）
 	ContainerPort int               `json:"container_port"` // 容器内部监听端口（同一条端口映射的 PrivatePort）

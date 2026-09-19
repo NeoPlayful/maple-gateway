@@ -53,12 +53,17 @@ type Client struct {
 	http    *http.Client
 }
 
+// requestTimeout 是单次 CM 请求的执行上限。应用部署/移除等在 CM 侧是同步操作
+// （要等 Agent 完成 network.create + compose up），实测可能超过 10 秒，故给足余量；
+// 只读查询在此预算内必然远快于上限，不受影响。
+const requestTimeout = 5 * time.Minute
+
 // New 构造。baseURL 为空表示未接入 CM，返回的客户端所有方法为 no-op。
 func New(baseURL, token string) *Client {
 	return &Client{
 		baseURL: baseURL,
 		token:   token,
-		http:    &http.Client{Timeout: 10 * time.Second},
+		http:    &http.Client{Timeout: requestTimeout},
 	}
 }
 
@@ -356,6 +361,48 @@ func (c *Client) ValidateApplication(ctx context.Context, id string) (json.RawMe
 		return nil, err
 	}
 	return out, nil
+}
+
+// NetworkPools 列出某节点的网络池：GET {cm}/api/mgmt/nodes/{id}/network-pools。
+func (c *Client) NetworkPools(ctx context.Context, nodeID string) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/nodes/"+nodeID+"/network-pools")
+}
+
+// CreateNetworkPool 新增网络池：POST {cm}/api/mgmt/nodes/{id}/network-pools。
+func (c *Client) CreateNetworkPool(ctx context.Context, nodeID string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/nodes/"+nodeID+"/network-pools", body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UpdateNetworkPool 更新网络池：PATCH {cm}/api/mgmt/nodes/{id}/network-pools/{poolID}。
+func (c *Client) UpdateNetworkPool(ctx context.Context, nodeID, poolID string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPatch, "/api/mgmt/nodes/"+nodeID+"/network-pools/"+poolID, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteNetworkPool 删除网络池：DELETE {cm}/api/mgmt/nodes/{id}/network-pools/{poolID}。
+func (c *Client) DeleteNetworkPool(ctx context.Context, nodeID, poolID string) error {
+	return c.do(ctx, http.MethodDelete, "/api/mgmt/nodes/"+nodeID+"/network-pools/"+poolID, nil, nil)
+}
+
+// CheckNetworkPool 复检网络池：POST {cm}/api/mgmt/nodes/{id}/network-pools/{poolID}/check。
+func (c *Client) CheckNetworkPool(ctx context.Context, nodeID, poolID string) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/mgmt/nodes/"+nodeID+"/network-pools/"+poolID+"/check", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ProjectNetwork 查询项目网络：GET {cm}/api/mgmt/projects/{id}/network。
+func (c *Client) ProjectNetwork(ctx context.Context, projectID string) (json.RawMessage, error) {
+	return c.mgmtGet(ctx, "/api/mgmt/projects/"+projectID+"/network")
 }
 
 // AllocatePort 向 CM 申请一个本机端口：POST {cm}/api/mgmt/ports/allocate。

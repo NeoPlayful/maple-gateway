@@ -41,6 +41,7 @@ func isReadAction(action string) bool {
 		agentprotocol.ActionContainerInspect, agentprotocol.ActionContainerStats,
 		agentprotocol.ActionImageList, agentprotocol.ActionImageInspect,
 		agentprotocol.ActionNetworkList, agentprotocol.ActionNetworkInspect,
+		agentprotocol.ActionNetworkListManaged, agentprotocol.ActionNetworkCheck,
 		agentprotocol.ActionVolumeList, agentprotocol.ActionVolumeInspect,
 		agentprotocol.ActionLogsRead:
 		return true
@@ -53,7 +54,9 @@ func isReadAction(action string) bool {
 func isMutateAction(action string) bool {
 	switch action {
 	case agentprotocol.ActionContainerStart, agentprotocol.ActionContainerStop,
-		agentprotocol.ActionContainerRestart, agentprotocol.ActionContainerRemove:
+		agentprotocol.ActionContainerRestart, agentprotocol.ActionContainerRemove,
+		agentprotocol.ActionNetworkCreate, agentprotocol.ActionNetworkDelete,
+		agentprotocol.ActionNetworkRemove:
 		return true
 	default:
 		return false
@@ -188,6 +191,63 @@ func (e *Executor) Execute(ctx context.Context, action string, params json.RawMe
 		}
 		return nil, e.rt.PullImage(ctx, p.Image)
 
+	case agentprotocol.ActionNetworkCreate:
+		var p agentprotocol.NetworkCreateParams
+		if err := decode(params, &p); err != nil {
+			return nil, err
+		}
+		res, err := e.rt.NetworkCreate(ctx, docker.NetworkSpec{
+			Name: p.NetworkName, Driver: p.Driver, Subnet: p.Subnet, Gateway: p.Gateway,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(agentprotocol.NetworkCreateResult{
+			NetworkID: res.ID, NetworkName: res.Name, AlreadyExists: res.AlreadyExists,
+		})
+
+	case agentprotocol.ActionNetworkDelete, agentprotocol.ActionNetworkRemove:
+		var p agentprotocol.NetworkRefParams
+		if err := decode(params, &p); err != nil {
+			return nil, err
+		}
+		if err := e.rt.NetworkRemove(ctx, p.NetworkName); err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]bool{"removed": true})
+
+	case agentprotocol.ActionNetworkInspect:
+		var p agentprotocol.NetworkRefParams
+		if err := decode(params, &p); err != nil {
+			return nil, err
+		}
+		info, ok, err := e.rt.NetworkInspect(ctx, p.NetworkName)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return json.Marshal(map[string]any{"found": false})
+		}
+		return json.Marshal(toNetworkPayload(info))
+
+	case agentprotocol.ActionNetworkListManaged:
+		list, err := e.rt.NetworkListManaged(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]agentprotocol.NetworkInfoPayload, 0, len(list))
+		for _, n := range list {
+			out = append(out, toNetworkPayload(n))
+		}
+		return json.Marshal(agentprotocol.NetworkListResult{Networks: out})
+
+	case agentprotocol.ActionNetworkCheck:
+		res, err := e.rt.NetworkCheck(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(res)
+
 	case agentprotocol.ActionApplicationValidate:
 		return e.appValidate(ctx, params)
 	case agentprotocol.ActionApplicationDeploy:
@@ -226,7 +286,7 @@ func (e *Executor) prepParam(raw json.RawMessage) (agentprotocol.ApplicationSpec
 	if err != nil {
 		return p, err
 	}
-	prepared, err := e.rt.PrepareCompose(p.ComposeYAML, p.ApplicationID)
+	prepared, err := e.rt.PrepareCompose(p.ComposeYAML, p.ApplicationID, p.NetworkName)
 	if err != nil {
 		return p, err
 	}
@@ -345,6 +405,14 @@ func (e *Executor) appPs(ctx context.Context, raw json.RawMessage) (json.RawMess
 		return nil, err
 	}
 	return json.Marshal(agentprotocol.ApplicationPsResult{Project: p.Project, Services: toProtoServices(svcs)})
+}
+
+// toNetworkPayload 把 docker 网络视图映射为协议视图。
+func toNetworkPayload(n docker.NetworkInfo) agentprotocol.NetworkInfoPayload {
+	return agentprotocol.NetworkInfoPayload{
+		NetworkID: n.ID, NetworkName: n.Name, Driver: n.Driver,
+		Subnet: n.Subnet, Gateway: n.Gateway, Managed: n.Managed, Containers: n.Containers,
+	}
 }
 
 // toProtoServices 把 compose 驱动视图映射为协议视图。

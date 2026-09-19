@@ -101,10 +101,10 @@ func (s *TokenStore) Load(ctx context.Context) error {
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			t              Token
-			status         string
+			t               Token
+			status          string
 			created, expire time.Time
-			used           time.Time
+			used            time.Time
 		)
 		if err := rows.Scan(&t.ID, &t.Value, &t.Note, &status, &t.UsedBy, &created, &expire, &used); err != nil {
 			return fmt.Errorf("scan cm_enrollment_token: %w", err)

@@ -25,9 +25,9 @@ type Getter struct {
 	cache    *Cache
 	fallback bool
 	// 日志/指标钩子，可空。clientAddr 为对端地址（可能为空），便于单行关联来源。
-	onMiss   func(serverName, clientAddr string, usedFallback bool)
-	hits     atomic.Uint64 // 缓存命中次数
-	misses   atomic.Uint64 // 缓存未命中（含无 SNI）次数
+	onMiss func(serverName, clientAddr string, usedFallback bool)
+	hits   atomic.Uint64 // 缓存命中次数
+	misses atomic.Uint64 // 缓存未命中（含无 SNI）次数
 }
 
 // NewGetter 构造 SNI getter。

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/compose"
 	"github.com/NeoPlayful/maple-gateway/server/internal/nodeagent/docker"
 )
@@ -31,13 +32,52 @@ func New(d *docker.Client, allowedImages []string) *Runtime {
 	}
 }
 
-// PrepareCompose 加工 CM 下发的 Compose 规格：替换数据根占位符、注入受管标签。
-func (r *Runtime) PrepareCompose(spec, appID string) (string, error) {
-	return compose.Prepare(spec, r.docker.DataRoot(), r.docker.ManagedLabel(), appID)
+// PrepareCompose 加工 CM 下发的 Compose 规格：替换数据根占位符、注入受管标签与外部网络。
+func (r *Runtime) PrepareCompose(spec, appID, networkName string) (string, error) {
+	return compose.Prepare(spec, r.docker.DataRoot(), r.docker.ManagedLabel(), appID, networkName)
 }
 
 // Compose 返回 Compose 驱动（供执行器驱动应用部署）。
 func (r *Runtime) Compose() *compose.Driver { return r.compose }
+
+// NetworkCreate 幂等创建项目网络。
+func (r *Runtime) NetworkCreate(ctx context.Context, spec docker.NetworkSpec) (docker.CreateNetworkResult, error) {
+	return r.docker.NetworkCreate(ctx, spec)
+}
+
+// NetworkInspect 查询网络详情。
+func (r *Runtime) NetworkInspect(ctx context.Context, name string) (docker.NetworkInfo, bool, error) {
+	return r.docker.NetworkInspect(ctx, name)
+}
+
+// NetworkRemove 删除网络（有关联容器时拒绝）。
+func (r *Runtime) NetworkRemove(ctx context.Context, name string) error {
+	return r.docker.NetworkRemove(ctx, name)
+}
+
+// NetworkListManaged 列出受管网络。
+func (r *Runtime) NetworkListManaged(ctx context.Context) ([]docker.NetworkInfo, error) {
+	return r.docker.NetworkListManaged(ctx)
+}
+
+// NetworkCheck 采集本机网络占用情况，供 CM 做池冲突检测。
+func (r *Runtime) NetworkCheck(ctx context.Context) (agentprotocol.NetworkCheckResult, error) {
+	c, err := r.docker.NetworkCheck(ctx)
+	if err != nil {
+		return agentprotocol.NetworkCheckResult{}, err
+	}
+	out := agentprotocol.NetworkCheckResult{
+		HostRoutes:        c.HostRoutes,
+		InterfaceNetworks: c.InterfaceNetworks,
+	}
+	for _, n := range c.DockerNetworks {
+		out.DockerNetworks = append(out.DockerNetworks, agentprotocol.NetworkInfoPayload{
+			NetworkID: n.ID, NetworkName: n.Name, Driver: n.Driver,
+			Subnet: n.Subnet, Gateway: n.Gateway, Managed: n.Managed, Containers: n.Containers,
+		})
+	}
+	return out, nil
+}
 
 // Info 返回节点资源与容量。
 func (r *Runtime) Info(ctx context.Context) (docker.NodeInfo, error) {

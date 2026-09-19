@@ -7,6 +7,7 @@ import (
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/desired"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/netpools"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -30,20 +31,20 @@ type NodeStatus struct {
 
 // ContainerStatus 是受管容器对管理端的视图（含所在节点）。
 type ContainerStatus struct {
-	InstanceID  string            `json:"instance_id"`
-	ContainerID string            `json:"container_id"`
-	Name        string            `json:"name"`
-	Image       string            `json:"image"`
-	State       string            `json:"state"`
-	Status      string            `json:"status"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	InstanceID    string            `json:"instance_id"`
+	ContainerID   string            `json:"container_id"`
+	Name          string            `json:"name"`
+	Image         string            `json:"image"`
+	State         string            `json:"state"`
+	Status        string            `json:"status"`
+	Labels        map[string]string `json:"labels,omitempty"`
 	NodeName      string            `json:"node_name"`
 	HostPort      int               `json:"host_port"`
 	ContainerPort int               `json:"container_port"`
 	IP            string            `json:"ip"`
-	ExitCode    int               `json:"exit_code"`
-	OOMKilled   bool              `json:"oom_killed"`
-	FinishedAt  string            `json:"finished_at,omitempty"`
+	ExitCode      int               `json:"exit_code"`
+	OOMKilled     bool              `json:"oom_killed"`
+	FinishedAt    string            `json:"finished_at,omitempty"`
 }
 
 // Mgmt 汇总管理读接口所需的数据源（函数字段，便于从各子系统装配而无需额外适配器）。
@@ -70,6 +71,20 @@ type Mgmt struct {
 	AllocatePort func(ctx context.Context, resourceID, kind, nodeID string) (int, error)
 	// ReleasePort 归还某资源的全部端口占用。
 	ReleasePort func(ctx context.Context, resourceID string) error
+
+	// ---- 项目级 IP 池 ----
+	// NetworkPools 列出某节点的网络池（含容量/用量统计）。
+	NetworkPools func(nodeID string) []netpools.PoolView
+	// CreateNetworkPool 新增网络池。
+	CreateNetworkPool func(ctx context.Context, in netpools.CreatePoolInput) (netpools.PoolView, error)
+	// UpdateNetworkPool 更新网络池的可变字段。
+	UpdateNetworkPool func(ctx context.Context, nodeID, poolID string, in netpools.UpdatePoolInput) (netpools.PoolView, error)
+	// DeleteNetworkPool 删除网络池（在用则拒绝）。
+	DeleteNetworkPool func(ctx context.Context, nodeID, poolID string) error
+	// CheckNetworkPool 复检网络池冲突。
+	CheckNetworkPool func(ctx context.Context, nodeID, poolID string) (netpools.PoolView, error)
+	// ProjectNetwork 查询某项目占用的网段。
+	ProjectNetwork func(projectID string) (netpools.ProjectNetwork, bool)
 }
 
 // registerMgmt 挂载管理读接口与人工控制接口（令牌认证，供 Gateway 聚合代理调用）。

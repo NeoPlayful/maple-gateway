@@ -10,6 +10,7 @@ import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
+import { NetworkPoolsModal } from '../../components/admin/NetworkPoolsModal';
 import { PageHeader } from '../../themes';
 
 // 筛选栏：关键字（节点名/主机地址）+ 状态 + 区域，纯前端过滤已加载列表。
@@ -53,6 +54,8 @@ export default function NodesPage() {
   const [cmEnabled, setCmEnabled] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  // 网络池弹窗：poolsNode 非空时打开（存节点 id 与名）。
+  const [poolsNode, setPoolsNode] = useState<{ id: string; name: string } | null>(null);
 
   // 表单弹窗：editing 非空=编辑，空=新建。
   const [formOpen, setFormOpen] = useState(false);
@@ -354,6 +357,12 @@ export default function NodesPage() {
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-1">
                       <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
+                      <ActionBtn
+                        onClick={() => setPoolsNode({ id: cn?.gateway_id || r.id, name: r.name })}
+                        disabled={!cmEnabled || !cn}
+                      >
+                        {t('nodes.pools')}
+                      </ActionBtn>
                       {inactiveStates.includes(r.status)
                         ? <ActionBtn onClick={() => act(r.id, 'enable')}>{t('common.enable')}</ActionBtn>
                         : null}
@@ -378,6 +387,15 @@ export default function NodesPage() {
         onConfirm={doDelete}
         onCancel={() => setDeleteId(null)}
       />
+
+      {poolsNode && (
+        <NetworkPoolsModal
+          open={poolsNode !== null}
+          nodeId={poolsNode.id}
+          nodeName={poolsNode.name}
+          onClose={() => setPoolsNode(null)}
+        />
+      )}
     </div>
   );
 }

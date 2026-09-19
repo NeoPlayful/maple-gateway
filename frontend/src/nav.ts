@@ -34,6 +34,7 @@ export const nav: NavItem[] = [
   { to: '/admin', label: 'nav.dashboard', end: true, icon: Squares2X2Icon },
   { to: '/admin/users', label: 'nav.users', icon: UsersIcon },
   { to: '/admin/tenants', label: 'nav.tenants', icon: BuildingOffice2Icon },
+  { to: '/admin/projects', label: 'nav.projects', icon: FolderIcon },
   { to: '/admin/domains', label: 'nav.domains', icon: GlobeAltIcon },
   { to: '/admin/certificates', label: 'nav.certificates', icon: ShieldCheckIcon },
   { to: '/admin/services', label: 'nav.services', icon: ServerStackIcon },
@@ -48,7 +49,6 @@ export const nav: NavItem[] = [
   { to: '/admin/runtime', label: 'nav.runtime', icon: WrenchScrewdriverIcon },
   { to: '/admin/applications', label: 'nav.applications', icon: CircleStackIcon },
   { to: '/admin/templates', label: 'nav.templates', icon: RectangleStackIcon },
-  { to: '/admin/projects', label: 'nav.projects', icon: FolderIcon },
   { to: '/admin/logs', label: 'nav.logs', icon: DocumentTextIcon },
   { to: '/admin/settings', label: 'nav.settings', icon: Cog6ToothIcon },
 ];

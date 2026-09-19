@@ -28,10 +28,13 @@ const (
 	ActionImageRemove  = "image.remove"
 
 	// 网络。
-	ActionNetworkList    = "network.list"
-	ActionNetworkInspect = "network.inspect"
-	ActionNetworkCreate  = "network.create"
-	ActionNetworkRemove  = "network.remove"
+	ActionNetworkList        = "network.list"
+	ActionNetworkInspect     = "network.inspect"
+	ActionNetworkCreate      = "network.create"
+	ActionNetworkRemove      = "network.remove"
+	ActionNetworkDelete      = "network.delete"
+	ActionNetworkListManaged = "network.list_managed"
+	ActionNetworkCheck       = "network.check"
 
 	// 卷。
 	ActionVolumeList    = "volume.list"
@@ -60,6 +63,7 @@ var allowedActions = map[string]struct{}{
 	ActionContainerRemove: {}, ActionContainerStats: {},
 	ActionImageList: {}, ActionImageInspect: {}, ActionImagePull: {}, ActionImageRemove: {},
 	ActionNetworkList: {}, ActionNetworkInspect: {}, ActionNetworkCreate: {}, ActionNetworkRemove: {},
+	ActionNetworkDelete: {}, ActionNetworkListManaged: {}, ActionNetworkCheck: {},
 	ActionVolumeList: {}, ActionVolumeInspect: {}, ActionVolumeCreate: {}, ActionVolumeRemove: {},
 	ActionApplicationValidate: {}, ActionApplicationDeploy: {}, ActionApplicationStop: {},
 	ActionApplicationStart: {}, ActionApplicationRestart: {}, ActionApplicationRemove: {},

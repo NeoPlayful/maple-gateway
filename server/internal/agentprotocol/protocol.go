@@ -27,11 +27,11 @@ const (
 	TypeHeartbeat  MessageType = "heartbeat"   // Agent → CM：存活心跳
 
 	// 状态类。
-	TypeNodeInfo        MessageType = "node.info"         // Agent → CM：节点静态信息（主机/内核/Docker）
-	TypeNodeMetrics     MessageType = "node.metrics"      // Agent → CM：主机资源指标
-	TypeDockerEvent     MessageType = "docker.event"      // Agent → CM：Docker 事件
+	TypeNodeInfo        MessageType = "node.info"          // Agent → CM：节点静态信息（主机/内核/Docker）
+	TypeNodeMetrics     MessageType = "node.metrics"       // Agent → CM：主机资源指标
+	TypeDockerEvent     MessageType = "docker.event"       // Agent → CM：Docker 事件
 	TypeContainerSnap   MessageType = "container.snapshot" // Agent → CM：受管容器快照（兜底/周期）
-	TypeNodeStatusEvent MessageType = "node.status"       // CM → Agent：节点状态变化通知（可选）
+	TypeNodeStatusEvent MessageType = "node.status"        // CM → Agent：节点状态变化通知（可选）
 
 	// 任务类。
 	TypeTaskExecute  MessageType = "task.execute"  // CM → Agent：下发任务

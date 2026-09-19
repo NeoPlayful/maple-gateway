@@ -14,17 +14,17 @@ import (
 
 // SyncNode 上报的一个节点及其实例。
 type SyncNode struct {
-	Name      string           `json:"name" validate:"required"`
-	Host      string           `json:"host" validate:"required"`
-	Region    string           `json:"region"`
+	Name      string            `json:"name" validate:"required"`
+	Host      string            `json:"host" validate:"required"`
+	Region    string            `json:"region"`
 	Labels    map[string]string `json:"labels"`
-	Weight    int              `json:"weight"`
-	Instances []SyncInstance   `json:"instances"`
+	Weight    int               `json:"weight"`
+	Instances []SyncInstance    `json:"instances"`
 }
 
 // SyncInstance 上报的一个实例。
 type SyncInstance struct {
-	ServiceID    uuid.UUID `json:"service_id" validate:"required"`
+	ServiceID    uuid.UUID  `json:"service_id" validate:"required"`
 	DeploymentID *uuid.UUID `json:"deployment_id"`
 	VersionID    *uuid.UUID `json:"version_id"`
 	Version      string     `json:"version"`

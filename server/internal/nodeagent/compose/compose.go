@@ -173,14 +173,14 @@ func (d *Driver) Remove(ctx context.Context, project string) (string, error) {
 
 // Service 是一个 Compose 服务运行态（compose ps 解析结果）。
 type Service struct {
-	Name          string      `json:"name"`
-	Service       string      `json:"service"`
-	State         string      `json:"state"`
-	Status        string      `json:"status,omitempty"`
-	Health        string      `json:"health,omitempty"`
-	Image         string      `json:"image,omitempty"`
-	ContainerID   string      `json:"container_id,omitempty"`
-	Publishers    []Publisher `json:"publishers,omitempty"`
+	Name        string      `json:"name"`
+	Service     string      `json:"service"`
+	State       string      `json:"state"`
+	Status      string      `json:"status,omitempty"`
+	Health      string      `json:"health,omitempty"`
+	Image       string      `json:"image,omitempty"`
+	ContainerID string      `json:"container_id,omitempty"`
+	Publishers  []Publisher `json:"publishers,omitempty"`
 }
 
 // Publisher 是一个发布端口。

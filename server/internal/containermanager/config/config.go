@@ -46,6 +46,10 @@ type CMConfig struct {
 	// 模板实例化时按需从这个区间取空闲端口注入容器映射，避免多项目抢占同一宿主端口。
 	PortRangeStart int `yaml:"port_range_start"`
 	PortRangeEnd   int `yaml:"port_range_end"`
+	// DefaultNetworkPool/DefaultProjectPrefix 是新节点自动初始化默认网络池的地址段与项目前缀。
+	// 仅影响未来新节点；已存在的池不受改动影响（文档 §13/§44/§97）。
+	DefaultNetworkPool   string `yaml:"default_network_pool"`
+	DefaultProjectPrefix int    `yaml:"default_project_prefix"`
 	// Nodes 静态登记的节点清单：CM 据此探测 Agent 并采集容器状态。
 	// 生产可由 Agent 自注册扩展；本期以配置登记为主。
 	Nodes []NodeConfig `yaml:"nodes"`
@@ -74,15 +78,17 @@ type LoggingConfig struct {
 func Default() *Config {
 	return &Config{
 		CM: CMConfig{
-			Listen:             ":9091",
-			AgentListen:        ":9093",
-			ReconcileInterval:  5 * time.Second,
-			ObserveInterval:    10 * time.Second,
-			DefaultReplicas:    1,
-			TaskTimeout:        5 * time.Minute,
-			EnrollmentRequired: false,
-			PortRangeStart:     20000,
-			PortRangeEnd:       30000,
+			Listen:               ":9091",
+			AgentListen:          ":9093",
+			ReconcileInterval:    5 * time.Second,
+			ObserveInterval:      10 * time.Second,
+			DefaultReplicas:      1,
+			TaskTimeout:          5 * time.Minute,
+			EnrollmentRequired:   false,
+			PortRangeStart:       20000,
+			PortRangeEnd:         30000,
+			DefaultNetworkPool:   "10.128.0.0/9",
+			DefaultProjectPrefix: 24,
 		},
 		Logging: LoggingConfig{Level: "info"},
 	}
@@ -157,6 +163,14 @@ func (c *Config) applyEnv() {
 	if v := os.Getenv("MAPLE_CM_PORT_RANGE_END"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.CM.PortRangeEnd = n
+		}
+	}
+	if v := os.Getenv("MAPLE_CM_DEFAULT_NETWORK_POOL"); v != "" {
+		c.CM.DefaultNetworkPool = v
+	}
+	if v := os.Getenv("MAPLE_CM_DEFAULT_PROJECT_PREFIX"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.CM.DefaultProjectPrefix = n
 		}
 	}
 	if v := os.Getenv("MAPLE_LOG_LEVEL"); v != "" {

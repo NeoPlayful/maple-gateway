@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api } from '../../lib/client';
-import type { AppTemplate, Project, Tenant } from '../../types';
+import type { AppTemplate, Project, ProjectNetwork, Tenant } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
@@ -44,6 +44,22 @@ export default function ProjectsPage() {
   const [instValues, setInstValues] = useState<Record<string, string>>({});
   const [instErr, setInstErr] = useState('');
   const [instBusy, setInstBusy] = useState(false);
+
+  // 容器网络弹窗：展示项目占用的网段（首次部署后才有）。
+  const [netOf, setNetOf] = useState<Project | null>(null);
+  const [net, setNet] = useState<ProjectNetwork | null>(null);
+  const [netErr, setNetErr] = useState('');
+
+  const openNetwork = async (p: Project) => {
+    setNetOf(p);
+    setNet(null);
+    setNetErr('');
+    try {
+      setNet(await api.get<ProjectNetwork>(`/api/admin/cm/projects/${p.id}/network`));
+    } catch (e) {
+      setNetErr(e instanceof Error ? e.message : t('projects.networkNone'));
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -351,6 +367,7 @@ export default function ProjectsPage() {
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
                     <ActionBtn onClick={() => openInstantiate(r)}>{t('projects.instantiate')}</ActionBtn>
+                    <ActionBtn onClick={() => openNetwork(r)}>{t('projects.network')}</ActionBtn>
                     <ActionBtn onClick={() => openEdit(r)}>{t('common.edit')}</ActionBtn>
                     <ActionBtn danger onClick={() => setDeleteId(r.id)}>{t('common.delete')}</ActionBtn>
                   </div>
@@ -360,6 +377,38 @@ export default function ProjectsPage() {
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={netOf !== null}
+        title={t('projects.network')}
+        onClose={() => setNetOf(null)}
+      >
+        {netErr && (
+          <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            {netErr}
+          </p>
+        )}
+        {net && (
+          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">{t('projects.netName')}</dt>
+              <dd className="font-mono">{net.docker_network_name}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">{t('projects.netSubnet')}</dt>
+              <dd className="font-mono">{net.subnet}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">{t('projects.netGateway')}</dt>
+              <dd className="font-mono">{net.gateway}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500 dark:text-slate-400">{t('projects.netStatus')}</dt>
+              <dd><StatusBadge value={net.status} /></dd>
+            </div>
+          </dl>
+        )}
+      </Modal>
 
       <ConfirmDialog
         open={deleteId !== null}
