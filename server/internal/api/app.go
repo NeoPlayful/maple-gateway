@@ -355,6 +355,9 @@ func New(d Deps) *fiber.App {
 		admin.Patch("/settings/:section", setH.Update)
 		admin.Get("/settings/:section/history", setH.History)
 		admin.Patch("/settings/:section/rollback", setH.Rollback)
+		// 系统级容器网络默认（只影响未来新节点默认池，见文档第44节）。
+		admin.Get("/system/container-network", setH.GetContainerNetwork)
+		admin.Put("/system/container-network", setH.UpdateContainerNetwork)
 	}
 
 	// Direct TLS 证书管理（可选：需 MAPLE_CERT_ENC_KEY 才能构造）。

@@ -22,6 +22,7 @@ const (
 	SectionLogging    Section = "logging"
 	SectionMetrics    Section = "metrics"
 	SectionAppearance Section = "appearance"
+	SectionContainer  Section = "container"
 )
 
 // Entry 是一条配置键值。

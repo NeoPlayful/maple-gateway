@@ -637,13 +637,28 @@
       "health": "Health",
       "security": "Security",
       "logging": "Logging",
-      "metrics": "Metrics"
+      "metrics": "Metrics",
+      "container": "Container"
     },
     "appearanceSaving": "Saving…",
     "appearanceSaved": "Saved — applies to all visitors",
     "appearanceSaveFailed": "Save failed, please retry",
     "appearanceUnsaved": "You have unsaved changes",
-    "logDebug": "Debug logging (verbose)"
+    "logDebug": "Debug logging (verbose)",
+    "containerNet": {
+      "title": "Container Network",
+      "hint": "System defaults only affect the default pool of future new nodes; existing pools are untouched.",
+      "defaultPool": "Default IPv4 Pool",
+      "projectPrefix": "Project Prefix",
+      "allocationMode": "Allocation",
+      "allocationSequential": "Sequential",
+      "reuseEnabled": "Reuse Released Subnets",
+      "reuseDelay": "Reuse Delay (seconds)",
+      "capacityPreview": "Splits into {{n}} project subnets",
+      "capacityInvalid": "Invalid pool or prefix",
+      "saved": "Saved — applies to new nodes",
+      "saveFailed": "Save failed"
+    }
   },
   "applications": {
     "title": "Compose Applications",

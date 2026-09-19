@@ -54,21 +54,33 @@ type PoolChecker interface {
 
 // DefaultPoolConfig 是新节点自动初始化默认池的配置。
 type DefaultPoolConfig struct {
-	AddressPool   string
-	ProjectPrefix int
+	AddressPool       string
+	ProjectPrefix     int
+	ReuseEnabled      bool
+	ReuseDelaySeconds int
 }
 
-// DefaultSystemPool 返回系统默认池配置（文档 §13）。
+// DefaultSystemPool 返回系统默认池配置（文档第13节）。
 func DefaultSystemPool() DefaultPoolConfig {
-	return DefaultPoolConfig{AddressPool: "10.128.0.0/9", ProjectPrefix: 24}
+	return DefaultPoolConfig{
+		AddressPool: "10.128.0.0/9", ProjectPrefix: 24,
+		ReuseEnabled: true, ReuseDelaySeconds: 600,
+	}
 }
 
-// WithDefaultPool 覆盖默认池配置（来自 CM 配置）。
+// WithDefaultPool 覆盖默认池配置（来自 CM 配置或共享 settings）。
 func (s *Service) WithDefaultPool(cfg DefaultPoolConfig) *Service {
 	if cfg.AddressPool != "" && cfg.ProjectPrefix > 0 {
 		s.defaultPool = cfg
 	}
 	return s
+}
+
+// SetDefaultPool 运行期替换默认池配置（新节点上线时按最新系统默认初始化）。
+func (s *Service) SetDefaultPool(cfg DefaultPoolConfig) {
+	if cfg.AddressPool != "" && cfg.ProjectPrefix > 0 {
+		s.defaultPool = cfg
+	}
 }
 
 // NewService 构造。checker 可空（未接入 Agent 时跳过冲突复检）。
@@ -201,11 +213,20 @@ func (s *Service) EnsureDefaultForNode(ctx context.Context, nodeID string) error
 	if len(s.pools.ListByNode(nodeID)) > 0 {
 		return nil
 	}
-	_, err := s.pools.Create(ctx, Pool{
+	created, err := s.pools.Create(ctx, Pool{
 		NodeID: nodeID, Name: "default",
 		AddressPool: s.defaultPool.AddressPool, ProjectPrefix: s.defaultPool.ProjectPrefix,
 		Priority: 10, IsSystemDefault: true,
 	})
+	if err != nil {
+		return err
+	}
+	// Create 统一置复用于启用；此处按系统默认覆盖为管理员设定值（默认仍为启用/600s）。
+	created.ReuseEnabled = s.defaultPool.ReuseEnabled
+	if s.defaultPool.ReuseDelaySeconds > 0 {
+		created.ReuseDelaySeconds = s.defaultPool.ReuseDelaySeconds
+	}
+	_, err = s.pools.Update(ctx, created)
 	return err
 }
 

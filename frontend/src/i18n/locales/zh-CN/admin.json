@@ -637,13 +637,28 @@
       "health": "健康检查",
       "security": "安全",
       "logging": "日志",
-      "metrics": "指标"
+      "metrics": "指标",
+      "container": "容器"
     },
     "appearanceSaving": "保存中…",
     "appearanceSaved": "已保存，对所有访问者生效",
     "appearanceSaveFailed": "保存失败，请重试",
     "appearanceUnsaved": "有未保存的修改",
-    "logDebug": "调试日志（详细输出）"
+    "logDebug": "调试日志（详细输出）",
+    "containerNet": {
+      "title": "容器网络",
+      "hint": "系统默认只影响未来新节点的默认池，不会改动已存在的池。",
+      "defaultPool": "默认 IPv4 地址池",
+      "projectPrefix": "项目前缀",
+      "allocationMode": "分配模式",
+      "allocationSequential": "顺序分配",
+      "reuseEnabled": "复用已释放子网",
+      "reuseDelay": "复用冷却时间（秒）",
+      "capacityPreview": "可切分 {{n}} 个项目网段",
+      "capacityInvalid": "地址池或前缀非法",
+      "saved": "已保存，对新节点生效",
+      "saveFailed": "保存失败"
+    }
   },
   "applications": {
     "title": "Compose 应用",
