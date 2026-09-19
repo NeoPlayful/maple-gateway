@@ -9,7 +9,9 @@ import { Field } from '../../components/admin/Field';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
+import { IdCell } from '../../components/admin/IdCell';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 // 筛选栏：关键字（项目名/描述）+ 状态 + 租户，纯前端过滤已加载列表。
 const PROJECT_FILTERS: FilterDef[] = [
@@ -341,6 +343,7 @@ export default function ProjectsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
+              <th className="px-4 py-2">{t('fields.id')}</th>
               <th className="px-4 py-2">{t('projects.projectName')}</th>
               <th className="px-4 py-2">{t('fields.tenant')}</th>
               <th className="px-4 py-2">{t('projects.template')}</th>
@@ -352,17 +355,18 @@ export default function ProjectsPage() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   {rows.length === 0 ? t('projects.none') : t('common.noMatch')}
                 </td>
               </tr>
             )}
             {filtered.map((r) => (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
+                <td className="px-4 py-2"><IdCell id={r.id} /></td>
                 <td className="px-4 py-2 font-medium">{r.name}</td>
                 <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{tenantName(r.tenant_id) || '-'}</td>
                 <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{templateName(r.template_id) || '-'}</td>
-                <td className="px-4 py-2 font-mono text-xs">{r.application_id ? r.application_id.slice(0, 8) : '-'}</td>
+                <td className="px-4 py-2 font-mono text-xs">{r.application_id ? shortId(r.application_id) : '-'}</td>
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">

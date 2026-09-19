@@ -1,6 +1,7 @@
 // 外观设置卡片：主题 + 深浅即时本地预览，底部"保存主题设置"按钮把选择写入后端（站点级）。
 // 主题卡片由 themeRegistry 扫描各主题目录的 theme.json 数据驱动，加主题零改动。
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { useTheme } from '../stores/theme';
 import { getAvailableThemes, getThemeMeta } from '../lib/themeRegistry';
 
@@ -16,6 +17,12 @@ export default function AppearanceSettings() {
   const themeNames = getAvailableThemes();
 
   const dirty = isDirty();
+
+  const handleSave = async () => {
+    const ok = await saveToServer();
+    if (ok) toast.success(t('settings.appearanceSaved'));
+    else toast.error(t('settings.appearanceSaveFailed'));
+  };
 
   return (
     <div>
@@ -83,7 +90,7 @@ export default function AppearanceSettings() {
       {/* 保存条 */}
       <div className="mt-4 flex items-center gap-3">
         <button
-          onClick={saveToServer}
+          onClick={handleSave}
           disabled={!dirty || saveStatus === 'saving'}
           className={`rounded px-4 py-1.5 text-sm transition-colors disabled:cursor-not-allowed ${
             dirty && saveStatus !== 'saving'
@@ -93,12 +100,6 @@ export default function AppearanceSettings() {
         >
           {saveStatus === 'saving' ? t('settings.appearanceSaving') : t('common.save')}
         </button>
-        {saveStatus === 'saved' && (
-          <span className="text-xs text-th-accent-text">{t('settings.appearanceSaved')}</span>
-        )}
-        {saveStatus === 'error' && (
-          <span className="text-xs text-rose-600 dark:text-rose-400">{t('settings.appearanceSaveFailed')}</span>
-        )}
       </div>
     </div>
   );

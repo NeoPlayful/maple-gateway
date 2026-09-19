@@ -8,6 +8,7 @@ import { StatusBadge } from '../../components/admin/StatusBadge';
 import { api, ApiError } from '../../lib/client';
 import { list } from '../../lib/modules';
 import type { CMOverview, Instance, Version } from '../../types';
+import { shortId } from '../../lib/ids';
 
 // 实例行：展示 版本 → 实例 下钻结果，并提供重启/停止/启动与日志查看。
 function InstanceRow({
@@ -26,7 +27,7 @@ function InstanceRow({
     <div className="flex items-center justify-between rounded-th-control border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800">
       <div className="flex min-w-0 items-center gap-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${inst.health === 'healthy' ? 'bg-emerald-500' : inst.health === 'unhealthy' ? 'bg-rose-500' : 'bg-slate-400'}`} />
-        <span className="font-mono text-slate-600 dark:text-slate-300">{inst.id.slice(0, 8)}</span>
+        <span className="font-mono text-slate-600 dark:text-slate-300">{shortId(inst.id)}</span>
         <span className="text-slate-400">{nodeName}</span>
         <span className="font-mono text-slate-400">{inst.port > 0 ? `${inst.address}:${inst.port}` : inst.address}</span>
         <StatusBadge value={inst.health} />
@@ -115,7 +116,7 @@ function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const nodeName = (id?: string | null) => nodes.find((n) => n.id === id)?.name ?? (id ? id.slice(0, 8) : '-');
+  const nodeName = (id?: string | null) => nodes.find((n) => n.id === id)?.name ?? (id ? shortId(id) : '-');
 
   const act = async (id: string, a: string) => {
     try {
@@ -181,7 +182,7 @@ function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
 
       <Modal
         open={log !== null}
-        title={`${t('deployments.logTitle')} · ${log?.id.slice(0, 8) ?? ''}`}
+        title={`${t('deployments.logTitle')} · ${log ? shortId(log.id) : ''}`}
         onClose={() => setLog(null)}
         maxWidth="max-w-4xl"
       >
@@ -198,7 +199,7 @@ const def: PageDef = {
   path: '/api/admin/deployments',
   columns: [
     { key: 'name', label: 'fields.deploymentName' },
-    { key: 'service_id', label: 'fields.service', render: (r) => r.service_id?.slice(0, 8) ?? '-' },
+    { key: 'service_id', label: 'fields.service', render: (r) => r.service_id ? shortId(r.service_id) : '-' },
     { key: 'strategy', label: 'fields.strategy' },
     { key: 'status', label: 'fields.status', badge: true },
   ],

@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { ProgressStepper } from '../../components/admin/ProgressStepper';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 // 签发/续期操作进度（后端 certificate_operations）。
 interface CertificateOperation {
@@ -60,7 +61,7 @@ const CERT_FILTERS: FilterDef[] = [
   { type: 'select', key: 'source', placeholder: 'common.filterAllSource' },
 ];
 
-const domainName = (d?: string | null) => (d ? `${d.slice(0, 8)}…` : '-');
+const domainName = (d?: string | null) => (d ? `${shortId(d)}…` : '-');
 
 const inputCls =
   'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';

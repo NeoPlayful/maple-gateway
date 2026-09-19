@@ -2,6 +2,7 @@
 // 保存经 PUT /api/admin/system/container-network，只影响未来新节点的默认池（文档第59节/第61节）。
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { api } from '../../lib/client';
 import type { ContainerNetworkSettings } from '../../types';
 
@@ -24,7 +25,6 @@ export default function ContainerNetworkSettings() {
   const [cfg, setCfg] = useState<ContainerNetworkSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
 
   const load = async () => {
     try {
@@ -56,14 +56,13 @@ export default function ContainerNetworkSettings() {
   const save = async () => {
     if (!cfg) return;
     setErr('');
-    setMsg('');
     setBusy(true);
     try {
       const saved = await api.put<ContainerNetworkSettings>('/api/admin/system/container-network', cfg);
       setCfg(saved);
-      setMsg(t('settings.containerNet.saved'));
+      toast.success(t('settings.containerNet.saved'));
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('settings.containerNet.saveFailed'));
+      toast.error(e instanceof Error ? e.message : t('settings.containerNet.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -88,9 +87,6 @@ export default function ContainerNetworkSettings() {
           {t('settings.containerNet.title')}
         </h2>
       </div>
-      {msg && (
-        <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>
-      )}
       {err && (
         <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
           {err}

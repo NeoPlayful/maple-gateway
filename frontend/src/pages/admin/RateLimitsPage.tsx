@@ -11,6 +11,7 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 const scopes = [
   { value: 'global', labelKey: 'ratelimit.scopeGlobal' },
@@ -82,9 +83,9 @@ export default function RateLimitsPage() {
   }, [load, loadParents]);
 
   const refName = (r: RateLimit) => {
-    if (r.scope === 'tenant') return tenants.find((x) => x.id === r.tenant_id)?.name ?? r.tenant_id?.slice(0, 8);
-    if (r.scope === 'domain') return domains.find((x) => x.id === r.domain_id)?.hostname ?? r.domain_id?.slice(0, 8);
-    if (r.scope === 'service') return services.find((x) => x.id === r.service_id)?.name ?? r.service_id?.slice(0, 8);
+    if (r.scope === 'tenant') return tenants.find((x) => x.id === r.tenant_id)?.name ?? shortId(r.tenant_id);
+    if (r.scope === 'domain') return domains.find((x) => x.id === r.domain_id)?.hostname ?? shortId(r.domain_id);
+    if (r.scope === 'service') return services.find((x) => x.id === r.service_id)?.name ?? shortId(r.service_id);
     return '—';
   };
 

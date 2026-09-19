@@ -10,6 +10,7 @@ import { StatusBadge } from '../../components/admin/StatusBadge';
 import { Modal } from '../../components/admin/Modal';
 import { Pagination } from '../../components/admin/Pagination';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { shortId } from '../../lib/ids';
 
 // 子组件共用的翻译函数签名（来自 useTranslation('admin')）。
 type TFn = (key: string, opts?: Record<string, unknown>) => string;
@@ -114,7 +115,7 @@ function NodeTasks({
             ) : tasks.map((tk) => (
               <tr key={tk.id} className="border-b border-slate-200 last:border-b-0 dark:border-slate-700">
                 <td className="px-3 py-1.5 font-mono">
-                  <button onClick={() => onOpen(tk.id)} className="text-sky-600 hover:underline dark:text-sky-400">{tk.id.slice(0, 12)}</button>
+                  <button onClick={() => onOpen(tk.id)} className="text-sky-600 hover:underline dark:text-sky-400">{shortId(tk.id)}</button>
                 </td>
                 <td className="px-3 py-1.5 font-mono">{tk.action}</td>
                 <td className="px-3 py-1.5"><StatusBadge value={tk.status} raw /></td>
@@ -179,7 +180,7 @@ function NodeEvents({
                 <td className="px-3 py-1.5">
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-700 dark:text-slate-200">{e.action}</span>
                 </td>
-                <td className="px-3 py-1.5 font-mono">{(e.instance_id || e.container_id || '').slice(0, 8) || '-'}</td>
+                <td className="px-3 py-1.5 font-mono">{shortId(e.instance_id || e.container_id) || '-'}</td>
                 <td className="px-3 py-1.5 font-mono">{e.image || '-'}</td>
                 <td className="px-3 py-1.5 font-mono">{e.exit_code ?? '-'}</td>
               </tr>
@@ -744,7 +745,7 @@ export default function RuntimePage() {
                   >
                     <td className="px-2 py-2 text-center text-slate-400">{open ? '▾' : '▸'}</td>
                     <td className="px-4 py-2 font-mono text-xs">
-                      {ct.instance_id ? ct.instance_id.slice(0, 8) : '-'}
+                      {ct.instance_id ? shortId(ct.instance_id) : '-'}
                       {!inst && (
                         <span
                           title={t('runtime.unmanagedHint')}
@@ -813,7 +814,7 @@ export default function RuntimePage() {
             )}
             {errors.map((e) => (
               <tr key={`${e.node_name}-${e.instance_id}`} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
-                <td className="px-4 py-2 font-mono text-xs">{e.instance_id.slice(0, 8)}</td>
+                <td className="px-4 py-2 font-mono text-xs">{shortId(e.instance_id)}</td>
                 <td className="px-4 py-2">{e.node_name}</td>
                 <td className="px-4 py-2"><span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">{e.state}</span></td>
                 <td className="px-4 py-2 font-mono text-xs">{e.exit_code}</td>
@@ -827,7 +828,7 @@ export default function RuntimePage() {
 
       <Modal
         open={log !== null}
-        title={`${t('deployments.logTitle')} · ${log?.id.slice(0, 8) ?? ''}`}
+        title={`${t('deployments.logTitle')} · ${log ? shortId(log.id) : ''}`}
         onClose={closeLogs}
         maxWidth="max-w-4xl"
       >
@@ -858,7 +859,7 @@ export default function RuntimePage() {
 
       <Modal
         open={taskDetail !== null}
-        title={`${t('runtime.taskDetail')} · ${taskDetail?.id.slice(0, 12) ?? ''}`}
+        title={`${t('runtime.taskDetail')} · ${taskDetail ? shortId(taskDetail.id) : ''}`}
         onClose={() => setTaskDetail(null)}
         maxWidth="max-w-3xl"
       >
@@ -867,11 +868,11 @@ export default function RuntimePage() {
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
               <div><span className="text-slate-400">{t('runtime.colAction')}: </span><span className="font-mono">{taskDetail.action}</span></div>
               <div><span className="text-slate-400">{t('runtime.colStatus')}: </span><StatusBadge value={taskDetail.status} raw /></div>
-              <div><span className="text-slate-400">{t('runtime.colNode')}: </span><span className="font-mono">{taskDetail.node_id || '-'}</span></div>
+              <div><span className="text-slate-400">{t('runtime.colNode')}: </span><span className="font-mono">{taskDetail.node_id ? shortId(taskDetail.node_id) : '-'}</span></div>
               <div><span className="text-slate-400">{t('runtime.colProgress')}: </span>{taskDetail.percent ?? 0}%</div>
               <div><span className="text-slate-400">{t('runtime.createdBy')}: </span>{taskDetail.created_by || '-'}</div>
               <div><span className="text-slate-400">{t('runtime.attempts')}: </span>{taskDetail.attempts}</div>
-              {taskDetail.parent_task_id && <div><span className="text-slate-400">{t('runtime.parentTask')}: </span><span className="font-mono">{taskDetail.parent_task_id.slice(0, 12)}</span></div>}
+              {taskDetail.parent_task_id && <div><span className="text-slate-400">{t('runtime.parentTask')}: </span><span className="font-mono">{shortId(taskDetail.parent_task_id)}</span></div>}
               <div><span className="text-slate-400">{t('runtime.colCreatedAt')}: </span>{taskDetail.created_at_ms ? new Date(taskDetail.created_at_ms).toLocaleString() : '-'}</div>
               {taskDetail.finished_at_ms ? <div><span className="text-slate-400">{t('runtime.finishedAt')}: </span>{new Date(taskDetail.finished_at_ms).toLocaleString()}</div> : null}
               {taskDetail.message && <div className="col-span-2"><span className="text-slate-400">{t('runtime.message')}: </span>{taskDetail.message}</div>}

@@ -9,6 +9,7 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 // 筛选栏：关键字（版本/镜像）+ 服务 + 状态，纯前端过滤已加载的全部版本。
 const VERSION_FILTERS: FilterDef[] = [
@@ -253,8 +254,8 @@ export default function VersionsPage() {
             )}
             {filtered.map((v) => (
               <tr key={v.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.service_name || v.service_id.slice(0, 8)}</td>
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.deployment_name || v.deployment_id.slice(0, 8)}</td>
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.service_name || shortId(v.service_id)}</td>
+                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.deployment_name || shortId(v.deployment_id)}</td>
                 <td className="px-4 py-2 font-medium">{v.version}</td>
                 <td className="px-4 py-2 font-mono text-xs">{v.image || '-'}</td>
                 <td className="px-4 py-2">{v.replicas ?? 1}</td>

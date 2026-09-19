@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { api } from '../../lib/client';
 import AppearanceSettings from '../../components/AppearanceSettings';
 import ContainerNetworkSettings from '../../components/admin/ContainerNetworkSettings';
@@ -18,7 +19,6 @@ export default function SettingsPage() {
   const [section, setSection] = useState('appearance');
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
 
   const load = async () => {
     try {
@@ -49,7 +49,6 @@ export default function SettingsPage() {
 
   const save = async () => {
     setErr('');
-    setMsg('');
     const body: Record<string, unknown> = {};
     for (const [k, raw] of Object.entries(draft)) {
       if (raw === '') continue;
@@ -62,17 +61,16 @@ export default function SettingsPage() {
     }
     try {
       await api.patch(`/api/admin/settings/${section}`, body);
-      setMsg(t('settings.saved'));
+      toast.success(t('settings.saved'));
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t('settings.saveFailed'));
+      toast.error(e instanceof Error ? e.message : t('settings.saveFailed'));
     }
   };
 
   return (
     <div>
       <PageHeader title={t('settings.title')} />
-      {msg && <p className="mb-3 rounded bg-th-accent-soft-bg px-3 py-2 text-sm text-th-accent-soft-text">{msg}</p>}
       {err && <p className="mb-3 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">{err}</p>}
 
       <div className="mb-4 flex flex-wrap gap-2">

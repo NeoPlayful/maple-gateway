@@ -9,6 +9,8 @@ import { StatusBadge } from '../../components/admin/StatusBadge';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
+import { IdCell } from '../../components/admin/IdCell';
+import { shortId } from '../../lib/ids';
 
 // 筛选栏：关键字（应用名/描述）+ 状态，纯前端过滤已加载列表。
 const APP_FILTERS: FilterDef[] = [
@@ -218,6 +220,7 @@ export default function ApplicationsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
             <tr>
+              <th className="px-4 py-2">{t('fields.id')}</th>
               <th className="px-4 py-2">{t('fields.name')}</th>
               <th className="px-4 py-2">{t('fields.tenant')}</th>
               <th className="px-4 py-2">{t('applications.colVersion')}</th>
@@ -230,11 +233,12 @@ export default function ApplicationsPage() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{sorted.length === 0 ? t('applications.none') : t('common.noMatch')}</td>
+                <td colSpan={8} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">{sorted.length === 0 ? t('applications.none') : t('common.noMatch')}</td>
               </tr>
             )}
             {filtered.map((a) => (
               <tr key={a.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
+                <td className="px-4 py-2"><IdCell id={a.id} /></td>
                 <td className="px-4 py-2">
                   <button onClick={() => openDetail(a)} className="font-semibold text-sky-600 hover:underline dark:text-sky-400">{a.name}</button>
                   {a.description && <p className="text-xs text-slate-400">{a.description}</p>}
@@ -244,7 +248,7 @@ export default function ApplicationsPage() {
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{a.version || '-'}</td>
                 <td className="px-4 py-2"><StatusBadge value={a.status} raw label={a.status === 'running' ? t('applications.statusRunning') : undefined} /></td>
-                <td className="px-4 py-2 font-mono text-xs">{a.node_id ? a.node_id.slice(0, 8) : '-'}</td>
+                <td className="px-4 py-2 font-mono text-xs">{a.node_id ? shortId(a.node_id) : '-'}</td>
                 <td className="px-4 py-2 text-xs text-slate-400">{a.updated_at ? new Date(a.updated_at).toLocaleString() : '-'}</td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">

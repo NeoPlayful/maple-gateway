@@ -1,11 +1,12 @@
 import CrudPage, { PageDef } from '../../components/CrudPage';
+import { shortId } from '../../lib/ids';
 
 const def: PageDef = {
   title: 'services.title',
   path: '/api/admin/services',
   columns: [
     { key: 'name', label: 'fields.name' },
-    { key: 'tenant_id', label: 'fields.tenant', render: (r) => r.tenant_id?.slice(0, 8) ?? '-' },
+    { key: 'tenant_id', label: 'fields.tenant', render: (r) => r.tenant_id ? shortId(r.tenant_id) : '-' },
     { key: 'protocol', label: 'fields.protocol' },
     { key: 'status', label: 'fields.status', badge: true },
   ],

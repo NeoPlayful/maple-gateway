@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import CrudPage, { PageDef } from '../../components/CrudPage';
-import { IdCell } from '../../components/admin/IdCell';
 import { DetailGrid } from '../../components/admin/DetailGrid';
+import { shortId } from '../../lib/ids';
 
 // 未绑定证书时的占位提示（需在组件内取 t，故单独成组件）。
 function NoCertHint() {
@@ -30,9 +30,8 @@ const def: PageDef = {
   title: 'domains.title',
   path: '/api/admin/domains',
   columns: [
-    { key: 'id', label: 'fields.id', render: (r) => <IdCell id={r.id} /> },
     { key: 'hostname', label: 'fields.hostname' },
-    { key: 'tenant_id', label: 'fields.tenant', render: (r) => r.tenant_id?.slice(0, 8) ?? '-' },
+    { key: 'tenant_id', label: 'fields.tenant', render: (r) => r.tenant_id ? shortId(r.tenant_id) : '-' },
     { key: 'tls_mode', label: 'fields.tlsMode', render: (r) => tlsLabel(r.tls_mode) },
     { key: 'certificate_status', label: 'fields.certificateStatus', render: (r) => r.certificate_status ?? '-' },
     { key: 'status', label: 'fields.status', badge: true },
@@ -92,10 +91,9 @@ const def: PageDef = {
         <DetailGrid
           title="domains.detailDomain"
           items={[
-            { label: 'fields.id', value: r.id },
             { label: 'fields.hostname', value: r.hostname },
-            { label: 'fields.tenant', value: r.tenant_id },
-            { label: 'fields.service', value: r.service_id },
+            { label: 'fields.tenant', value: r.tenant_id ? shortId(r.tenant_id) : '-' },
+            { label: 'fields.service', value: r.service_id ? shortId(r.service_id) : '-' },
             { label: 'fields.tlsMode', value: tlsLabel(r.tls_mode) },
             { label: 'fields.status', value: r.status },
             { label: 'fields.certificateStatus', value: r.certificate_status },
