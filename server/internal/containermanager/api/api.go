@@ -32,7 +32,7 @@ func New(cfg *config.Config, logger *zap.Logger, store *desired.Store, stats Sta
 		return c.JSON(fiber.Map{"status": "ok", "service": "cm"})
 	})
 
-	registerDeployments(app, store, cfg.CM.Token, mgmt.RemoveDeployment)
+	registerDeployments(app, store, cfg.CM.Token, mgmt.RemoveDeployment, mgmt.RemoveVersion)
 	if stats != nil {
 		registerStats(app, cfg.CM.Token, stats)
 	}

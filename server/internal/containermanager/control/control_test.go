@@ -102,6 +102,61 @@ func TestRemoveDeploymentRemovesOnlyItsContainers(t *testing.T) {
 	}
 }
 
+// obsContainerVer 构造一个带部署+版本标签的受管容器观测项。
+func obsContainerVer(instanceID, deploymentID, versionID string) observer.ObservedContainer {
+	return observer.ObservedContainer{
+		NodeName: "n1", InstanceID: instanceID,
+		Container: gwclient.Container{
+			ID: "c-" + instanceID, State: "running", InstanceID: instanceID,
+			Labels: map[string]string{
+				"maple.deployment_id": deploymentID,
+				"maple.version_id":    versionID,
+			},
+		},
+	}
+}
+
+// 删除版本时只应回收该版本的容器，同部署其它版本的容器必须原封不动。
+func TestRemoveVersionRemovesOnlyItsVersion(t *testing.T) {
+	cmd := &fakeCommander{}
+	reg := newOnlineRegistry(cmd)
+
+	dep := uuid.NewString()
+	v3 := uuid.NewString()
+	v2 := uuid.NewString()
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{
+		"i31": obsContainerVer("i31", dep, v3),
+		"i32": obsContainerVer("i32", dep, v3),
+		"i21": obsContainerVer("i21", dep, v2),
+	}}
+	c := New(reg, fa, desired.NewStore(nil), nil, zap.NewNop())
+
+	got := c.RemoveVersion(context.Background(), dep, v3)
+	if got != 2 {
+		t.Errorf("removed = %d, want 2 (only version v3)", got)
+	}
+	if n := cmd.count(agentprotocol.ActionContainerRemove); n != 2 {
+		t.Errorf("remove calls = %d, want 2 (must not touch v2)", n)
+	}
+}
+
+// 空 version_id 不应发起任何删除。
+func TestRemoveVersionEmptyIDIsNoop(t *testing.T) {
+	cmd := &fakeCommander{}
+	reg := newOnlineRegistry(cmd)
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{
+		"i1": obsContainerVer("i1", uuid.NewString(), uuid.NewString()),
+	}}
+	c := New(reg, fa, desired.NewStore(nil), nil, zap.NewNop())
+
+	if got := c.RemoveVersion(context.Background(), "", ""); got != 0 {
+		t.Errorf("removed = %d, want 0", got)
+	}
+	if n := cmd.count(agentprotocol.ActionContainerRemove); n != 0 {
+		t.Errorf("remove calls = %d, want 0", n)
+	}
+}
+
 // 空 deployment_id 不应发起任何删除。
 func TestRemoveDeploymentEmptyIDIsNoop(t *testing.T) {
 	cmd := &fakeCommander{}

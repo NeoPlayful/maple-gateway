@@ -233,7 +233,10 @@ func run(configPath string) error {
 		RemoveDeployment: func(cctx context.Context, deploymentID string) int {
 			return ctrl.RemoveDeployment(cctx, deploymentID)
 		},
-		Logs:    func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
+		RemoveVersion: func(cctx context.Context, deploymentID, versionID string) int {
+			return ctrl.RemoveVersion(cctx, deploymentID, versionID)
+		},
+		Logs: func(id string, tail int) (string, error) { return ctrl.Logs(ctx, id, tail) },
 		FollowLogs: func(cctx context.Context, id string, tail int) (<-chan []byte, <-chan struct{}, func() bool, error) {
 			st, err := ctrl.FollowLogs(cctx, id, tail)
 			if err != nil {
