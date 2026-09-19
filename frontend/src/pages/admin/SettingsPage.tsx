@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
 import AppearanceSettings from '../../components/AppearanceSettings';
+import ContainerNetworkSettings from '../../components/admin/ContainerNetworkSettings';
 import { PageHeader } from '../../themes';
 
 type KV = { value: unknown; version: number; updated_at: string };
 type SettingsMap = Record<string, Record<string, KV>>;
 
 const sections = ['gateway', 'proxy', 'health', 'security', 'logging', 'metrics'];
-const tabs = ['appearance', ...sections];
+// container 分区由专用组件渲染（结构化表单，而非通用 KV 输入）。
+const tabs = ['appearance', 'container', ...sections];
 
 export default function SettingsPage() {
   const { t } = useTranslation('admin');
@@ -91,6 +93,10 @@ export default function SettingsPage() {
       {section === 'appearance' ? (
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <AppearanceSettings />
+        </div>
+      ) : section === 'container' ? (
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
+          <ContainerNetworkSettings />
         </div>
       ) : (
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">

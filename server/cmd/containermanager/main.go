@@ -139,8 +139,10 @@ func run(configPath string) error {
 	provisioner := netpools.NewProvisioner(allocator, registryNodeResolver{registry}, logger)
 	netChecker := netpools.NewNodeChecker(registryNodeResolver{registry})
 	netService := netpools.NewService(poolStore, netStore, allocator, netChecker).WithDefaultPool(netpools.DefaultPoolConfig{
-		AddressPool:   cfg.CM.DefaultNetworkPool,
-		ProjectPrefix: cfg.CM.DefaultProjectPrefix,
+		AddressPool:       cfg.CM.DefaultNetworkPool,
+		ProjectPrefix:     cfg.CM.DefaultProjectPrefix,
+		ReuseEnabled:      true,
+		ReuseDelaySeconds: 600,
 	})
 	appCtl := applications.NewController(appStore, registry, logger).WithNetworkProvisioner(provisioner)
 	go obs.Run(ctx)
@@ -161,6 +163,8 @@ func run(configPath string) error {
 				registry.Bind(r.Name, nodeID)
 			}
 			// 新节点自动初始化默认网络池（幂等；已有池不重复建）。
+			// 默认配置以 Gateway 写入的共享 settings 为准（运行期可改），读不到则回退进程配置。
+			netService.SetDefaultPool(netpools.LoadSystemDefaultPool(ctx, sqlDB))
 			if err := netService.EnsureDefaultForNode(ctx, nodeID); err != nil {
 				logger.Warn("初始化节点默认网络池失败", zap.String("node", nodeID), zap.Error(err))
 			}

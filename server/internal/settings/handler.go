@@ -3,6 +3,7 @@ package settings
 import (
 	"encoding/json"
 
+	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/ipam"
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -60,9 +61,9 @@ func (h *Handler) Get(c fiber.Ctx) error {
 func (h *Handler) Update(c fiber.Ctx) error {
 	section := Section(c.Params("section"))
 	switch section {
-	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance:
+	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance, SectionContainer:
 	default:
-		return pkg.Err(c, pkg.ErrValidation("无效的 section（gateway/proxy/health/security/logging/metrics/appearance）"))
+		return pkg.Err(c, pkg.ErrValidation("无效的 section（gateway/proxy/health/security/logging/metrics/appearance/container）"))
 	}
 	var body map[string]json.RawMessage
 	if err := c.Bind().Body(&body); err != nil {
@@ -91,10 +92,52 @@ func (h *Handler) Update(c fiber.Ctx) error {
 // validSection 校验 section 是否受支持。
 func validSection(s string) bool {
 	switch Section(s) {
-	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance:
+	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance, SectionContainer:
 		return true
 	}
 	return false
+}
+
+// GetContainerNetwork GET /api/admin/system/container-network
+// 返回系统默认容器网络配置（缺失键回退内建默认）。
+func (h *Handler) GetContainerNetwork(c fiber.Ctx) error {
+	return pkg.OK(c, h.repo.GetContainerNetwork())
+}
+
+// UpdateContainerNetwork PUT /api/admin/system/container-network
+// 保存系统默认容器网络配置。仅影响未来新节点的默认池，不回溯修改已有池。
+func (h *Handler) UpdateContainerNetwork(c fiber.Ctx) error {
+	var in ContainerNetworkConfig
+	if err := c.Bind().Body(&in); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("请求体格式错误"))
+	}
+	// 校验默认池：CIDR 合法、项目前缀合法、池不与保留段重叠。
+	pool, err := ipam.Parse(in.DefaultNetworkPool)
+	if err != nil {
+		return pkg.Err(c, pkg.ErrValidation("默认地址池非法: "+err.Error()))
+	}
+	if _, err := pool.Capacity(in.DefaultProjectPrefix); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("默认项目前缀非法: "+err.Error()))
+	}
+	if _, err := ipam.ValidatePool(pool); err != nil {
+		return pkg.Err(c, pkg.ErrValidation("默认地址池不可用: "+err.Error()))
+	}
+	if in.AllocationMode == "" {
+		in.AllocationMode = DefaultAllocationMode
+	}
+	if in.AllocationMode != DefaultAllocationMode {
+		return pkg.Err(c, pkg.ErrValidation("暂仅支持 sequential 分配模式"))
+	}
+	if in.DefaultReuseDelaySeconds < 0 {
+		return pkg.Err(c, pkg.ErrValidation("复用冷却时间不可为负"))
+	}
+	if err := h.repo.SaveContainerNetwork(c.Context(), in); err != nil {
+		return pkg.Err(c, err)
+	}
+	if err := h.repo.Reload(c.Context()); err != nil {
+		return pkg.Err(c, err)
+	}
+	return pkg.OK(c, h.repo.GetContainerNetwork())
 }
 
 // History GET /api/admin/settings/:section/history?key=

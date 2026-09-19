@@ -453,3 +453,12 @@ export interface ProjectNetwork {
   status: string;
   last_error?: string;
 }
+
+// 系统级容器网络默认：决定未来新节点自动创建的默认池（不改动已有池）。
+export interface ContainerNetworkSettings {
+  default_network_pool: string;
+  default_project_prefix: number;
+  allocation_mode: string;
+  default_reuse_enabled: boolean;
+  default_reuse_delay_seconds: number;
+}

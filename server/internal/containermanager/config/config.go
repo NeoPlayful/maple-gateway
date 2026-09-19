@@ -47,7 +47,8 @@ type CMConfig struct {
 	PortRangeStart int `yaml:"port_range_start"`
 	PortRangeEnd   int `yaml:"port_range_end"`
 	// DefaultNetworkPool/DefaultProjectPrefix 是新节点自动初始化默认网络池的地址段与项目前缀。
-	// 仅影响未来新节点；已存在的池不受改动影响（文档 §13/§44/§97）。
+	// 仅作为回退：运行期以 Gateway 写入的共享 settings（section=container）为准，
+	// 已存在的池不受改动影响（文档第13节/第44节/第97节）。
 	DefaultNetworkPool   string `yaml:"default_network_pool"`
 	DefaultProjectPrefix int    `yaml:"default_project_prefix"`
 	// Nodes 静态登记的节点清单：CM 据此探测 Agent 并采集容器状态。
