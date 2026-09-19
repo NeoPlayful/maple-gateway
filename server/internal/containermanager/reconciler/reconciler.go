@@ -32,7 +32,7 @@ import (
 // DesiredReader 提供期望态列表（由 desired.Store 实现）。
 type DesiredReader interface {
 	All() []desired.State
-	PausedCount() map[string]int // 人工置为维护的实例数（version_id → 数量）
+	PausedInstances() map[string]string // 人工置为维护的实例（instance_id → version_id）
 	SetPhase(deploymentID uuid.UUID, phase desired.Phase)
 }
 
@@ -109,21 +109,30 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	states := r.desired.All()
 	actual := r.actual.Snapshot()
 
+	// 人工停用（paused）的实例集合：这些实例由管理员刻意停住，对账器须把它们
+	// 当作"已占位"的光明副本对待。下面先从 running 计数中剔除，再单独按版本补回，
+	// 避免"手动 stop → 观测快照尚未刷新为 exited"的滞后窗口内同一实例被算两次，
+	// 从而误判超编、把管理员刚停掉的实例当作多余副本 drain 掉。
+	paused := r.desired.PausedInstances()
+
 	// 按版本聚合实际容器：version_id → []容器（含非 running，供删除与回收区分）。
 	byVersion := map[string][]observer.ObservedContainer{}
-	running := map[string]int{} // 仅健康 running，供收敛重置与失败判定
+	running := map[string]int{} // 仅健康 running（不含 paused），供收敛重置与失败判定
 	for _, ac := range actual {
 		vid := ac.Container.Labels["maple.version_id"]
 		if vid == "" {
 			continue
 		}
 		byVersion[vid] = append(byVersion[vid], ac)
+		if _, isPaused := paused[ac.InstanceID]; isPaused {
+			continue
+		}
 		if ac.Container.State == "running" {
 			running[vid]++
 		}
 	}
-	// 生效副本数 = 健康 running + 在途副本。在途副本（已创建、尚未 running）计入实际数，
-	// 避免"创建 → 观测滞后"窗口内重复创建导致超配。
+	// 生效副本数 = 健康 running + 在途副本 + 人工维护实例。在途副本（已创建、尚未 running）
+	// 计入实际数，避免"创建 → 观测滞后"窗口内重复创建导致超配。
 	effective := map[string]int{}
 	for vid, n := range running {
 		effective[vid] = n
@@ -165,8 +174,9 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	}
 
 	// 人工维护的实例计入实际副本数：管理员手动停掉的实例不再被对账器补回。
-	for vid, n := range r.desired.PausedCount() {
-		effective[vid] += n
+	// 每个暂停实例按版本各计一份（与上面的剔除互为补集，既不重复也不遗漏）。
+	for _, vid := range paused {
+		effective[vid]++
 	}
 
 	// 生成有序操作：同部署内 surge 全部先于 drain（先起后停，保最低可用数）。
@@ -182,7 +192,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 			}
 			r.surge(ctx, op, placement)
 		case rollout.KindDrain:
-			r.drain(ctx, cur, op.Count)
+			r.drain(ctx, cur, op.Count, paused)
 		}
 	}
 
@@ -275,10 +285,14 @@ func (r *Reconciler) surge(ctx context.Context, op rollout.Op, placement map[str
 }
 
 // drain 从某版本的多余 running 容器中删除 Count 个（按 instance_id 稳定排序）。
-func (r *Reconciler) drain(ctx context.Context, containers []observer.ObservedContainer, count int) {
+// paused 是人工维护的实例集合：这些容器是管理员刻意留下的，绝不作为缩容目标删掉。
+func (r *Reconciler) drain(ctx context.Context, containers []observer.ObservedContainer, count int, paused map[string]string) {
 	// 仅对 running 容器做删减（停止/退出的留待后续清理）。
 	running := make([]observer.ObservedContainer, 0, len(containers))
 	for _, c := range containers {
+		if _, isPaused := paused[c.InstanceID]; isPaused {
+			continue
+		}
 		if c.Container.State == "running" {
 			running = append(running, c)
 		}
