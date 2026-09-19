@@ -72,8 +72,8 @@ interface ThemeState {
   isDirty: () => boolean;
   /** 登录后从后端拉取站点级外观设置（DB 有值则覆盖本地，跨浏览器一致）。 */
   readFromServer: () => Promise<void>;
-  /** 把当前 theme+mode 一次写入后端（保存按钮唯一入口）。 */
-  saveToServer: () => Promise<void>;
+  /** 把当前 theme+mode 一次写入后端（保存按钮唯一入口）。返回是否成功，供调用方弹提示。 */
+  saveToServer: () => Promise<boolean>;
 }
 
 // 后端 settings 单条结构：{ value, version, updated_at }。
@@ -155,14 +155,16 @@ export const useTheme = create<ThemeState>((set, get) => ({
   },
 
   saveToServer: async () => {
-    if (!isAuthed()) return;
+    if (!isAuthed()) return false;
     const { theme, mode } = get();
     set({ saveStatus: 'saving' });
     try {
       await api.patch('/api/admin/settings/appearance', { theme, theme_mode: mode });
       set({ savedTheme: theme, savedMode: mode, saveStatus: 'saved' });
+      return true;
     } catch {
       set({ saveStatus: 'error' });
+      return false;
     }
   },
 }));

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AccessLogRow, ErrorLogRow, AuditLogRow } from '../../types';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 type Tab = 'access' | 'error' | 'audit';
 
@@ -171,7 +172,7 @@ export default function LogsPage() {
                   <td className={`${tdCell} ${timeTxt}`}>{new Date(r.created_at).toLocaleString()}</td>
                   <td className={tdCell}>{r.action}</td>
                   <td className={tdCell}>{r.target_type}</td>
-                  <td className={`${tdCell} font-mono text-xs`}>{r.target_id?.slice(0, 8) ?? '-'}</td>
+                  <td className={`${tdCell} font-mono text-xs`}>{r.target_id ? shortId(r.target_id) : '-'}</td>
                   <td className={`${tdCell} font-mono text-xs`}>{r.ip ?? '-'}</td>
                 </tr>
               ))}

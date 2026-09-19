@@ -11,6 +11,7 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 type Strategy = 'canary' | 'bluegreen';
 
@@ -275,9 +276,9 @@ export default function ReleasesPage() {
     }
   };
 
-  const verName = (id: string) => versions.find((v) => v.id === id)?.version ?? id.slice(0, 8);
+  const verName = (id: string) => versions.find((v) => v.id === id)?.version ?? shortId(id);
   const svcName = (id?: string | null) =>
-    id ? services.find((s) => s.id === id)?.name ?? id.slice(0, 8) : '—';
+    id ? services.find((s) => s.id === id)?.name ?? shortId(id) : '—';
 
   const cfgCanary = (r: Release) => (r.config ?? {}) as CanaryConfig;
   const cfgBG = (r: Release) => (r.config ?? {}) as BlueGreenConfig;

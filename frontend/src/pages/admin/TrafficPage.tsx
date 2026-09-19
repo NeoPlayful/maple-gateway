@@ -10,6 +10,7 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FilterBar, applyFilters, type FilterDef } from '../../components/admin/FilterBar';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 // 筛选栏：关键字（策略名）+ 服务 + 状态，纯前端过滤已加载列表。
 const TRAFFIC_FILTERS: FilterDef[] = [
@@ -306,7 +307,7 @@ export default function TrafficPage() {
                 <td className="px-4 py-2 font-medium">{r.name}</td>
                 <td className="px-4 py-2">{r.priority}</td>
                 <td className="px-4 py-2 text-xs text-slate-600">{matchDesc(r)}</td>
-                <td className="px-4 py-2 text-xs">{r.target_version_id ? r.target_version_id.slice(0, 8) : '-'}</td>
+                <td className="px-4 py-2 text-xs">{r.target_version_id ? shortId(r.target_version_id) : '-'}</td>
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">

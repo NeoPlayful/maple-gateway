@@ -1,7 +1,8 @@
-// 短 ID 单元格：显示前 8 位，悬停可见完整值，点击复制完整值。
+// 短 ID 单元格：显示去连字符后的前 12 位，悬停可见完整值，点击复制完整值。
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { Square2StackIcon } from '@heroicons/react/24/outline';
+import { shortId } from '../../lib/ids';
 
 export function IdCell({ id }: { id?: string | null }) {
   const { t } = useTranslation('admin');
@@ -18,7 +19,7 @@ export function IdCell({ id }: { id?: string | null }) {
   };
   return (
     <span className="inline-flex items-center gap-1 font-mono text-xs text-slate-700 dark:text-slate-300">
-      <span title={id}>{id.slice(0, 8)}</span>
+      <span title={id}>{shortId(id)}</span>
       <button
         type="button"
         onClick={(e) => {

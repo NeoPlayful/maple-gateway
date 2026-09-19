@@ -36,7 +36,7 @@ const def: PageDef = {
   renderDetail: (r) => (
     <DetailGrid
       items={[
-        { label: 'fields.id', value: r.id },
+        { label: 'fields.id', value: <IdCell id={r.id} /> },
         { label: 'fields.slug', value: r.slug },
         { label: 'fields.status', value: r.status },
         { label: 'fields.description', value: r.description },

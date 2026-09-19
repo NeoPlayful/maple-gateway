@@ -4,6 +4,7 @@ import { api } from '../../lib/client';
 import type { Instance, Service } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { PageHeader } from '../../themes';
+import { shortId } from '../../lib/ids';
 
 export default function HealthPage() {
   const { t } = useTranslation('admin');
@@ -36,7 +37,7 @@ export default function HealthPage() {
   const svcName = useMemo(() => {
     const m = new Map<string, string>();
     services.forEach((s) => m.set(s.id, s.name));
-    return (id: string) => m.get(id) ?? id.slice(0, 8);
+    return (id: string) => m.get(id) ?? shortId(id);
   }, [services]);
 
   // 按服务分组（含未挂服务的空分组用不到，直接按实例的 service_id 归组）。
