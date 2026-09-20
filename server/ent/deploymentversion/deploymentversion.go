@@ -15,6 +15,8 @@ const (
 	FieldID = "id"
 	// FieldDeploymentID holds the string denoting the deployment_id field in the database.
 	FieldDeploymentID = "deployment_id"
+	// FieldProjectID holds the string denoting the project_id field in the database.
+	FieldProjectID = "project_id"
 	// FieldVersion holds the string denoting the version field in the database.
 	FieldVersion = "version"
 	// FieldImage holds the string denoting the image field in the database.
@@ -58,6 +60,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldDeploymentID,
+	FieldProjectID,
 	FieldVersion,
 	FieldImage,
 	FieldWeight,
@@ -113,6 +116,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByDeploymentID orders the results by the deployment_id field.
 func ByDeploymentID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDeploymentID, opts...).ToFunc()
+}
+
+// ByProjectID orders the results by the project_id field.
+func ByProjectID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProjectID, opts...).ToFunc()
 }
 
 // ByVersion orders the results by the version field.

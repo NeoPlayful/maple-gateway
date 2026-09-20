@@ -15,6 +15,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/rollout"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/scheduler"
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -64,10 +67,16 @@ type pendingRpl struct {
 	versionID    string
 	deploymentID string
 	createdAt    time.Time
+	// index 是该副本的序号（版本内从 1 起），窗口内占用序号位避免新副本撞名。
+	index int
 }
 
 // pendingTTL 是 pending 副本的存活上限：超过仍未被观测确认则视为创建失败并丢弃。
 const pendingTTL = 60 * time.Second
+
+// replicaIndexLabel 是副本序号标签键（与 nodeagent/docker.LabelReplicaIndex 一致）。
+// 对账器只读标签字符串，不引入对节点侧的依赖，故此处独立声明。
+const replicaIndexLabel = "maple.replica_index"
 
 // New 构造。
 func New(d DesiredReader, a ActualReader, registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval time.Duration, logger *zap.Logger) *Reconciler {
@@ -118,12 +127,21 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	// 按版本聚合实际容器：version_id → []容器（含非 running，供删除与回收区分）。
 	byVersion := map[string][]observer.ObservedContainer{}
 	running := map[string]int{} // 仅健康 running（不含 paused），供收敛重置与失败判定
+	// usedIndexes 是各版本已被占用的副本序号集合（含 exited 等非运行容器，其名字仍占位）：
+	// 新副本从最小空位取名，避免与存活/残留容器撞名（Docker 名字全局唯一）。
+	usedIndexes := map[string]map[int]struct{}{}
 	for _, ac := range actual {
 		vid := ac.Container.Labels["maple.version_id"]
 		if vid == "" {
 			continue
 		}
 		byVersion[vid] = append(byVersion[vid], ac)
+		if idx := parseReplicaIndex(ac.Container.Labels[replicaIndexLabel]); idx > 0 {
+			if usedIndexes[vid] == nil {
+				usedIndexes[vid] = map[int]struct{}{}
+			}
+			usedIndexes[vid][idx] = struct{}{}
+		}
 		if _, isPaused := paused[ac.InstanceID]; isPaused {
 			continue
 		}
@@ -143,6 +161,13 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	var failDepIDs []string
 	r.mu.Lock()
 	for iid, pr := range r.pending {
+		// 在途副本的序号同样占位：未就绪期间不能被新一轮 surge 复用，否则撞名。
+		if pr.index > 0 {
+			if usedIndexes[pr.versionID] == nil {
+				usedIndexes[pr.versionID] = map[int]struct{}{}
+			}
+			usedIndexes[pr.versionID][pr.index] = struct{}{}
+		}
 		ac, seen := actual[iid]
 		switch {
 		case !seen:
@@ -190,7 +215,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 			if r.isFailed(op.State.DeploymentID.String()) {
 				continue
 			}
-			r.surge(ctx, op, placement)
+			r.surge(ctx, op, placement, usedIndexes)
 		case rollout.KindDrain:
 			r.drain(ctx, cur, op.Count, paused)
 		}
@@ -270,16 +295,23 @@ func isTerminal(state string) bool {
 }
 
 // surge 对某版本扩容 Count 个副本，按已放置分布打散落点。
-func (r *Reconciler) surge(ctx context.Context, op rollout.Op, placement map[string]int) {
+// usedIndexes 是各版本已占序号集合；本轮新建即就地占用，避免同轮多副本撞名。
+func (r *Reconciler) surge(ctx context.Context, op rollout.Op, placement map[string]int, usedIndexes map[string]map[int]struct{}) {
 	nodes := r.sched.Select(op.State.NodeSelector, placement, op.Count)
 	if len(nodes) == 0 {
 		r.logger.Warn("no schedulable node for deployment",
 			zap.String("deployment_id", op.State.DeploymentID.String()))
 		return
 	}
+	vid := op.State.VersionID.String()
+	if usedIndexes[vid] == nil {
+		usedIndexes[vid] = map[int]struct{}{}
+	}
 	for i := 0; i < op.Count; i++ {
 		node := nodes[i%len(nodes)]
-		r.createReplica(ctx, op.State, node)
+		idx := nextIndex(usedIndexes[vid])
+		usedIndexes[vid][idx] = struct{}{}
+		r.createReplica(ctx, op.State, node, idx)
 		placement[node.Name]++
 	}
 }
@@ -310,13 +342,17 @@ func (r *Reconciler) drain(ctx context.Context, containers []observer.ObservedCo
 const replicaCallTimeout = 60 * time.Second
 
 // createReplica 在一个节点上创建一份副本：预生成 instance_id → 经 WS 通道下发创建。
-func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *agentregistry.Node) {
+// idx 是该副本的序号（版本内从 1 起），用于生成 Compose 风格容器名并随标签上报。
+func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *agentregistry.Node, idx int) {
 	instanceID := uuid.NewString()
 	spec := gwclient.CreateSpec{
 		InstanceID:   instanceID,
 		ServiceID:    st.ServiceID.String(),
 		DeploymentID: st.DeploymentID.String(),
 		VersionID:    st.VersionID.String(),
+		ProjectID:    projectIDString(st.ProjectID),
+		Name:         r.containerName(st, idx),
+		ReplicaIndex: idx,
 		Image:        st.Image,
 		Port:         st.Port,
 		Env:          st.Env,
@@ -339,13 +375,71 @@ func (r *Reconciler) createReplica(ctx context.Context, st desired.State, node *
 		versionID:    st.VersionID.String(),
 		deploymentID: st.DeploymentID.String(),
 		createdAt:    time.Now(),
+		index:        idx,
 	}
 	r.mu.Unlock()
 	r.logger.Info("replica created",
 		zap.String("deployment_id", st.DeploymentID.String()),
 		zap.String("instance_id", instanceID),
+		zap.String("name", spec.Name),
 		zap.String("node", node.Name),
 		zap.Int("host_port", res.HostPort))
+}
+
+// containerName 生成 Compose 风格的容器名：maple-<项目短码>-<版本>-<序号>。
+// 版本为非空项目时才有归属前缀；项目为空返回空串，由 Agent 退回 maple-<实例短码>。
+// 版本名可能含非法字符，统一经 sanitizeNameSegment 规整为 Docker 合法名段。
+func (r *Reconciler) containerName(st desired.State, idx int) string {
+	if st.ProjectID == nil || *st.ProjectID == uuid.Nil {
+		return ""
+	}
+	project := pkg.ShortID(st.ProjectID.String())
+	version := sanitizeNameSegment(st.Version)
+	if version == "" {
+		version = "v"
+	}
+	return fmt.Sprintf("maple-%s-%s-%d", project, version, idx)
+}
+
+// sanitizeNameSegment 把任意版本名规整为 Docker 容器名可用的一段：
+// 转小写，非 [a-z0-9_.-] 的字符替换为 '-'，截断至 32 字符，避免超长或非法名。
+func sanitizeNameSegment(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_', r == '.', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if len(out) > 32 {
+		out = out[:32]
+	}
+	return out
+}
+
+// nextIndex 返回集合中的最小未用序号（从 1 起），保证复用空位、不无限增长。
+func nextIndex(used map[int]struct{}) int {
+	for i := 1; ; i++ {
+		if _, ok := used[i]; !ok {
+			return i
+		}
+	}
+}
+
+// parseReplicaIndex 解析副本序号标签；非法或缺失返回 0。
+func parseReplicaIndex(s string) int {
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // removeReplica 删除一份副本：先经 Gateway 通知 drain（先摘流量），再优雅停止容器。
@@ -379,6 +473,14 @@ func (r *Reconciler) removeReplica(ctx context.Context, c observer.ObservedConta
 	r.mu.Unlock()
 	r.logger.Info("replica removed",
 		zap.String("instance_id", c.InstanceID), zap.String("node", c.NodeName))
+}
+
+// projectIDString 把可空项目 ID 转为下发的字符串：nil 返回空串（不打标签）。
+func projectIDString(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
 }
 
 // toGwMounts 把期望态挂载项转为下发 Agent 的形态。

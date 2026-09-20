@@ -72,10 +72,17 @@ func (c *GatewayClient) RegisterInstance(ctx context.Context, in InstanceReport)
 	return out.Data.ID, nil
 }
 
-// HeartbeatInstance 上报实例心跳（刷新 last_seen），并带上所在节点 UUID 与宿主端口：
-// 实例早期入库漏填 node_id 或端口尚未就绪（创建时读到 0）时，Gateway 侧会按需回填。
-func (c *GatewayClient) HeartbeatInstance(ctx context.Context, instanceID, nodeID string, port int) error {
-	in := map[string]any{"node_id": nodeID, "port": port}
+// HeartbeatInstance 上报实例心跳（刷新 last_seen），并带上所在节点 UUID、项目归属与宿主端口：
+// 实例早期入库漏填 node_id/project_id 或端口尚未就绪（创建时读到 0）时，Gateway 侧会按需回填。
+// node_id/project_id 为空时不入参（Gateway 按 UUID 解析，空串会解析失败）。
+func (c *GatewayClient) HeartbeatInstance(ctx context.Context, instanceID, nodeID, projectID string, port int) error {
+	in := map[string]any{"port": port}
+	if nodeID != "" {
+		in["node_id"] = nodeID
+	}
+	if projectID != "" {
+		in["project_id"] = projectID
+	}
 	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/internal/instances/%s/heartbeat", instanceID), in, nil)
 }
 
@@ -102,6 +109,7 @@ type InstanceReport struct {
 	ServiceID    string `json:"service_id"`
 	DeploymentID string `json:"deployment_id,omitempty"`
 	VersionID    string `json:"version_id,omitempty"`
+	ProjectID    string `json:"project_id,omitempty"`
 	NodeID       string `json:"node_id,omitempty"`
 	Version      string `json:"version,omitempty"`
 	Address      string `json:"address"`

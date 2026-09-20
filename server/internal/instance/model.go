@@ -33,6 +33,7 @@ type Instance struct {
 	ServiceID    uuid.UUID  `json:"service_id"`
 	DeploymentID *uuid.UUID `json:"deployment_id,omitempty"`
 	VersionID    *uuid.UUID `json:"version_id,omitempty"`
+	ProjectID    *uuid.UUID `json:"project_id,omitempty"`
 	NodeID       *uuid.UUID `json:"node_id,omitempty"`
 	Version      string     `json:"version,omitempty"`
 	Address      string     `json:"address"`
@@ -54,6 +55,7 @@ type New struct {
 	ServiceID    uuid.UUID  `json:"service_id" validate:"required"`
 	DeploymentID *uuid.UUID `json:"deployment_id"`
 	VersionID    *uuid.UUID `json:"version_id"`
+	ProjectID    *uuid.UUID `json:"project_id"`
 	NodeID       *uuid.UUID `json:"node_id"`
 	Version      string     `json:"version"`
 	Address      string     `json:"address" validate:"required"`
@@ -75,10 +77,11 @@ type Update struct {
 }
 
 // Mount 用于调整实例在 Deployment/Version/Node 上的挂载归属。
-// DeploymentID/VersionID 为 nil 表示不修改；指向 uuid.Nil 表示解挂（回退直挂 Service）。
+// DeploymentID/VersionID/ProjectID 为 nil 表示不修改；指向 uuid.Nil 表示解挂。
 type Mount struct {
 	DeploymentID *uuid.UUID `json:"deployment_id"`
 	VersionID    *uuid.UUID `json:"version_id"`
+	ProjectID    *uuid.UUID `json:"project_id"`
 	NodeID       *uuid.UUID `json:"node_id"`
 }
 

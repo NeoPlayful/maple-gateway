@@ -23,6 +23,8 @@ type DesiredState struct {
 	DeploymentID uuid.UUID `json:"deployment_id"`
 	ServiceID    uuid.UUID `json:"service_id"`
 	VersionID    uuid.UUID `json:"version_id"`
+	// ProjectID 是版本所属项目（可空）：CM 透传给容器创建规格，容器据此打 maple.project_id 标签。
+	ProjectID    *uuid.UUID `json:"project_id,omitempty"`
 	Version      string    `json:"version"`
 	// Status 版本角色（stable/active/canary/standby/draining/inactive）：
 	// CM 据此区分"目标版本"与"待退役版本"，按发布形态决定增减序。

@@ -527,6 +527,7 @@ func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, n
 		ServiceID:    ct.Labels["maple.service_id"],
 		DeploymentID: ct.Labels["maple.deployment_id"],
 		VersionID:    ct.Labels["maple.version_id"],
+		ProjectID:    ct.Labels["maple.project_id"],
 		NodeID:       nodeID,
 		Address:      n.Host,
 		Port:         ct.HostPort,
@@ -545,8 +546,9 @@ func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, n
 
 // reportInstance 上报单个容器对应的实例：优先心跳（已注册），失败则注册。
 func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, nodeID string, ct gwclient.Container) {
-	// 心跳带上宿主端口：容器创建时端口映射尚未就绪（读到 0），就绪后经此补正实例端口。
-	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID, nodeID, ct.HostPort); err == nil {
+	// 心跳带上项目归属与宿主端口：容器创建时端口映射尚未就绪（读到 0），
+	// 且早期实例可能漏填 project_id，就绪后经此补正。
+	if err := o.gw.HeartbeatInstance(ctx, ct.InstanceID, nodeID, ct.Labels["maple.project_id"], ct.HostPort); err == nil {
 		return
 	}
 	rep := gwclient.InstanceReport{
@@ -554,6 +556,7 @@ func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, no
 		ServiceID:    ct.Labels["maple.service_id"],
 		DeploymentID: ct.Labels["maple.deployment_id"],
 		VersionID:    ct.Labels["maple.version_id"],
+		ProjectID:    ct.Labels["maple.project_id"],
 		NodeID:       nodeID,
 		Address:      n.Host,
 		Port:         ct.HostPort,

@@ -23,6 +23,8 @@ type DeploymentVersion struct {
 	ID uuid.UUID `json:"id,omitempty"`
 	// DeploymentID holds the value of the "deployment_id" field.
 	DeploymentID uuid.UUID `json:"deployment_id,omitempty"`
+	// ProjectID holds the value of the "project_id" field.
+	ProjectID *uuid.UUID `json:"project_id,omitempty"`
 	// Version holds the value of the "version" field.
 	Version string `json:"version,omitempty"`
 	// Image holds the value of the "image" field.
@@ -80,6 +82,8 @@ func (*DeploymentVersion) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case deploymentversion.FieldProjectID:
+			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case deploymentversion.FieldEnv, deploymentversion.FieldResources, deploymentversion.FieldNodeSelector, deploymentversion.FieldMounts:
 			values[i] = new([]byte)
 		case deploymentversion.FieldWeight, deploymentversion.FieldReplicas, deploymentversion.FieldPort:
@@ -116,6 +120,13 @@ func (dv *DeploymentVersion) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field deployment_id", values[i])
 			} else if value != nil {
 				dv.DeploymentID = *value
+			}
+		case deploymentversion.FieldProjectID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field project_id", values[i])
+			} else if value.Valid {
+				dv.ProjectID = new(uuid.UUID)
+				*dv.ProjectID = *value.S.(*uuid.UUID)
 			}
 		case deploymentversion.FieldVersion:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -246,6 +257,11 @@ func (dv *DeploymentVersion) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", dv.ID))
 	builder.WriteString("deployment_id=")
 	builder.WriteString(fmt.Sprintf("%v", dv.DeploymentID))
+	builder.WriteString(", ")
+	if v := dv.ProjectID; v != nil {
+		builder.WriteString("project_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("version=")
 	builder.WriteString(dv.Version)

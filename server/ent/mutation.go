@@ -4715,6 +4715,7 @@ type DeploymentVersionMutation struct {
 	op                Op
 	typ               string
 	id                *uuid.UUID
+	project_id        *uuid.UUID
 	version           *string
 	image             *string
 	weight            *int
@@ -4879,6 +4880,55 @@ func (m *DeploymentVersionMutation) OldDeploymentID(ctx context.Context) (v uuid
 // ResetDeploymentID resets all changes to the "deployment_id" field.
 func (m *DeploymentVersionMutation) ResetDeploymentID() {
 	m.deployment = nil
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *DeploymentVersionMutation) SetProjectID(u uuid.UUID) {
+	m.project_id = &u
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *DeploymentVersionMutation) ProjectID() (r uuid.UUID, exists bool) {
+	v := m.project_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the DeploymentVersion entity.
+// If the DeploymentVersion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeploymentVersionMutation) OldProjectID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (m *DeploymentVersionMutation) ClearProjectID() {
+	m.project_id = nil
+	m.clearedFields[deploymentversion.FieldProjectID] = struct{}{}
+}
+
+// ProjectIDCleared returns if the "project_id" field was cleared in this mutation.
+func (m *DeploymentVersionMutation) ProjectIDCleared() bool {
+	_, ok := m.clearedFields[deploymentversion.FieldProjectID]
+	return ok
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *DeploymentVersionMutation) ResetProjectID() {
+	m.project_id = nil
+	delete(m.clearedFields, deploymentversion.FieldProjectID)
 }
 
 // SetVersion sets the "version" field.
@@ -5594,9 +5644,12 @@ func (m *DeploymentVersionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeploymentVersionMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.deployment != nil {
 		fields = append(fields, deploymentversion.FieldDeploymentID)
+	}
+	if m.project_id != nil {
+		fields = append(fields, deploymentversion.FieldProjectID)
 	}
 	if m.version != nil {
 		fields = append(fields, deploymentversion.FieldVersion)
@@ -5647,6 +5700,8 @@ func (m *DeploymentVersionMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case deploymentversion.FieldDeploymentID:
 		return m.DeploymentID()
+	case deploymentversion.FieldProjectID:
+		return m.ProjectID()
 	case deploymentversion.FieldVersion:
 		return m.Version()
 	case deploymentversion.FieldImage:
@@ -5684,6 +5739,8 @@ func (m *DeploymentVersionMutation) OldField(ctx context.Context, name string) (
 	switch name {
 	case deploymentversion.FieldDeploymentID:
 		return m.OldDeploymentID(ctx)
+	case deploymentversion.FieldProjectID:
+		return m.OldProjectID(ctx)
 	case deploymentversion.FieldVersion:
 		return m.OldVersion(ctx)
 	case deploymentversion.FieldImage:
@@ -5725,6 +5782,13 @@ func (m *DeploymentVersionMutation) SetField(name string, value ent.Value) error
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDeploymentID(v)
+		return nil
+	case deploymentversion.FieldProjectID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
 		return nil
 	case deploymentversion.FieldVersion:
 		v, ok := value.(string)
@@ -5886,6 +5950,9 @@ func (m *DeploymentVersionMutation) AddField(name string, value ent.Value) error
 // mutation.
 func (m *DeploymentVersionMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(deploymentversion.FieldProjectID) {
+		fields = append(fields, deploymentversion.FieldProjectID)
+	}
 	if m.FieldCleared(deploymentversion.FieldImage) {
 		fields = append(fields, deploymentversion.FieldImage)
 	}
@@ -5921,6 +5988,9 @@ func (m *DeploymentVersionMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *DeploymentVersionMutation) ClearField(name string) error {
 	switch name {
+	case deploymentversion.FieldProjectID:
+		m.ClearProjectID()
+		return nil
 	case deploymentversion.FieldImage:
 		m.ClearImage()
 		return nil
@@ -5952,6 +6022,9 @@ func (m *DeploymentVersionMutation) ResetField(name string) error {
 	switch name {
 	case deploymentversion.FieldDeploymentID:
 		m.ResetDeploymentID()
+		return nil
+	case deploymentversion.FieldProjectID:
+		m.ResetProjectID()
 		return nil
 	case deploymentversion.FieldVersion:
 		m.ResetVersion()
@@ -7974,6 +8047,7 @@ type InstanceMutation struct {
 	node_id        *uuid.UUID
 	deployment_id  *uuid.UUID
 	version_id     *uuid.UUID
+	project_id     *uuid.UUID
 	version        *string
 	address        *string
 	port           *int
@@ -8279,6 +8353,55 @@ func (m *InstanceMutation) VersionIDCleared() bool {
 func (m *InstanceMutation) ResetVersionID() {
 	m.version_id = nil
 	delete(m.clearedFields, instance.FieldVersionID)
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *InstanceMutation) SetProjectID(u uuid.UUID) {
+	m.project_id = &u
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *InstanceMutation) ProjectID() (r uuid.UUID, exists bool) {
+	v := m.project_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Instance entity.
+// If the Instance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *InstanceMutation) OldProjectID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (m *InstanceMutation) ClearProjectID() {
+	m.project_id = nil
+	m.clearedFields[instance.FieldProjectID] = struct{}{}
+}
+
+// ProjectIDCleared returns if the "project_id" field was cleared in this mutation.
+func (m *InstanceMutation) ProjectIDCleared() bool {
+	_, ok := m.clearedFields[instance.FieldProjectID]
+	return ok
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *InstanceMutation) ResetProjectID() {
+	m.project_id = nil
+	delete(m.clearedFields, instance.FieldProjectID)
 }
 
 // SetVersion sets the "version" field.
@@ -8755,7 +8878,7 @@ func (m *InstanceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *InstanceMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.service != nil {
 		fields = append(fields, instance.FieldServiceID)
 	}
@@ -8767,6 +8890,9 @@ func (m *InstanceMutation) Fields() []string {
 	}
 	if m.version_id != nil {
 		fields = append(fields, instance.FieldVersionID)
+	}
+	if m.project_id != nil {
+		fields = append(fields, instance.FieldProjectID)
 	}
 	if m.version != nil {
 		fields = append(fields, instance.FieldVersion)
@@ -8814,6 +8940,8 @@ func (m *InstanceMutation) Field(name string) (ent.Value, bool) {
 		return m.DeploymentID()
 	case instance.FieldVersionID:
 		return m.VersionID()
+	case instance.FieldProjectID:
+		return m.ProjectID()
 	case instance.FieldVersion:
 		return m.Version()
 	case instance.FieldAddress:
@@ -8851,6 +8979,8 @@ func (m *InstanceMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldDeploymentID(ctx)
 	case instance.FieldVersionID:
 		return m.OldVersionID(ctx)
+	case instance.FieldProjectID:
+		return m.OldProjectID(ctx)
 	case instance.FieldVersion:
 		return m.OldVersion(ctx)
 	case instance.FieldAddress:
@@ -8907,6 +9037,13 @@ func (m *InstanceMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetVersionID(v)
+		return nil
+	case instance.FieldProjectID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
 		return nil
 	case instance.FieldVersion:
 		v, ok := value.(string)
@@ -9044,6 +9181,9 @@ func (m *InstanceMutation) ClearedFields() []string {
 	if m.FieldCleared(instance.FieldVersionID) {
 		fields = append(fields, instance.FieldVersionID)
 	}
+	if m.FieldCleared(instance.FieldProjectID) {
+		fields = append(fields, instance.FieldProjectID)
+	}
 	if m.FieldCleared(instance.FieldLastSeenAt) {
 		fields = append(fields, instance.FieldLastSeenAt)
 	}
@@ -9070,6 +9210,9 @@ func (m *InstanceMutation) ClearField(name string) error {
 	case instance.FieldVersionID:
 		m.ClearVersionID()
 		return nil
+	case instance.FieldProjectID:
+		m.ClearProjectID()
+		return nil
 	case instance.FieldLastSeenAt:
 		m.ClearLastSeenAt()
 		return nil
@@ -9092,6 +9235,9 @@ func (m *InstanceMutation) ResetField(name string) error {
 		return nil
 	case instance.FieldVersionID:
 		m.ResetVersionID()
+		return nil
+	case instance.FieldProjectID:
+		m.ResetProjectID()
 		return nil
 	case instance.FieldVersion:
 		m.ResetVersion()

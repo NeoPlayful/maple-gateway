@@ -22,6 +22,9 @@ func (Instance) Fields() []ent.Field {
 		field.UUID("node_id", uuid.UUID{}).Optional().Nillable(),
 		field.UUID("deployment_id", uuid.UUID{}).Optional().Nillable(),
 		field.UUID("version_id", uuid.UUID{}).Optional().Nillable(),
+		// project_id 是实例所属项目（projects.id，可空）：CM 从容器 maple.project_id 标签
+		// 回传，使项目成为单容器与 Compose 应用共用的隔离单元。
+		field.UUID("project_id", uuid.UUID{}).Optional().Nillable(),
 		field.String("version").Default(""),
 		field.String("address").NotEmpty(),
 		field.Int("port"),

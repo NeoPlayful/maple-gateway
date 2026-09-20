@@ -104,6 +104,26 @@ func (iu *InstanceUpdate) ClearVersionID() *InstanceUpdate {
 	return iu
 }
 
+// SetProjectID sets the "project_id" field.
+func (iu *InstanceUpdate) SetProjectID(u uuid.UUID) *InstanceUpdate {
+	iu.mutation.SetProjectID(u)
+	return iu
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (iu *InstanceUpdate) SetNillableProjectID(u *uuid.UUID) *InstanceUpdate {
+	if u != nil {
+		iu.SetProjectID(*u)
+	}
+	return iu
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (iu *InstanceUpdate) ClearProjectID() *InstanceUpdate {
+	iu.mutation.ClearProjectID()
+	return iu
+}
+
 // SetVersion sets the "version" field.
 func (iu *InstanceUpdate) SetVersion(s string) *InstanceUpdate {
 	iu.mutation.SetVersion(s)
@@ -336,6 +356,12 @@ func (iu *InstanceUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if iu.mutation.VersionIDCleared() {
 		_spec.ClearField(instance.FieldVersionID, field.TypeUUID)
 	}
+	if value, ok := iu.mutation.ProjectID(); ok {
+		_spec.SetField(instance.FieldProjectID, field.TypeUUID, value)
+	}
+	if iu.mutation.ProjectIDCleared() {
+		_spec.ClearField(instance.FieldProjectID, field.TypeUUID)
+	}
 	if value, ok := iu.mutation.Version(); ok {
 		_spec.SetField(instance.FieldVersion, field.TypeString, value)
 	}
@@ -492,6 +518,26 @@ func (iuo *InstanceUpdateOne) SetNillableVersionID(u *uuid.UUID) *InstanceUpdate
 // ClearVersionID clears the value of the "version_id" field.
 func (iuo *InstanceUpdateOne) ClearVersionID() *InstanceUpdateOne {
 	iuo.mutation.ClearVersionID()
+	return iuo
+}
+
+// SetProjectID sets the "project_id" field.
+func (iuo *InstanceUpdateOne) SetProjectID(u uuid.UUID) *InstanceUpdateOne {
+	iuo.mutation.SetProjectID(u)
+	return iuo
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (iuo *InstanceUpdateOne) SetNillableProjectID(u *uuid.UUID) *InstanceUpdateOne {
+	if u != nil {
+		iuo.SetProjectID(*u)
+	}
+	return iuo
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (iuo *InstanceUpdateOne) ClearProjectID() *InstanceUpdateOne {
+	iuo.mutation.ClearProjectID()
 	return iuo
 }
 
@@ -756,6 +802,12 @@ func (iuo *InstanceUpdateOne) sqlSave(ctx context.Context) (_node *Instance, err
 	}
 	if iuo.mutation.VersionIDCleared() {
 		_spec.ClearField(instance.FieldVersionID, field.TypeUUID)
+	}
+	if value, ok := iuo.mutation.ProjectID(); ok {
+		_spec.SetField(instance.FieldProjectID, field.TypeUUID, value)
+	}
+	if iuo.mutation.ProjectIDCleared() {
+		_spec.ClearField(instance.FieldProjectID, field.TypeUUID)
 	}
 	if value, ok := iuo.mutation.Version(); ok {
 		_spec.SetField(instance.FieldVersion, field.TypeString, value)

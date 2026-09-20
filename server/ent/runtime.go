@@ -171,31 +171,31 @@ func init() {
 	deploymentversionFields := schema.DeploymentVersion{}.Fields()
 	_ = deploymentversionFields
 	// deploymentversionDescVersion is the schema descriptor for version field.
-	deploymentversionDescVersion := deploymentversionFields[2].Descriptor()
+	deploymentversionDescVersion := deploymentversionFields[3].Descriptor()
 	// deploymentversion.VersionValidator is a validator for the "version" field. It is called by the builders before save.
 	deploymentversion.VersionValidator = deploymentversionDescVersion.Validators[0].(func(string) error)
 	// deploymentversionDescImage is the schema descriptor for image field.
-	deploymentversionDescImage := deploymentversionFields[3].Descriptor()
+	deploymentversionDescImage := deploymentversionFields[4].Descriptor()
 	// deploymentversion.DefaultImage holds the default value on creation for the image field.
 	deploymentversion.DefaultImage = deploymentversionDescImage.Default.(string)
 	// deploymentversionDescWeight is the schema descriptor for weight field.
-	deploymentversionDescWeight := deploymentversionFields[4].Descriptor()
+	deploymentversionDescWeight := deploymentversionFields[5].Descriptor()
 	// deploymentversion.DefaultWeight holds the default value on creation for the weight field.
 	deploymentversion.DefaultWeight = deploymentversionDescWeight.Default.(int)
 	// deploymentversionDescStatus is the schema descriptor for status field.
-	deploymentversionDescStatus := deploymentversionFields[5].Descriptor()
+	deploymentversionDescStatus := deploymentversionFields[6].Descriptor()
 	// deploymentversion.DefaultStatus holds the default value on creation for the status field.
 	deploymentversion.DefaultStatus = deploymentversionDescStatus.Default.(string)
 	// deploymentversionDescReplicas is the schema descriptor for replicas field.
-	deploymentversionDescReplicas := deploymentversionFields[6].Descriptor()
+	deploymentversionDescReplicas := deploymentversionFields[7].Descriptor()
 	// deploymentversion.DefaultReplicas holds the default value on creation for the replicas field.
 	deploymentversion.DefaultReplicas = deploymentversionDescReplicas.Default.(int)
 	// deploymentversionDescPort is the schema descriptor for port field.
-	deploymentversionDescPort := deploymentversionFields[7].Descriptor()
+	deploymentversionDescPort := deploymentversionFields[8].Descriptor()
 	// deploymentversion.DefaultPort holds the default value on creation for the port field.
 	deploymentversion.DefaultPort = deploymentversionDescPort.Default.(int)
 	// deploymentversionDescHealthPath is the schema descriptor for health_path field.
-	deploymentversionDescHealthPath := deploymentversionFields[10].Descriptor()
+	deploymentversionDescHealthPath := deploymentversionFields[11].Descriptor()
 	// deploymentversion.DefaultHealthPath holds the default value on creation for the health_path field.
 	deploymentversion.DefaultHealthPath = deploymentversionDescHealthPath.Default.(string)
 	// deploymentversionDescID is the schema descriptor for id field.
@@ -253,27 +253,27 @@ func init() {
 	instanceFields := schema.Instance{}.Fields()
 	_ = instanceFields
 	// instanceDescVersion is the schema descriptor for version field.
-	instanceDescVersion := instanceFields[5].Descriptor()
+	instanceDescVersion := instanceFields[6].Descriptor()
 	// instance.DefaultVersion holds the default value on creation for the version field.
 	instance.DefaultVersion = instanceDescVersion.Default.(string)
 	// instanceDescAddress is the schema descriptor for address field.
-	instanceDescAddress := instanceFields[6].Descriptor()
+	instanceDescAddress := instanceFields[7].Descriptor()
 	// instance.AddressValidator is a validator for the "address" field. It is called by the builders before save.
 	instance.AddressValidator = instanceDescAddress.Validators[0].(func(string) error)
 	// instanceDescProtocol is the schema descriptor for protocol field.
-	instanceDescProtocol := instanceFields[8].Descriptor()
+	instanceDescProtocol := instanceFields[9].Descriptor()
 	// instance.DefaultProtocol holds the default value on creation for the protocol field.
 	instance.DefaultProtocol = instanceDescProtocol.Default.(string)
 	// instanceDescWeight is the schema descriptor for weight field.
-	instanceDescWeight := instanceFields[9].Descriptor()
+	instanceDescWeight := instanceFields[10].Descriptor()
 	// instance.DefaultWeight holds the default value on creation for the weight field.
 	instance.DefaultWeight = instanceDescWeight.Default.(int)
 	// instanceDescStatus is the schema descriptor for status field.
-	instanceDescStatus := instanceFields[10].Descriptor()
+	instanceDescStatus := instanceFields[11].Descriptor()
 	// instance.DefaultStatus holds the default value on creation for the status field.
 	instance.DefaultStatus = instanceDescStatus.Default.(string)
 	// instanceDescHealth is the schema descriptor for health field.
-	instanceDescHealth := instanceFields[11].Descriptor()
+	instanceDescHealth := instanceFields[12].Descriptor()
 	// instance.DefaultHealth holds the default value on creation for the health field.
 	instance.DefaultHealth = instanceDescHealth.Default.(string)
 	// instanceDescID is the schema descriptor for id field.

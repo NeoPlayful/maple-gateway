@@ -19,6 +19,8 @@ type State struct {
 	DeploymentID uuid.UUID `json:"deployment_id"`
 	ServiceID    uuid.UUID `json:"service_id"`
 	VersionID    uuid.UUID `json:"version_id"`
+	// ProjectID 是版本所属项目（可空）：透传给容器创建规格，容器据此打 maple.project_id 标签。
+	ProjectID    *uuid.UUID `json:"project_id,omitempty"`
 	Version      string    `json:"version"`
 	// Status 版本角色（stable/active/canary/standby/draining/inactive）。
 	Status       string            `json:"status,omitempty"`
@@ -75,7 +77,7 @@ func (s *Store) Load(ctx context.Context) error {
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT deployment_id::text, COALESCE(service_id::text,''), COALESCE(version_id::text,''),
-		       version, status, image, replicas, port, env, resources,
+		       COALESCE(project_id::text,''), version, status, image, replicas, port, env, resources,
 		       health_path, node_selector, strategy, mounts, phase, phase_message, stopped
 		FROM cm_deployments`)
 	if err != nil {
@@ -84,12 +86,12 @@ func (s *Store) Load(ctx context.Context) error {
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			st, sid, vid, version, status, image, healthPath, strategy, phase, phaseMsg string
-			replicas, port                                                              int
-			env, resources, selector, mounts                                            []byte
-			stopped                                                                     bool
+			st, sid, vid, pid, version, status, image, healthPath, strategy, phase, phaseMsg string
+			replicas, port                                                                  int
+			env, resources, selector, mounts                                                []byte
+			stopped                                                                         bool
 		)
-		if err := rows.Scan(&st, &sid, &vid, &version, &status, &image, &replicas, &port,
+		if err := rows.Scan(&st, &sid, &vid, &pid, &version, &status, &image, &replicas, &port,
 			&env, &resources, &healthPath, &selector, &strategy, &mounts, &phase, &phaseMsg, &stopped); err != nil {
 			return fmt.Errorf("scan cm_deployment: %w", err)
 		}
@@ -99,6 +101,7 @@ func (s *Store) Load(ctx context.Context) error {
 				DeploymentID: did,
 				ServiceID:    parseUUID(sid),
 				VersionID:    parseUUID(vid),
+				ProjectID:    parseUUIDPtr(pid),
 				Version:      version,
 				Status:       status,
 				Image:        image,
@@ -225,17 +228,19 @@ func (s *Store) persistState(st State, stopped bool) {
 		st.Resources = json.RawMessage("null")
 	}
 	_, err := s.db.ExecContext(context.Background(), `
-		INSERT INTO cm_deployments (deployment_id, service_id, version_id, version, status, image,
+		INSERT INTO cm_deployments (deployment_id, service_id, version_id, project_id, version, status, image,
 			replicas, port, env, resources, health_path, node_selector, strategy, mounts,
 			phase, phase_message, stopped, updated_at)
-		VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending','',$15,now())
+		VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending','',$16,now())
 		ON CONFLICT (deployment_id) DO UPDATE SET
-			service_id=EXCLUDED.service_id, version_id=EXCLUDED.version_id, version=EXCLUDED.version,
+			service_id=EXCLUDED.service_id, version_id=EXCLUDED.version_id, project_id=EXCLUDED.project_id,
+			version=EXCLUDED.version,
 			status=EXCLUDED.status, image=EXCLUDED.image, replicas=EXCLUDED.replicas, port=EXCLUDED.port,
 			env=EXCLUDED.env, resources=EXCLUDED.resources, health_path=EXCLUDED.health_path,
 			node_selector=EXCLUDED.node_selector, strategy=EXCLUDED.strategy, mounts=EXCLUDED.mounts,
 			phase='pending', phase_message='', stopped=false, updated_at=now()`,
-		st.DeploymentID.String(), st.ServiceID.String(), st.VersionID.String(), st.Version, st.Status,
+		st.DeploymentID.String(), st.ServiceID.String(), st.VersionID.String(),
+		nullUUID(st.ProjectID), st.Version, st.Status,
 		st.Image, st.Replicas, st.Port, env, []byte(st.Resources), st.HealthPath, selector, st.Strategy,
 		mounts, stopped)
 	if err != nil {
@@ -262,6 +267,26 @@ func parseUUID(s string) uuid.UUID {
 		return uuid.Nil
 	}
 	return id
+}
+
+// parseUUIDPtr 解析可空 UUID 文本：空串或非法返回 nil（写库为 NULL）。
+func parseUUIDPtr(s string) *uuid.UUID {
+	if s == "" {
+		return nil
+	}
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return nil
+	}
+	return &id
+}
+
+// nullUUID 把可空 UUID 转为 SQL 参数：nil → NULL，非 nil → 字符串（配 $n::uuid 强转）。
+func nullUUID(id *uuid.UUID) any {
+	if id == nil {
+		return nil
+	}
+	return id.String()
 }
 
 func decodeStrMap(raw []byte) map[string]string {

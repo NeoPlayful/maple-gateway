@@ -33,6 +33,20 @@ func (dvc *DeploymentVersionCreate) SetDeploymentID(u uuid.UUID) *DeploymentVers
 	return dvc
 }
 
+// SetProjectID sets the "project_id" field.
+func (dvc *DeploymentVersionCreate) SetProjectID(u uuid.UUID) *DeploymentVersionCreate {
+	dvc.mutation.SetProjectID(u)
+	return dvc
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (dvc *DeploymentVersionCreate) SetNillableProjectID(u *uuid.UUID) *DeploymentVersionCreate {
+	if u != nil {
+		dvc.SetProjectID(*u)
+	}
+	return dvc
+}
+
 // SetVersion sets the "version" field.
 func (dvc *DeploymentVersionCreate) SetVersion(s string) *DeploymentVersionCreate {
 	dvc.mutation.SetVersion(s)
@@ -310,6 +324,10 @@ func (dvc *DeploymentVersionCreate) createSpec() (*DeploymentVersion, *sqlgraph.
 		_node.ID = id
 		_spec.ID.Value = &id
 	}
+	if value, ok := dvc.mutation.ProjectID(); ok {
+		_spec.SetField(deploymentversion.FieldProjectID, field.TypeUUID, value)
+		_node.ProjectID = &value
+	}
 	if value, ok := dvc.mutation.Version(); ok {
 		_spec.SetField(deploymentversion.FieldVersion, field.TypeString, value)
 		_node.Version = value
@@ -440,6 +458,24 @@ func (u *DeploymentVersionUpsert) SetDeploymentID(v uuid.UUID) *DeploymentVersio
 // UpdateDeploymentID sets the "deployment_id" field to the value that was provided on create.
 func (u *DeploymentVersionUpsert) UpdateDeploymentID() *DeploymentVersionUpsert {
 	u.SetExcluded(deploymentversion.FieldDeploymentID)
+	return u
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *DeploymentVersionUpsert) SetProjectID(v uuid.UUID) *DeploymentVersionUpsert {
+	u.Set(deploymentversion.FieldProjectID, v)
+	return u
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *DeploymentVersionUpsert) UpdateProjectID() *DeploymentVersionUpsert {
+	u.SetExcluded(deploymentversion.FieldProjectID)
+	return u
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *DeploymentVersionUpsert) ClearProjectID() *DeploymentVersionUpsert {
+	u.SetNull(deploymentversion.FieldProjectID)
 	return u
 }
 
@@ -709,6 +745,27 @@ func (u *DeploymentVersionUpsertOne) SetDeploymentID(v uuid.UUID) *DeploymentVer
 func (u *DeploymentVersionUpsertOne) UpdateDeploymentID() *DeploymentVersionUpsertOne {
 	return u.Update(func(s *DeploymentVersionUpsert) {
 		s.UpdateDeploymentID()
+	})
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *DeploymentVersionUpsertOne) SetProjectID(v uuid.UUID) *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetProjectID(v)
+	})
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertOne) UpdateProjectID() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateProjectID()
+	})
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *DeploymentVersionUpsertOne) ClearProjectID() *DeploymentVersionUpsertOne {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearProjectID()
 	})
 }
 
@@ -1179,6 +1236,27 @@ func (u *DeploymentVersionUpsertBulk) SetDeploymentID(v uuid.UUID) *DeploymentVe
 func (u *DeploymentVersionUpsertBulk) UpdateDeploymentID() *DeploymentVersionUpsertBulk {
 	return u.Update(func(s *DeploymentVersionUpsert) {
 		s.UpdateDeploymentID()
+	})
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *DeploymentVersionUpsertBulk) SetProjectID(v uuid.UUID) *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.SetProjectID(v)
+	})
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *DeploymentVersionUpsertBulk) UpdateProjectID() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.UpdateProjectID()
+	})
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *DeploymentVersionUpsertBulk) ClearProjectID() *DeploymentVersionUpsertBulk {
+	return u.Update(func(s *DeploymentVersionUpsert) {
+		s.ClearProjectID()
 	})
 }
 

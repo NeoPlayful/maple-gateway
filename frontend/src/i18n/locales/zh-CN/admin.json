@@ -310,7 +310,10 @@
     "noMounts": "暂无挂载项",
     "mountPathPh": "如 tenant_1001/webapp/shop-a/db",
     "mountTargetPh": "如 /var/lib/postgresql/data",
-    "mountReadOnly": "只读"
+    "mountReadOnly": "只读",
+    "project": "所属项目",
+    "projectHint": "该版本创建的容器归入此项目，容器获得 maple.project_id 标签，与 Compose 应用共用同一项目隔离单元。留空表示不归属任何项目。",
+    "noProject": "（不归属项目）"
   },
   "nodes": {
     "title": "节点管理",

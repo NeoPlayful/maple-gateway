@@ -54,6 +54,12 @@ type CreateSpec struct {
 	ServiceID    string            `json:"service_id"`
 	DeploymentID string            `json:"deployment_id"`
 	VersionID    string            `json:"version_id"`
+	ProjectID    string            `json:"project_id,omitempty"`
+	// Name 是容器名（CM 指定，Compose 风格：maple-<项目短码>-<版本>-<序号>）；
+	// 为空则由 Agent 退回 maple-<实例短码>。
+	Name string `json:"name,omitempty"`
+	// ReplicaIndex 是副本序号（版本内从 1 起），随标签上报以便 CM 重启后恢复已用序号。
+	ReplicaIndex int               `json:"replica_index,omitempty"`
 	Image        string            `json:"image"`
 	Port         int               `json:"port"`
 	HostPort     int               `json:"host_port"`

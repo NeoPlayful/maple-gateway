@@ -32,6 +32,7 @@ func toModel(e *ent.Instance) *Instance {
 		ServiceID:    e.ServiceID,
 		DeploymentID: e.DeploymentID,
 		VersionID:    e.VersionID,
+		ProjectID:    e.ProjectID,
 		NodeID:       e.NodeID,
 		Version:      e.Version,
 		Address:      e.Address,
@@ -68,6 +69,7 @@ func (r *Repository) Create(ctx context.Context, in New) (*Instance, error) {
 		SetServiceID(in.ServiceID).
 		SetNillableDeploymentID(in.DeploymentID).
 		SetNillableVersionID(in.VersionID).
+		SetNillableProjectID(in.ProjectID).
 		SetNillableNodeID(in.NodeID).
 		SetVersion(in.Version).
 		SetAddress(in.Address).
@@ -256,19 +258,20 @@ func (r *Repository) SetHealth(ctx context.Context, id uuid.UUID, h Health) (*In
 
 // Heartbeat 刷新实例"最后被 CM 看见"时间（last_seen_at），不改变状态与健康。
 func (r *Repository) Heartbeat(ctx context.Context, id uuid.UUID) (*Instance, error) {
-	return r.HeartbeatWithNode(ctx, id, nil, nil)
+	return r.HeartbeatWithNode(ctx, id, nil, nil, nil)
 }
 
 // HeartbeatWithNode 刷新心跳，并按需回填归属信息：
-// nodeID 仅在实例尚无归属时补空（不覆盖已有归属）；port 则在观测到的宿主端口
-// 与当前值不同时同步——动态分配的宿主端口每次容器重启都会变化，实例端点须随之
-// 跟住实际映射，否则会指向已失效的旧端口。上报端口为 0（映射尚未就绪）时不改。
-func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID *uuid.UUID, port *int) (*Instance, error) {
+// nodeID 仅在实例尚无归属时补空（不覆盖已有归属）；projectID 同样仅在尚无归属时补空
+// （让既有实例收敛到容器的项目标签）；port 则在观测到的宿主端口与当前值不同时同步——
+// 动态分配的宿主端口每次容器重启都会变化，实例端点须随之跟住实际映射，否则会指向
+// 已失效的旧端口。上报端口为 0（映射尚未就绪）时不改。
+func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID *uuid.UUID, projectID *uuid.UUID, port *int) (*Instance, error) {
 	now := time.Now()
 	upd := r.ent.Instance.UpdateOneID(id).
 		SetLastSeenAt(now).
 		SetUpdatedAt(now)
-	if nodeID != nil || (port != nil && *port > 0) {
+	if nodeID != nil || projectID != nil || (port != nil && *port > 0) {
 		cur, err := r.ent.Instance.Get(ctx, id)
 		if err != nil {
 			if ent.IsNotFound(err) {
@@ -278,6 +281,9 @@ func (r *Repository) HeartbeatWithNode(ctx context.Context, id uuid.UUID, nodeID
 		}
 		if nodeID != nil && cur.NodeID == nil {
 			upd = upd.SetNillableNodeID(nodeID)
+		}
+		if projectID != nil && cur.ProjectID == nil {
+			upd = upd.SetNillableProjectID(projectID)
 		}
 		if port != nil && *port > 0 && cur.Port != *port {
 			upd = upd.SetPort(*port)
@@ -316,8 +322,8 @@ func (r *Repository) Mount(ctx context.Context, id uuid.UUID, in Mount) (*Instan
 		return nil, err
 	}
 
-	var newDep, newVer, newNode *uuid.UUID
-	newDep, newVer, newNode = cur.DeploymentID, cur.VersionID, cur.NodeID
+	var newDep, newVer, newProj, newNode *uuid.UUID
+	newDep, newVer, newProj, newNode = cur.DeploymentID, cur.VersionID, cur.ProjectID, cur.NodeID
 	if in.DeploymentID != nil {
 		if *in.DeploymentID == uuid.Nil {
 			newDep, newVer = nil, nil // 解挂 deployment 连带清 version
@@ -342,6 +348,13 @@ func (r *Repository) Mount(ctx context.Context, id uuid.UUID, in Mount) (*Instan
 			newNode = in.NodeID
 		}
 	}
+	if in.ProjectID != nil {
+		if *in.ProjectID == uuid.Nil {
+			newProj = nil
+		} else {
+			newProj = in.ProjectID
+		}
+	}
 
 	if err := r.validateMount(ctx, cur.ServiceID, newDep, newVer, newNode); err != nil {
 		return nil, err
@@ -349,6 +362,7 @@ func (r *Repository) Mount(ctx context.Context, id uuid.UUID, in Mount) (*Instan
 	upd := r.ent.Instance.UpdateOneID(id).
 		SetNillableDeploymentID(newDep).
 		SetNillableVersionID(newVer).
+		SetNillableProjectID(newProj).
 		SetNillableNodeID(newNode).
 		SetUpdatedAt(time.Now())
 	e, err := upd.Save(ctx)

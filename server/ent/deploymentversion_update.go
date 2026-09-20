@@ -47,6 +47,26 @@ func (dvu *DeploymentVersionUpdate) SetNillableDeploymentID(u *uuid.UUID) *Deplo
 	return dvu
 }
 
+// SetProjectID sets the "project_id" field.
+func (dvu *DeploymentVersionUpdate) SetProjectID(u uuid.UUID) *DeploymentVersionUpdate {
+	dvu.mutation.SetProjectID(u)
+	return dvu
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (dvu *DeploymentVersionUpdate) SetNillableProjectID(u *uuid.UUID) *DeploymentVersionUpdate {
+	if u != nil {
+		dvu.SetProjectID(*u)
+	}
+	return dvu
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (dvu *DeploymentVersionUpdate) ClearProjectID() *DeploymentVersionUpdate {
+	dvu.mutation.ClearProjectID()
+	return dvu
+}
+
 // SetVersion sets the "version" field.
 func (dvu *DeploymentVersionUpdate) SetVersion(s string) *DeploymentVersionUpdate {
 	dvu.mutation.SetVersion(s)
@@ -326,6 +346,12 @@ func (dvu *DeploymentVersionUpdate) sqlSave(ctx context.Context) (n int, err err
 			}
 		}
 	}
+	if value, ok := dvu.mutation.ProjectID(); ok {
+		_spec.SetField(deploymentversion.FieldProjectID, field.TypeUUID, value)
+	}
+	if dvu.mutation.ProjectIDCleared() {
+		_spec.ClearField(deploymentversion.FieldProjectID, field.TypeUUID)
+	}
 	if value, ok := dvu.mutation.Version(); ok {
 		_spec.SetField(deploymentversion.FieldVersion, field.TypeString, value)
 	}
@@ -462,6 +488,26 @@ func (dvuo *DeploymentVersionUpdateOne) SetNillableDeploymentID(u *uuid.UUID) *D
 	if u != nil {
 		dvuo.SetDeploymentID(*u)
 	}
+	return dvuo
+}
+
+// SetProjectID sets the "project_id" field.
+func (dvuo *DeploymentVersionUpdateOne) SetProjectID(u uuid.UUID) *DeploymentVersionUpdateOne {
+	dvuo.mutation.SetProjectID(u)
+	return dvuo
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (dvuo *DeploymentVersionUpdateOne) SetNillableProjectID(u *uuid.UUID) *DeploymentVersionUpdateOne {
+	if u != nil {
+		dvuo.SetProjectID(*u)
+	}
+	return dvuo
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (dvuo *DeploymentVersionUpdateOne) ClearProjectID() *DeploymentVersionUpdateOne {
+	dvuo.mutation.ClearProjectID()
 	return dvuo
 }
 
@@ -773,6 +819,12 @@ func (dvuo *DeploymentVersionUpdateOne) sqlSave(ctx context.Context) (_node *Dep
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := dvuo.mutation.ProjectID(); ok {
+		_spec.SetField(deploymentversion.FieldProjectID, field.TypeUUID, value)
+	}
+	if dvuo.mutation.ProjectIDCleared() {
+		_spec.ClearField(deploymentversion.FieldProjectID, field.TypeUUID)
 	}
 	if value, ok := dvuo.mutation.Version(); ok {
 		_spec.SetField(deploymentversion.FieldVersion, field.TypeString, value)
