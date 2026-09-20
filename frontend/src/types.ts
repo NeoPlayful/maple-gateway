@@ -3,6 +3,7 @@
 export interface Service {
   id: string;
   tenant_id: string;
+  project_id?: string;
   name: string;
   protocol: string;
   status: string;

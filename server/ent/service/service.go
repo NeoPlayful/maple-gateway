@@ -15,6 +15,8 @@ const (
 	FieldID = "id"
 	// FieldTenantID holds the string denoting the tenant_id field in the database.
 	FieldTenantID = "tenant_id"
+	// FieldProjectID holds the string denoting the project_id field in the database.
+	FieldProjectID = "project_id"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
 	// FieldProtocol holds the string denoting the protocol field in the database.
@@ -69,6 +71,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldTenantID,
+	FieldProjectID,
 	FieldName,
 	FieldProtocol,
 	FieldStatus,
@@ -108,6 +111,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByTenantID orders the results by the tenant_id field.
 func ByTenantID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTenantID, opts...).ToFunc()
+}
+
+// ByProjectID orders the results by the project_id field.
+func ByProjectID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProjectID, opts...).ToFunc()
 }
 
 // ByName orders the results by the name field.

@@ -47,6 +47,26 @@ func (su *ServiceUpdate) SetNillableTenantID(u *uuid.UUID) *ServiceUpdate {
 	return su
 }
 
+// SetProjectID sets the "project_id" field.
+func (su *ServiceUpdate) SetProjectID(u uuid.UUID) *ServiceUpdate {
+	su.mutation.SetProjectID(u)
+	return su
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (su *ServiceUpdate) SetNillableProjectID(u *uuid.UUID) *ServiceUpdate {
+	if u != nil {
+		su.SetProjectID(*u)
+	}
+	return su
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (su *ServiceUpdate) ClearProjectID() *ServiceUpdate {
+	su.mutation.ClearProjectID()
+	return su
+}
+
 // SetName sets the "name" field.
 func (su *ServiceUpdate) SetName(s string) *ServiceUpdate {
 	su.mutation.SetName(s)
@@ -279,6 +299,12 @@ func (su *ServiceUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			}
 		}
 	}
+	if value, ok := su.mutation.ProjectID(); ok {
+		_spec.SetField(service.FieldProjectID, field.TypeUUID, value)
+	}
+	if su.mutation.ProjectIDCleared() {
+		_spec.ClearField(service.FieldProjectID, field.TypeUUID)
+	}
 	if value, ok := su.mutation.Name(); ok {
 		_spec.SetField(service.FieldName, field.TypeString, value)
 	}
@@ -486,6 +512,26 @@ func (suo *ServiceUpdateOne) SetNillableTenantID(u *uuid.UUID) *ServiceUpdateOne
 	if u != nil {
 		suo.SetTenantID(*u)
 	}
+	return suo
+}
+
+// SetProjectID sets the "project_id" field.
+func (suo *ServiceUpdateOne) SetProjectID(u uuid.UUID) *ServiceUpdateOne {
+	suo.mutation.SetProjectID(u)
+	return suo
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (suo *ServiceUpdateOne) SetNillableProjectID(u *uuid.UUID) *ServiceUpdateOne {
+	if u != nil {
+		suo.SetProjectID(*u)
+	}
+	return suo
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (suo *ServiceUpdateOne) ClearProjectID() *ServiceUpdateOne {
+	suo.mutation.ClearProjectID()
 	return suo
 }
 
@@ -750,6 +796,12 @@ func (suo *ServiceUpdateOne) sqlSave(ctx context.Context) (_node *Service, err e
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := suo.mutation.ProjectID(); ok {
+		_spec.SetField(service.FieldProjectID, field.TypeUUID, value)
+	}
+	if suo.mutation.ProjectIDCleared() {
+		_spec.ClearField(service.FieldProjectID, field.TypeUUID)
 	}
 	if value, ok := suo.mutation.Name(); ok {
 		_spec.SetField(service.FieldName, field.TypeString, value)

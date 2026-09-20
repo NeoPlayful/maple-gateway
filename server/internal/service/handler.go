@@ -18,8 +18,19 @@ func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
 }
 
-// List GET /api/admin/services?tenant_id=&limit=&offset=
+// List GET /api/admin/services?tenant_id=&project_id=&limit=&offset=
 func (h *Handler) List(c fiber.Ctx) error {
+	if projectParam := c.Query("project_id"); projectParam != "" {
+		pid, err := uuid.Parse(projectParam)
+		if err != nil {
+			return pkg.Err(c, pkg.ErrValidation("无效的 project_id"))
+		}
+		items, err := h.repo.ListByProject(c.Context(), pid)
+		if err != nil {
+			return pkg.Err(c, err)
+		}
+		return pkg.OKMeta(c, items, fiber.Map{"total": len(items)})
+	}
 	tenantParam := c.Query("tenant_id")
 	if tenantParam != "" {
 		tid, err := uuid.Parse(tenantParam)

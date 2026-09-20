@@ -34,6 +34,12 @@ type PortAllocator interface {
 	ReleasePort(ctx context.Context, resourceID string) error
 }
 
+// ServiceBinder 返回项目已绑定的服务 ID（一项目一服务）。供实例化把服务归属
+// 写进 CM 应用，使观测器据此把该应用的容器归入对应服务的路由池。
+type ServiceBinder interface {
+	ServiceForProject(ctx context.Context, projectID uuid.UUID) (uuid.UUID, bool, error)
+}
+
 // Instantiator 把「租户 + 模板 + 项目 + 参数」渲染为一份 Compose 规格并落成 Application。
 type Instantiator struct {
 	projects  *Repository
@@ -42,6 +48,8 @@ type Instantiator struct {
 	apps      AppSaver
 	// ports 可空；未接入 CM 时为 nil，模板引用内置 {{port}} 且未声明为参数时拒绝实例化。
 	ports PortAllocator
+	// svc 可空；注入后实例化会把项目服务 ID 写进 CM 应用。
+	svc ServiceBinder
 }
 
 // NewInstantiator 构造。
@@ -52,6 +60,12 @@ func NewInstantiator(projects *Repository, tenants SlugResolver, templates Templ
 // WithPortAllocator 注入端口池（模板未钉死宿主端口时由系统分配）。
 func (i *Instantiator) WithPortAllocator(p PortAllocator) *Instantiator {
 	i.ports = p
+	return i
+}
+
+// WithServiceBinder 注入项目→服务解析器（实例化把服务归属写进 CM 应用）。
+func (i *Instantiator) WithServiceBinder(b ServiceBinder) *Instantiator {
+	i.svc = b
 	return i
 }
 
@@ -114,6 +128,14 @@ func (i *Instantiator) Instantiate(ctx context.Context, projectID uuid.UUID, in 
 		"version":     "v1",
 		"spec":        rendered,
 		"node_id":     in.NodeID,
+	}
+	// 把项目服务归属写进 CM 应用：观测器据应用的 service_id 将容器归入正确路由池。
+	if i.svc != nil {
+		if sid, ok, err := i.svc.ServiceForProject(ctx, projectID); err != nil {
+			return nil, err
+		} else if ok {
+			body["service_id"] = sid.String()
+		}
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {

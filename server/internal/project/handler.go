@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
@@ -8,11 +9,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// ServiceEnsurer 为项目建立（或取回）其唯一服务。由 service.Repository 实现，
+// 以接口注入避免 project 与 service 包循环依赖。
+type ServiceEnsurer interface {
+	EnsureForProject(ctx context.Context, projectID uuid.UUID, name string) (uuid.UUID, error)
+}
+
 // Handler 暴露 Project 的 Management API。
 type Handler struct {
 	repo *Repository
 	// inst 可空；未接入 CM 时为 nil，实例化接口返回 503。
 	inst *Instantiator
+	// svc 可空；注入后项目创建即自动建立其唯一服务。
+	svc ServiceEnsurer
 }
 
 // NewHandler 构造。
@@ -23,6 +32,12 @@ func NewHandler(repo *Repository) *Handler {
 // WithInstantiator 注入模板实例化器（渲染规格并落成 Application）。
 func (h *Handler) WithInstantiator(inst *Instantiator) *Handler {
 	h.inst = inst
+	return h
+}
+
+// WithServiceEnsurer 注入服务建立器（项目创建即建服务，一项目一服务）。
+func (h *Handler) WithServiceEnsurer(s ServiceEnsurer) *Handler {
+	h.svc = s
 	return h
 }
 
@@ -60,6 +75,12 @@ func (h *Handler) Create(c fiber.Ctx) error {
 	p, err := h.repo.Create(c.Context(), in)
 	if err != nil {
 		return pkg.Err(c, err)
+	}
+	// 项目创建即建立其唯一服务（一项目一服务）。
+	if h.svc != nil {
+		if _, err := h.svc.EnsureForProject(c.Context(), p.ID, p.Name); err != nil {
+			return pkg.Err(c, err)
+		}
 	}
 	return pkg.OK(c, p)
 }

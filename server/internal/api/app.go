@@ -260,14 +260,16 @@ func New(d Deps) *fiber.App {
 
 	// 项目：租户 + 模板下的一个部署单元，项目名即数据目录第三段。
 	projectRepo := project.NewRepository(d.Ent)
-	projectH := project.NewHandler(projectRepo)
+	serviceRepo := service.NewRepository(d.Ent)
+	projectH := project.NewHandler(projectRepo).
+		WithServiceEnsurer(serviceRepo)
 	if cmH != nil {
 		projectH = projectH.WithInstantiator(project.NewInstantiator(
 			projectRepo,
 			tenant.NewRepository(d.Ent),
 			apptemplate.NewRepository(d.Ent),
 			d.CMClient,
-		).WithPortAllocator(d.CMClient))
+		).WithPortAllocator(d.CMClient).WithServiceBinder(serviceRepo))
 	}
 	pj := admin.Group("/projects")
 	pj.Get("/", projectH.List)
