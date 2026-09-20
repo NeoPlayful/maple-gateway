@@ -73,8 +73,8 @@ type Mount struct {
 
 // Version 是分流的最小单元。
 type Version struct {
-	ID           uuid.UUID         `json:"id"`
-	DeploymentID uuid.UUID         `json:"deployment_id"`
+	ID           uuid.UUID `json:"id"`
+	DeploymentID uuid.UUID `json:"deployment_id"`
 	// ProjectID 是版本所属项目（可空）。非空时该版本创建的容器带 maple.project_id 标签，
 	// 使单容器与 Compose 应用共用同一项目隔离单元。
 	ProjectID    *uuid.UUID        `json:"project_id,omitempty"`
@@ -96,8 +96,6 @@ type Version struct {
 // NewVersion 创建版本输入。
 type NewVersion struct {
 	Version      string            `json:"version" validate:"required,min=1,max=64"`
-	// ProjectID 是版本所属项目（可空）；留空表示不属于任何项目。
-	ProjectID    *uuid.UUID        `json:"project_id"`
 	Image        string            `json:"image" validate:"max=255"`
 	Weight       int               `json:"weight" validate:"min=0,max=1000"`
 	Status       VersionStatus     `json:"status" validate:"omitempty,oneof=stable standby canary inactive"`
@@ -112,8 +110,6 @@ type NewVersion struct {
 
 // UpdateVersion 可修改字段。
 type UpdateVersion struct {
-	// ProjectID 为三态：非 nil 指向 uuid.Nil 表示解除项目归属；指向有效 UUID 表示设置。
-	ProjectID    *uuid.UUID        `json:"project_id"`
 	Image        *string           `json:"image"`
 	Weight       *int              `json:"weight"`
 	Status       *VersionStatus    `json:"status"`

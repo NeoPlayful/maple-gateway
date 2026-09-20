@@ -153,7 +153,8 @@ func New(d Deps) *fiber.App {
 	dm.Post("/:id/enable", domainH.Enable)
 	dm.Post("/:id/disable", domainH.Disable)
 
-	serviceH := service.NewHandler(service.NewRepository(d.Ent))
+	serviceRepo := service.NewRepository(d.Ent)
+	serviceH := service.NewHandler(serviceRepo)
 	sv := admin.Group("/services")
 	sv.Get("/", serviceH.List)
 	sv.Post("/", serviceH.Create)
@@ -197,7 +198,8 @@ func New(d Deps) *fiber.App {
 		hag.Get("/leader", d.HA.Leader)
 	}
 
-	deployH := deployment.NewHandler(deployment.NewRepository(d.Ent))
+	deployH := deployment.NewHandler(deployment.NewRepository(d.Ent)).
+		WithServiceResolver(serviceRepo)
 	if d.CMClient != nil && d.CMClient.Enabled() {
 		deployH = deployH.WithPusher(d.CMClient, d.IsLeader)
 	}
@@ -260,7 +262,6 @@ func New(d Deps) *fiber.App {
 
 	// 项目：租户 + 模板下的一个部署单元，项目名即数据目录第三段。
 	projectRepo := project.NewRepository(d.Ent)
-	serviceRepo := service.NewRepository(d.Ent)
 	projectH := project.NewHandler(projectRepo).
 		WithServiceEnsurer(serviceRepo)
 	if cmH != nil {

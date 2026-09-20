@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/client';
-import type { Deployment, Mount, Project, Service, VersionWithOwner } from '../../types';
+import type { Deployment, Mount, Service, VersionWithOwner } from '../../types';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { Field } from '../../components/admin/Field';
@@ -23,7 +23,6 @@ const VERSION_FILTERS: FilterDef[] = [
 export default function VersionsPage() {
   const { t } = useTranslation('admin');
   const [services, setServices] = useState<Service[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [rows, setRows] = useState<VersionWithOwner[]>([]);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
@@ -40,7 +39,6 @@ export default function VersionsPage() {
   const [form, setForm] = useState({
     svcId: '',
     depId: '',
-    projectId: '',
     version: '',
     image: '',
     replicas: '1',
@@ -59,12 +57,6 @@ export default function VersionsPage() {
     } catch { /* ignore */ }
   }, []);
 
-  const loadProjects = useCallback(async () => {
-    try {
-      setProjects(await api.get<Project[]>('/api/admin/projects?limit=200'));
-    } catch { setProjects([]); }
-  }, []);
-
   const loadVersions = useCallback(async () => {
     try {
       setRows(await api.get<VersionWithOwner[]>('/api/admin/versions?limit=200'));
@@ -75,7 +67,7 @@ export default function VersionsPage() {
     }
   }, [t]);
 
-  useEffect(() => { loadServices(); loadProjects(); loadVersions(); }, [loadServices, loadProjects, loadVersions]);
+  useEffect(() => { loadServices(); loadVersions(); }, [loadServices, loadVersions]);
 
   // 新建弹窗内选服务 → 联动加载其部署。
   const loadFormDeploys = async (serviceId: string) => {
@@ -90,7 +82,7 @@ export default function VersionsPage() {
     setEditing(null);
     setFormDeploys([]);
     setForm({
-      svcId: '', depId: '', projectId: '', version: '', image: '', replicas: '1', port: '',
+      svcId: '', depId: '', version: '', image: '', replicas: '1', port: '',
       weight: '100', status: 'stable', health_path: '', env: '', node_selector: '', mounts: [],
     });
     setModalOpen(true);
@@ -102,7 +94,6 @@ export default function VersionsPage() {
     setForm({
       svcId: v.service_id,
       depId: v.deployment_id,
-      projectId: v.project_id ?? '',
       version: v.version,
       image: v.image ?? '',
       replicas: String(v.replicas ?? 1),
@@ -146,11 +137,8 @@ export default function VersionsPage() {
       const mounts = form.mounts
         .map((m) => ({ path: m.path.trim(), target: m.target.trim(), read_only: !!m.read_only }))
         .filter((m) => m.path && m.target);
-      // 项目归属：新建时留空即不传（无归属）；编辑时留空传零值 UUID 表示解挂（后端清空）。
-      const projectId = form.projectId || (editing ? '00000000-0000-0000-0000-000000000000' : undefined);
       const body = {
         version: form.version,
-        ...(projectId ? { project_id: projectId } : {}),
         image: form.image,
         replicas: Number(form.replicas) || 1,
         port: form.port ? Number(form.port) : 0,
@@ -212,10 +200,6 @@ export default function VersionsPage() {
     setFilterValues((cur) => ({ ...cur, [key]: value }));
   const resetFilter = () => setFilterValues({});
 
-  // 项目名：无归属显示 '-'（项目被删时外键置空，同样落到此）。
-  const projectName = (id?: string | null) =>
-    id ? (projects.find((p) => p.id === id)?.name ?? shortId(id)) : '-';
-
   // fieldCls 只含盒子样式（不含宽度）。弹窗输入框需要占满一行用 inputCls。
   const fieldCls =
     'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-th-accent-focus focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-500';
@@ -253,7 +237,6 @@ export default function VersionsPage() {
               <th className="px-4 py-2">{t('fields.service')}</th>
               <th className="px-4 py-2">{t('fields.deploymentName')}</th>
               <th className="px-4 py-2">{t('fields.version')}</th>
-              <th className="px-4 py-2">{t('versions.project')}</th>
               <th className="px-4 py-2">{t('fields.image')}</th>
               <th className="px-4 py-2">{t('fields.replicas')}</th>
               <th className="px-4 py-2">{t('fields.port')}</th>
@@ -265,7 +248,7 @@ export default function VersionsPage() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                 {rows.length === 0 ? t('versions.none') : t('versions.noMatch')}
               </td></tr>
             )}
@@ -274,7 +257,6 @@ export default function VersionsPage() {
                 <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.service_name || shortId(v.service_id)}</td>
                 <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{v.deployment_name || shortId(v.deployment_id)}</td>
                 <td className="px-4 py-2">{v.version}</td>
-                <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{projectName(v.project_id)}</td>
                 <td className="px-4 py-2 font-mono text-xs">{v.image || '-'}</td>
                 <td className="px-4 py-2">{v.replicas ?? 1}</td>
                 <td className="px-4 py-2">{v.port || '-'}</td>
@@ -332,12 +314,6 @@ export default function VersionsPage() {
           )}
           <Field label={t('fields.version')}>
             <input value={form.version} disabled={!!editing} onChange={(e) => setForm({ ...form, version: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label={t('versions.project')} hint={t('versions.projectHint')}>
-            <select value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className={inputCls}>
-              <option value="">{t('versions.noProject')}</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
           </Field>
           <Field label={t('fields.image')}>
             <input value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="nginx:alpine" className={inputCls} />
