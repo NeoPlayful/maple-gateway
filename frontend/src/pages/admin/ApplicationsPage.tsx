@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '../../lib/client';
-import type { CMApplication, CMAppService, Service, Tenant } from '../../types';
+import type { CMApplication, CMAppService, Service } from '../../types';
 import { PageHeader } from '../../themes';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
@@ -29,7 +29,6 @@ const SAMPLE_SPEC = `services:
 export default function ApplicationsPage() {
   const { t } = useTranslation('admin');
   const [apps, setApps] = useState<CMApplication[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [err, setErr] = useState('');
@@ -38,7 +37,7 @@ export default function ApplicationsPage() {
 
   // 编辑弹窗（新建 / 编辑复用）。
   const [editing, setEditing] = useState<CMApplication | null>(null);
-  const [form, setForm] = useState({ id: '', tenantId: '', name: '', description: '', version: '', spec: '', serviceId: '' });
+  const [form, setForm] = useState({ id: '', name: '', description: '', version: '', spec: '', serviceId: '' });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -65,37 +64,29 @@ export default function ApplicationsPage() {
     }
   }, [t]);
 
-  // 租户清单供表单选择归属；失败不影响列表。
-  const loadTenants = useCallback(async () => {
-    try {
-      setTenants(await api.get<Tenant[]>('/api/admin/tenants?limit=200'));
-    } catch { setTenants([]); }
-  }, []);
-
-  // 服务清单供表单绑定归属；失败不影响列表。
+  // 服务清单供表单绑定与列表归属展示；失败不影响列表。
   const loadServices = useCallback(async () => {
     try {
-      setServices(await api.get<Service[]>('/api/admin/services'));
+      setServices(await api.get<Service[]>('/api/admin/services?limit=200'));
     } catch { setServices([]); }
   }, []);
 
   useEffect(() => {
     load();
-    loadTenants();
     loadServices();
     const timer = setInterval(load, 10000);
     return () => clearInterval(timer);
-  }, [load, loadTenants, loadServices]);
+  }, [load, loadServices]);
 
   const openNew = () => {
     setEditing({} as CMApplication);
-    setForm({ id: '', tenantId: '', name: '', description: '', version: 'v1', spec: SAMPLE_SPEC, serviceId: '' });
+    setForm({ id: '', name: '', description: '', version: 'v1', spec: SAMPLE_SPEC, serviceId: '' });
     setFormErr('');
   };
 
   const openEdit = (a: CMApplication) => {
     setEditing(a);
-    setForm({ id: a.id, tenantId: a.tenant_id ?? '', name: a.name, description: a.description ?? '', version: a.version ?? '', spec: a.spec ?? '', serviceId: a.service_id ?? '' });
+    setForm({ id: a.id, name: a.name, description: a.description ?? '', version: a.version ?? '', spec: a.spec ?? '', serviceId: a.service_id ?? '' });
     setFormErr('');
   };
 
@@ -113,7 +104,6 @@ export default function ApplicationsPage() {
     try {
       await api.post('/api/admin/cm/applications', {
         id: form.id,
-        tenant_id: form.tenantId,
         name: form.name,
         description: form.description,
         version: form.version,
@@ -186,8 +176,8 @@ export default function ApplicationsPage() {
     setFilterValues((cur) => ({ ...cur, [key]: value }));
   const resetFilter = () => setFilterValues({});
 
-  // 租户名按 id 解析（列表行展示；未匹配显示空由调用处兜底）。
-  const tenantName = (id?: string) => tenants.find((tn) => tn.id === id)?.name ?? '';
+  // 服务名按 id 解析（列表行展示；未匹配显示空由调用处兜底）。
+  const serviceName = (id?: string) => services.find((s) => s.id === id)?.name ?? '';
 
   const inputCls =
     'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
@@ -232,7 +222,7 @@ export default function ApplicationsPage() {
             <tr>
               <th className="px-4 py-2">{t('fields.id')}</th>
               <th className="px-4 py-2">{t('fields.name')}</th>
-              <th className="px-4 py-2">{t('fields.tenant')}</th>
+              <th className="px-4 py-2">{t('fields.service')}</th>
               <th className="px-4 py-2">{t('applications.colVersion')}</th>
               <th className="px-4 py-2">{t('fields.status')}</th>
               <th className="px-4 py-2">{t('runtime.colNode')}</th>
@@ -254,7 +244,7 @@ export default function ApplicationsPage() {
                   {a.description && <p className="text-xs text-slate-400">{a.description}</p>}
                 </td>
                 <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
-                  {tenantName(a.tenant_id) || '-'}
+                  {serviceName(a.service_id) || '-'}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{a.version || '-'}</td>
                 <td className="px-4 py-2"><StatusBadge value={a.status} raw label={a.status === 'running' ? t('applications.statusRunning') : undefined} /></td>
@@ -298,25 +288,18 @@ export default function ApplicationsPage() {
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('applications.namePh')} className={inputCls} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.tenant')}</label>
-              <select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })} className={inputCls}>
-                <option value="">{t('applications.tenantNone')}</option>
-                {tenants.map((tn) => <option key={tn.id} value={tn.id}>{tn.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.colVersion')}</label>
               <input value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} placeholder="v1" className={inputCls} />
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.serviceLabel')}</label>
-              <select value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} className={inputCls}>
-                <option value="">{t('applications.serviceNone')}</option>
-                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
           </div>
-          <p className="text-xs text-slate-400">{t('applications.serviceHint')}</p>
+          <div>
+            <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.serviceLabel')}</label>
+            <select value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} className={inputCls}>
+              <option value="">{t('applications.serviceNone')}</option>
+              {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">{t('applications.serviceHint')}</p>
+          </div>
           <div>
             <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.description')}</label>
             <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />

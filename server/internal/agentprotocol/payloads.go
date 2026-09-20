@@ -248,10 +248,8 @@ type NetworkCheckResult struct {
 // 取出后原样下发，Agent 落盘为临时 compose 文件再驱动 compose CLI。
 type ApplicationSpec struct {
 	ApplicationID string `json:"application_id"`
-	// TenantID 是应用所属租户（Gateway tenants.id，可空）；数据目录按租户隔离时用。
-	TenantID string `json:"tenant_id,omitempty"`
-	Version  string `json:"version"`
-	Project  string `json:"project"`
+	Version       string `json:"version"`
+	Project       string `json:"project"`
 	// NetworkName 是项目占用的外部网络名（maple-<12>）。非空时 Agent 会把它接入
 	// Compose 规格（external 网络），网段由 CM 统一分配；为空则沿用 Compose 默认网络。
 	NetworkName string `json:"network_name,omitempty"`
