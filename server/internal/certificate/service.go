@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/certificate/certenc"
@@ -48,9 +49,13 @@ type Service struct {
 	cache      *Cache
 	enc        encIface
 	log        *zap.Logger
-	encKey     string             // 显式配置的加密密钥（config 提供）；空则回退 env
-	domainRepo *domain.Repository // 可空：联动 Domain TLS 状态
-	providers  *ProviderRegistry  // 证书来源注册表（manual 内建注册，acme 由 main 注入）
+	encKey     string                      // 显式配置的加密密钥（config 提供）；空则回退 env
+	domainRepo *domain.Repository          // 可空：联动 Domain TLS 状态
+	providers  *ProviderRegistry           // 证书来源注册表（manual 内建注册，acme 由 main 注入）
+	acme       *acmeProvider               // 可空：EnableACME 后置；供运行期热更配置
+	renewCfg   atomic.Pointer[RenewConfig] // 续期参数（热更；RenewNow 与循环共用）
+	renewNanos atomic.Int64                // 续期扫描间隔（纳秒；0 表示未设置）
+	renewWake  chan struct{}               // 间隔热更唤醒信号
 
 	// 异步签发进度：opRepo 记录过程，jobCtx 为后台任务根上下文（随进程关闭取消）。
 	// 二者任一为空则退化为同步签发（无进度可视化），保证未启用时行为不变。
@@ -106,7 +111,8 @@ func (s *Service) incMetric(name, result string) {
 
 // NewService 构造。密钥缺失时返回 ErrNoKey（Direct TLS 证书存储不可降级为明文）。
 func NewService(repo repoIface, cache *Cache, log *zap.Logger, opts ...ServiceOption) (*Service, error) {
-	s := &Service{repo: repo, cache: cache, log: log, providers: NewProviderRegistry()}
+	s := &Service{repo: repo, cache: cache, log: log, providers: NewProviderRegistry(),
+		renewWake: make(chan struct{}, 1)}
 	for _, o := range opts {
 		o(s)
 	}
@@ -115,7 +121,9 @@ func NewService(repo repoIface, cache *Cache, log *zap.Logger, opts ...ServiceOp
 		return nil, err
 	}
 	s.enc = enc
-	// manual 来源内建注册；acme 由 main 在构造后通过 Providers().Register 注入。
+	rc := DefaultRenewConfig()
+	s.renewCfg.Store(&rc)
+	// manual 来源内建注册；acme 由 main 在构造后通过 EnableACME 注入。
 	s.providers.Register(&manualProvider{repo: repo})
 	return s, nil
 }
@@ -133,7 +141,10 @@ func newEncrypter(configured string) (encIface, error) {
 
 // newServiceWithDeps 供测试注入 enc 实现（绕过 MAPLE_CERT_ENC_KEY 依赖）。
 func newServiceWithDeps(repo repoIface, cache *Cache, enc encIface, log *zap.Logger) *Service {
-	s := &Service{repo: repo, cache: cache, enc: enc, log: log, providers: NewProviderRegistry()}
+	s := &Service{repo: repo, cache: cache, enc: enc, log: log, providers: NewProviderRegistry(),
+		renewWake: make(chan struct{}, 1)}
+	rc := DefaultRenewConfig()
+	s.renewCfg.Store(&rc)
 	s.providers.Register(&manualProvider{repo: repo})
 	return s
 }

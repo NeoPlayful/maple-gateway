@@ -10,7 +10,7 @@ import { PageHeader } from '../../themes';
 type KV = { value: unknown; version: number; updated_at: string };
 type SettingsMap = Record<string, Record<string, KV>>;
 
-const sections = ['gateway', 'proxy', 'health', 'security', 'logging', 'metrics'];
+const sections = ['gateway', 'proxy', 'health', 'acme', 'security', 'logging', 'metrics'];
 // container 分区由专用组件渲染（结构化表单，而非通用 KV 输入）。
 const tabs = ['appearance', 'container', ...sections];
 
@@ -97,9 +97,9 @@ export default function SettingsPage() {
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <ContainerNetworkSettings />
         </div>
-      ) : section === 'health' || section === 'proxy' ? (
+      ) : section === 'health' || section === 'proxy' || section === 'acme' ? (
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <RuntimeSettings section={section} />
+          <RuntimeSettings section={section as 'health' | 'proxy' | 'acme'} />
         </div>
       ) : (
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">

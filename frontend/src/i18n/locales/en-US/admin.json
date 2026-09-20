@@ -642,7 +642,8 @@
       "security": "Security",
       "logging": "Logging",
       "metrics": "Metrics",
-      "container": "Container"
+      "container": "Container",
+      "acme": "ACME"
     },
     "appearanceSaving": "Saving…",
     "appearanceSaved": "Saved — applies to all visitors",
@@ -669,7 +670,19 @@
       "max_conns_per_host": "Max conns per host",
       "max_idle_conns": "Max idle conns",
       "max_idle_conns_per_host": "Max idle conns per host",
-      "max_in_flight": "Max in-flight requests (0=unlimited)"
+      "max_in_flight": "Max in-flight requests (0=unlimited)",
+      "acmeHint": "Enabling automatic issuance requires an encryption key (tls.cert_enc_key). Changing the directory URL/email creates a new CA account; already-issued certificates keep serving until renewal.",
+      "on": "On",
+      "off": "Off",
+      "enabled": "Automatic issuance & renewal",
+      "directory_url": "ACME directory URL",
+      "email": "Account email",
+      "challenge": "Challenge type",
+      "key_type": "Certificate key type",
+      "renew_before": "Renew-before window",
+      "renew_check_interval": "Renewal scan interval",
+      "max_renew_attempts": "Max consecutive renew failures",
+      "rate_limit_backoff": "Backoff after CA rate limit"
     },
     "containerNet": {
       "title": "Container Network",

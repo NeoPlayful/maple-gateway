@@ -195,6 +195,34 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		}
 		return setRepo.Proxy(def)
 	}
+	// runtimeACME 读取 ACME 运行时配置（含目录/邮箱/密钥类型/续期参数），逐键被 DB 覆盖。
+	runtimeACME := func() settings.ACMERuntime {
+		def := settings.ACMERuntime{
+			Enabled:            cfg.ACME.Enabled,
+			DirectoryURL:       cfg.ACME.DirectoryURL,
+			Email:              cfg.ACME.Email,
+			Challenge:          cfg.ACME.Challenge,
+			KeyType:            cfg.ACME.KeyType,
+			RenewBefore:        cfg.ACME.RenewBefore,
+			RenewCheckInterval: cfg.ACME.RenewCheckInterval,
+			MaxRenewAttempts:   cfg.ACME.MaxRenewAttempts,
+			RateLimitBackoff:   cfg.ACME.RateLimitBackoff,
+		}
+		if setRepo == nil {
+			return def
+		}
+		return setRepo.ACME(def)
+	}
+	// renewConfig 由 ACME 运行时配置导出续期引擎参数（Before/MaxAttempts/RateBackoff/BaseBackoff）。
+	renewConfig := func() certificate.RenewConfig {
+		a := runtimeACME()
+		return certificate.RenewConfig{
+			Before:      a.RenewBefore,
+			MaxAttempts: a.MaxRenewAttempts,
+			RateBackoff: a.RateLimitBackoff,
+			BaseBackoff: time.Hour,
+		}
+	}
 	if routeCache != nil {
 		// 周期重建：DB 里 Tenant/Domain/Service/Instance 变更 5s 内自动生效，无需重启。
 		routeCache.AutoRebuild(ctx, 5*time.Second, logger)
@@ -284,6 +312,12 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			logger.Debug("certificate service disabled (Direct TLS)",
 				zap.String("err", err.Error()),
 				zap.Bool("cert_enc_key_set", cfg.TLS.CertEncKey != "" || os.Getenv("MAPLE_CERT_ENC_KEY") != ""))
+			// DB 里 enabled=true 但进程无加密密钥：私钥加密不可降级，ACME 无法生效。
+			// 显式告警而非静默忽略——这是「键可写但无法生效」的唯一情形。
+			if runtimeACME().Enabled {
+				logger.Warn("acme is enabled in settings but certificate service is unavailable " +
+					"(missing tls.cert_enc_key): automatic issuance disabled until a key is configured")
+			}
 		} else {
 			if err := certSvc.ReloadAll(ctx); err != nil {
 				logger.Warn("certificate cache initial reload failed",
@@ -295,12 +329,18 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 			certH = certificate.NewHandler(certSvc)
 			logger.Debug("certificate management API mounted",
 				zap.Bool("cert_enc_key_set", cfg.TLS.CertEncKey != "" || os.Getenv("MAPLE_CERT_ENC_KEY") != ""))
-			// 启用 ACME 自动签发/续期来源。挑战 store 与数据平面共享（http-01 代答）。
-			if cfg.ACME.Enabled {
-				acmeChallenges = acme.NewChallengeStore()
-				certSvc.EnableACME(entClient, acmeChallenges,
-					cfg.ACME.DirectoryURL, cfg.ACME.Email, cfg.ACME.Challenge, cfg.ACME.KeyType)
-			}
+			// ACME 来源：无条件注册 provider 并建挑战 store（空 store 不命中任何路径）。
+			// enabled 由运行期配置决定：关闭时 provider 拒绝签发、续期循环跳过扫描。
+			// 这样 enabled 才能在运行期热启停，而无需重启进程重建数据平面接线。
+			acmeChallenges = acme.NewChallengeStore()
+			acmeRuntime := runtimeACME()
+			certSvc.EnableACME(entClient, acmeChallenges, certificate.ACMEConfig{
+				Enabled:      acmeRuntime.Enabled,
+				DirectoryURL: acmeRuntime.DirectoryURL,
+				Email:        acmeRuntime.Email,
+				Challenge:    acmeRuntime.Challenge,
+				KeyType:      acmeRuntime.KeyType,
+			})
 		}
 	}
 	// 证书缓存多实例对账：周期全量重载（对齐 Phase 4"先轮询"决策）。
@@ -357,40 +397,20 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 				}
 			}
 		}()
-		// ACME 自动续期引擎。多实例下仅 Leader 执行（复用 HA 协调），
-		// 避免多实例重复向 CA 下单；单实例（HA 关闭）恒执行。
-		if cfg.ACME.Enabled {
-			go func() {
-				ticker := time.NewTicker(cfg.ACME.RenewCheckInterval)
-				defer ticker.Stop()
-				canRun := func() bool {
-					if !cfg.HA.Enabled {
-						return true
-					}
-					return coord != nil && coord.IsLeader()
-				}
-				rc := certificate.RenewConfig{
-					Before:      cfg.ACME.RenewBefore,
-					MaxAttempts: cfg.ACME.MaxRenewAttempts,
-					RateBackoff: cfg.ACME.RateLimitBackoff,
-					BaseBackoff: time.Hour,
-				}
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-						if n, err := certSvc.RenewOnce(ctx, rc, canRun); err != nil {
-							logger.Warn("certificate auto-renew scan failed", zap.String("err", err.Error()))
-						} else if n > 0 {
-							logger.Info("certificate auto-renew completed", zap.Int("renewed", n))
-						}
-					}
-				}
-			}()
-			logger.Info("acme auto-renew enabled",
-				zap.Duration("renew_before", cfg.ACME.RenewBefore),
-				zap.Duration("interval", cfg.ACME.RenewCheckInterval))
+		// ACME 自动续期引擎。循环常驻（enabled 关闭时内部跳过扫描），参数与间隔可热更。
+		// 多实例下仅 Leader 执行（复用 HA 协调），避免重复向 CA 下单；单实例恒执行。
+		go certSvc.RenewLoop(ctx, runtimeACME().RenewCheckInterval, func() bool {
+			if !cfg.HA.Enabled {
+				return true
+			}
+			return coord != nil && coord.IsLeader()
+		})
+		{
+			a := runtimeACME()
+			logger.Info("acme auto-renew loop started",
+				zap.Bool("enabled", a.Enabled),
+				zap.Duration("renew_before", a.RenewBefore),
+				zap.Duration("interval", a.RenewCheckInterval))
 		}
 	}
 
@@ -518,6 +538,20 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 							GracePeriod:      h.GracePeriod,
 							Path:             "/health",
 						})
+					}
+					// ACME 运行时配置：provider 配置（目录/邮箱/密钥类型/enabled）与续期参数
+					// 均为热更；间隔变化触发循环唤醒即时应用。enabled 关闭时循环内部跳过扫描。
+					if certSvc != nil {
+						a := runtimeACME()
+						certSvc.SetACMEConfig(certificate.ACMEConfig{
+							Enabled:      a.Enabled,
+							DirectoryURL: a.DirectoryURL,
+							Email:        a.Email,
+							Challenge:    a.Challenge,
+							KeyType:      a.KeyType,
+						})
+						certSvc.SetRenewConfig(renewConfig())
+						certSvc.SetRenewInterval(a.RenewCheckInterval)
 					}
 				}
 			}

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
@@ -207,9 +208,12 @@ func (r *Repository) Proxy(def ProxyRuntime) ProxyRuntime {
 	}
 }
 
-// ValidateRuntimeKey 校验 health/proxy 运行时键的取值；未知键或非本分区返回 nil。
+// ValidateRuntimeKey 校验 health/proxy/acme 运行时键的取值；未知键或非本分区返回 nil。
 // 供写入前拦截非法值，避免把网关配成不可用。
 func ValidateRuntimeKey(section Section, key string, raw json.RawMessage) error {
+	if section == SectionACME {
+		return ValidateACMEKey(section, key, raw)
+	}
 	switch section {
 	case SectionHealth:
 		switch key {
@@ -263,6 +267,47 @@ func validateInt64(raw json.RawMessage, key string, min int64) error {
 		return errInvalidValue(key, "整数非法或小于下限")
 	}
 	return nil
+}
+
+func validateBool(raw json.RawMessage, key string) error {
+	var b bool
+	if json.Unmarshal(raw, &b) != nil {
+		return errInvalidValue(key, "须为布尔值")
+	}
+	return nil
+}
+
+func validateURL(raw json.RawMessage, key string) error {
+	var s string
+	if json.Unmarshal(raw, &s) != nil || !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
+		return errInvalidValue(key, "须为 http(s) URL")
+	}
+	return nil
+}
+
+func validateEmail(raw json.RawMessage, key string) error {
+	var s string
+	if json.Unmarshal(raw, &s) != nil || !strings.Contains(s, "@") || strings.HasPrefix(s, "@") || strings.HasSuffix(s, "@") {
+		return errInvalidValue(key, "须为合法邮箱")
+	}
+	return nil
+}
+
+func validateEnum(raw json.RawMessage, key string, allowed []string, hint string) error {
+	var s string
+	if json.Unmarshal(raw, &s) != nil {
+		return errInvalidValue(key, "须为字符串")
+	}
+	for _, a := range allowed {
+		if s == a {
+			return nil
+		}
+	}
+	msg := "取值须为 " + strings.Join(allowed, " / ")
+	if hint != "" {
+		msg = msg + "（" + hint + "）"
+	}
+	return errInvalidValue(key, msg)
 }
 
 func errInvalidValue(key, why string) error {
