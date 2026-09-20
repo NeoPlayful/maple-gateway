@@ -84,6 +84,15 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Service, error
 	return toModel(e), nil
 }
 
+// ProjectIDForService 返回服务所属项目 ID；服务无归属时返回 nil。供部署下发派生出容器的项目归属。
+func (r *Repository) ProjectIDForService(ctx context.Context, serviceID uuid.UUID) (*uuid.UUID, error) {
+	s, err := r.GetByID(ctx, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.ProjectID, nil
+}
+
 // ListByTenant 列出某租户服务。
 func (r *Repository) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*Service, error) {
 	es, err := r.ent.Service.Query().

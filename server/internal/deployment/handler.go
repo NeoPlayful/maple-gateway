@@ -21,16 +21,28 @@ type DeployPusher interface {
 	RemoveVersion(ctx context.Context, deploymentID, versionID uuid.UUID) error
 }
 
+// ServiceResolver 由 Service 数据层实现：下发时按服务解析所属项目。
+type ServiceResolver interface {
+	ProjectIDForService(ctx context.Context, serviceID uuid.UUID) (*uuid.UUID, error)
+}
+
 // Handler 暴露 Deployment / Version 的 Management API。
 type Handler struct {
 	repo   *Repository
-	pusher DeployPusher // 可空；接入 CM 后由 Leader 下发部署意图
-	leader func() bool  // 可空；nil 视为单实例（始终为 leader）
+	pusher DeployPusher    // 可空；接入 CM 后由 Leader 下发部署意图
+	leader func() bool     // 可空；nil 视为单实例（始终为 leader）
+	svc    ServiceResolver // 可空；解析服务归属项目，用于下发时派生容器项目
 }
 
 // NewHandler 构造。
 func NewHandler(repo *Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// WithServiceResolver 注入服务解析器（用于下发时派生项目归属）。
+func (h *Handler) WithServiceResolver(s ServiceResolver) *Handler {
+	h.svc = s
+	return h
 }
 
 // WithPusher 注入 CM 下发通道与 Leader 判定。pusher 为 nil 表示未接入 CM。
@@ -55,11 +67,18 @@ func (h *Handler) pushVersion(c fiber.Ctx, v *Version, strategy string) {
 	if err != nil {
 		return
 	}
+	// 项目归属由部署所属服务派生（一项目一服务），版本不再单独存归属。
+	var projectID *uuid.UUID
+	if h.svc != nil {
+		if pid, err := h.svc.ProjectIDForService(c.Context(), dep.ServiceID); err == nil {
+			projectID = pid
+		}
+	}
 	in := cmclient.DesiredState{
 		DeploymentID: v.DeploymentID,
 		ServiceID:    dep.ServiceID,
 		VersionID:    v.ID,
-		ProjectID:    v.ProjectID,
+		ProjectID:    projectID,
 		Version:      v.Version,
 		Status:       string(v.Status),
 		Image:        v.Image,
