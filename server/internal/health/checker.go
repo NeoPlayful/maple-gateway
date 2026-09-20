@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NeoPlayful/maple-gateway/server/internal/instance"
@@ -64,8 +65,9 @@ func NewInstanceRepo(repo *instance.Repository) Repo {
 // Checker 周期扫描全部实例并更新健康状态。
 type Checker struct {
 	repo   Repo
-	cfg    Config
-	client *http.Client
+	cfg    atomic.Pointer[Config]
+	client atomic.Pointer[http.Client]
+	wake   chan struct{} // 配置变更通知：唤醒 Run 以重置 ticker 间隔
 
 	mu        sync.Mutex
 	failCount map[string]int
@@ -81,28 +83,55 @@ func (c *Checker) WithMetrics(m *metrics.Registry) *Checker {
 	return c
 }
 
-// NewChecker 构造。
-func NewChecker(repo Repo, cfg Config, logger *zap.Logger) *Checker {
+// normalizeConfig 补齐缺省项：间隔<=0 回退 10s，路径空回退 /health。
+func normalizeConfig(cfg Config) Config {
 	if cfg.Interval <= 0 {
 		cfg.Interval = 10 * time.Second
 	}
 	if cfg.Path == "" {
 		cfg.Path = "/health"
 	}
-	return &Checker{
+	return cfg
+}
+
+// NewChecker 构造。
+func NewChecker(repo Repo, cfg Config, logger *zap.Logger) *Checker {
+	cfg = normalizeConfig(cfg)
+	c := &Checker{
 		repo:      repo,
-		cfg:       cfg,
-		client:    &http.Client{Timeout: cfg.Timeout},
+		wake:      make(chan struct{}, 1),
 		failCount: map[string]int{},
 		okCount:   map[string]int{},
 		startedAt: map[string]time.Time{},
 		logger:    logger,
 	}
+	c.cfg.Store(&cfg)
+	c.client.Store(&http.Client{Timeout: cfg.Timeout})
+	return c
 }
+
+// SetConfig 热更新健康检查参数：阈值/宽限期下一轮探测即生效；
+// 间隔经 wake 唤醒 Run 立即重置 ticker；超时变化时重建 http.Client。
+func (c *Checker) SetConfig(cfg Config) {
+	cfg = normalizeConfig(cfg)
+	old := c.cfg.Load()
+	c.cfg.Store(&cfg)
+	if old == nil || old.Timeout != cfg.Timeout {
+		c.client.Store(&http.Client{Timeout: cfg.Timeout})
+	}
+	select {
+	case c.wake <- struct{}{}:
+	default: // 已有待处理通知，无需重复
+	}
+}
+
+// config 返回当前参数快照。
+func (c *Checker) config() Config { return *c.cfg.Load() }
 
 // Run 阻塞运行健康检查循环，直到 ctx 取消。
 func (c *Checker) Run(ctx context.Context) {
-	t := time.NewTicker(c.cfg.Interval)
+	interval := c.config().Interval
+	t := time.NewTicker(interval)
 	defer t.Stop()
 	// 启动先跑一轮。
 	c.checkOnce(ctx)
@@ -110,6 +139,12 @@ func (c *Checker) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-c.wake:
+			// 配置变更：仅在间隔变化时重置 ticker（不额外触发探测）。
+			if ni := c.config().Interval; ni != interval {
+				interval = ni
+				t.Reset(interval)
+			}
 		case <-t.C:
 			c.checkOnce(ctx)
 		}
@@ -155,6 +190,8 @@ func (c *Checker) prune(alive map[string]struct{}) {
 func (c *Checker) probeOne(ctx context.Context, in *instance.Instance) {
 	key := in.ID.String()
 	now := time.Now()
+	// 每轮读当前配置快照，使阈值/宽限期变更即时生效。
+	cfg := c.config()
 
 	c.mu.Lock()
 	start, ok := c.startedAt[key]
@@ -162,7 +199,7 @@ func (c *Checker) probeOne(ctx context.Context, in *instance.Instance) {
 		start = now
 		c.startedAt[key] = now
 	}
-	inGrace := now.Sub(start) < c.cfg.GracePeriod
+	inGrace := now.Sub(start) < cfg.GracePeriod
 	c.mu.Unlock()
 
 	// 宽限期内不探测不判定（避免容器刚启动抖动误摘除）。
@@ -178,7 +215,7 @@ func (c *Checker) probeOne(ctx context.Context, in *instance.Instance) {
 		oks := c.okCount[key]
 		c.mu.Unlock()
 		// 达到成功阈值 → 标记 healthy（从 non-healthy 恢复）。
-		if oks >= c.cfg.SuccessThreshold && in.Health != instance.HealthHealthy {
+		if oks >= cfg.SuccessThreshold && in.Health != instance.HealthHealthy {
 			c.logger.Info("instance recovered", zap.String("instance", key), zap.String("addr", in.Endpoint()))
 			_ = c.repo.SetHealth(ctx, in.ID, instance.HealthHealthy)
 			c.setHealthMetric(in.ID, string(instance.HealthHealthy))
@@ -190,7 +227,7 @@ func (c *Checker) probeOne(ctx context.Context, in *instance.Instance) {
 		fails := c.failCount[key]
 		c.mu.Unlock()
 		// 达到失败阈值 → 标记 unhealthy（从路由池摘除）。
-		if fails >= c.cfg.FailureThreshold && in.Health != instance.HealthUnhealthy {
+		if fails >= cfg.FailureThreshold && in.Health != instance.HealthUnhealthy {
 			c.logger.Warn("instance marked unhealthy",
 				zap.String("instance", key),
 				zap.String("addr", in.Endpoint()),
@@ -218,12 +255,12 @@ func (c *Checker) probe(in *instance.Instance) bool {
 	if scheme == "" {
 		scheme = "http"
 	}
-	url := fmt.Sprintf("%s://%s%s", scheme, in.Endpoint(), c.cfg.Path)
+	url := fmt.Sprintf("%s://%s%s", scheme, in.Endpoint(), c.config().Path)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return false
 	}
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Load().Do(req)
 	if err != nil {
 		return false
 	}

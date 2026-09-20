@@ -144,21 +144,74 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	if db != nil {
 		defer db.Close()
 	}
+	// 动态运行时配置：settings 仓储须在数据面与健康检查器构造之前加载，
+	// 使这些消费方读取 DB 覆盖后的值。优先级：内建默认 < YAML/env < DB。
+	// DB 不可用时回退到 cfg（YAML/env），进程仍能正常启动。
+	var setRepo *settings.Repository
+	var healthChecker *health.Checker
+	if db != nil {
+		setRepo = settings.NewRepository(entClient)
+		if err := setRepo.Reload(ctx); err != nil {
+			logger.Warn("settings reload failed", zap.String("err", err.Error()))
+		} else {
+			// 启动即补 logging.debug 默认行（幂等），保证设置页日志分区恒有开关可显示。
+			if err := settings.EnsureDefaultDebug(ctx, setRepo); err != nil {
+				logger.Warn("ensure default settings failed", zap.String("err", err.Error()))
+			}
+			// 启动即应用已存的 logging.debug 开关。
+			settings.SyncLogLevel(setRepo)
+		}
+	}
+	// runtimeHealth / runtimeProxy 每次调用都从 settings 缓存读当前值：阈值等热更项
+	// 在消费方每轮读时即时生效。DB 缺行或不可用时逐键回退 cfg（YAML/env）默认。
+	runtimeHealth := func() settings.HealthRuntime {
+		def := settings.HealthRuntime{
+			Interval:         cfg.Health.Interval,
+			Timeout:          cfg.Health.Timeout,
+			FailureThreshold: cfg.Health.FailureThreshold,
+			SuccessThreshold: cfg.Health.SuccessThreshold,
+			GracePeriod:      cfg.Health.GracePeriod,
+		}
+		if setRepo == nil {
+			return def
+		}
+		return setRepo.Health(def)
+	}
+	runtimeProxy := func() settings.ProxyRuntime {
+		def := settings.ProxyRuntime{
+			ReadHeaderTimeout:     cfg.Proxy.ReadHeaderTimeout,
+			ReadTimeout:           cfg.Proxy.ReadTimeout,
+			ResponseHeaderTimeout: cfg.Proxy.ResponseHeaderTimeout,
+			IdleTimeout:           cfg.Proxy.IdleTimeout,
+			MaxHeaderBytes:        cfg.Proxy.MaxHeaderBytes,
+			MaxBodyBytes:          cfg.Proxy.MaxBodyBytes,
+			MaxConnsPerHost:       cfg.Proxy.MaxConnsPerHost,
+			MaxIdleConns:          cfg.Proxy.MaxIdleConns,
+			MaxIdleConnsPerHost:   cfg.Proxy.MaxIdleConnsPerHost,
+			MaxInFlight:           cfg.Proxy.MaxInFlight,
+		}
+		if setRepo == nil {
+			return def
+		}
+		return setRepo.Proxy(def)
+	}
 	if routeCache != nil {
 		// 周期重建：DB 里 Tenant/Domain/Service/Instance 变更 5s 内自动生效，无需重启。
 		routeCache.AutoRebuild(ctx, 5*time.Second, logger)
 	}
 	// 主动健康检查：探测异常实例并更新 DB health，AutoRebuild 随之摘除/恢复。
 	if db != nil {
+		dbHealth := runtimeHealth()
 		hc := health.NewChecker(health.NewInstanceRepo(instance.NewRepository(entClient)), health.Config{
-			Interval:         cfg.Health.Interval,
-			Timeout:          cfg.Health.Timeout,
-			FailureThreshold: cfg.Health.FailureThreshold,
-			SuccessThreshold: cfg.Health.SuccessThreshold,
-			GracePeriod:      cfg.Health.GracePeriod,
+			Interval:         dbHealth.Interval,
+			Timeout:          dbHealth.Timeout,
+			FailureThreshold: dbHealth.FailureThreshold,
+			SuccessThreshold: dbHealth.SuccessThreshold,
+			GracePeriod:      dbHealth.GracePeriod,
 			Path:             "/health",
 		}, logger).WithMetrics(metricReg)
 		go hc.Run(ctx)
+		healthChecker = hc
 	}
 	// Node 心跳看护：超时未心跳的节点置 offline，其上实例随 AutoRebuild 摘除。
 	if db != nil {
@@ -349,12 +402,15 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	)
 
 	// 根据配置构造 upstream transport，使超时与连接池上限真实生效。
+	// transport 字段在构造时冻结（Serve 后不可并发改），故这些项为「重启生效」；
+	// 运行时可热更的是 MaxInFlight / MaxBodyBytes（见下 DataPlane）。
+	px := runtimeProxy()
 	transport := proxy.NewTransport(proxy.TransportConfig{
-		ResponseHeaderTimeout: cfg.Proxy.ResponseHeaderTimeout,
-		IdleTimeout:           cfg.Proxy.IdleTimeout,
-		MaxConnsPerHost:       cfg.Proxy.MaxConnsPerHost,
-		MaxIdleConns:          cfg.Proxy.MaxIdleConns,
-		MaxIdleConnsPerHost:   cfg.Proxy.MaxIdleConnsPerHost,
+		ResponseHeaderTimeout: px.ResponseHeaderTimeout,
+		IdleTimeout:           px.IdleTimeout,
+		MaxConnsPerHost:       px.MaxConnsPerHost,
+		MaxIdleConns:          px.MaxIdleConns,
+		MaxIdleConnsPerHost:   px.MaxIdleConnsPerHost,
 	})
 
 	// 组装并启动数据平面（HTTP 与 HTTPS 可并行；证书齐全才启用 HTTPS）。
@@ -418,11 +474,12 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		EnforceSNIHostMatch: tlsMode == gateway.TLSModeDirect && cfg.TLS.EnforceSNIHostMatch,
 		Resolver:            resolver,
 		Transport:           transport,
-		ReadHeaderTimeout:   cfg.Proxy.ReadHeaderTimeout,
-		ReadTimeout:         cfg.Proxy.ReadTimeout,
-		IdleTimeout:         cfg.Proxy.IdleTimeout,
-		MaxHeaderBytes:      cfg.Proxy.MaxHeaderBytes,
-		MaxInFlight:         cfg.Proxy.MaxInFlight,
+		ReadHeaderTimeout:   px.ReadHeaderTimeout,
+		ReadTimeout:         px.ReadTimeout,
+		IdleTimeout:         px.IdleTimeout,
+		MaxHeaderBytes:      px.MaxHeaderBytes,
+		MaxBodyBytes:        px.MaxBodyBytes,
+		MaxInFlight:         px.MaxInFlight,
 		Logger:              logger,
 		Metrics:             metricReg,
 		AccessLog:           accessLog,
@@ -432,6 +489,41 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	})
 	dpErrCh := dp.Start()
 
+	// 跨实例运行时配置同步：本进程内的内存缓存在本进程 PATCH 后已刷新，但 HA 多实例下
+	// 其它实例改的设置在本地不可见。周期重载（对齐路由缓存 AutoRebuild 模式）后把
+	// 可热更项推送给各消费方，使变更最终一致（≤5s），无需引入 Redis 依赖。
+	if setRepo != nil {
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if err := setRepo.Reload(ctx); err != nil {
+						logger.Warn("runtime settings reload failed", zap.String("err", err.Error()))
+						continue
+					}
+					h := runtimeHealth()
+					p := runtimeProxy()
+					dp.SetMaxInFlight(p.MaxInFlight)
+					dp.SetMaxBodyBytes(p.MaxBodyBytes)
+					if healthChecker != nil {
+						healthChecker.SetConfig(health.Config{
+							Interval:         h.Interval,
+							Timeout:          h.Timeout,
+							FailureThreshold: h.FailureThreshold,
+							SuccessThreshold: h.SuccessThreshold,
+							GracePeriod:      h.GracePeriod,
+							Path:             "/health",
+						})
+					}
+				}
+			}
+		}()
+	}
+
 	// Management API（数据平面与控制面分离）。
 	uiDir := resolveUIDir(cfg.Management.UIDir)
 	if uiDir != "" {
@@ -439,17 +531,6 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	var mgmtApp *fiber.App
 	if db != nil {
-		setRepo := settings.NewRepository(entClient)
-		if err := setRepo.Reload(ctx); err != nil {
-			logger.Warn("settings reload failed", zap.String("err", err.Error()))
-		} else {
-			// 启动即补 logging.debug 默认行（幂等），保证设置页日志分区恒有开关可显示。
-			if err := settings.EnsureDefaultDebug(ctx, setRepo); err != nil {
-				logger.Warn("ensure default settings failed", zap.String("err", err.Error()))
-			}
-			// 启动即应用已存的 logging.debug 开关。
-			settings.SyncLogLevel(setRepo)
-		}
 		mgmtApp = api.New(api.Deps{Ent: entClient, ReadyDB: db.SQL.PingContext, RouteCache: routeCache, Metrics: metricReg,
 			AccessLog: accessLog, ErrLog: errLog, Settings: setRepo, Series: series,
 			HA: ha.NewHandler(ha.NewRepository(entClient), coord), Certificates: certH, UIDir: uiDir,

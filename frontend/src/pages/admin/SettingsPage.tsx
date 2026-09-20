@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api } from '../../lib/client';
 import AppearanceSettings from '../../components/AppearanceSettings';
 import ContainerNetworkSettings from '../../components/admin/ContainerNetworkSettings';
+import RuntimeSettings from '../../components/admin/RuntimeSettings';
 import { PageHeader } from '../../themes';
 
 type KV = { value: unknown; version: number; updated_at: string };
@@ -95,6 +96,10 @@ export default function SettingsPage() {
       ) : section === 'container' ? (
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <ContainerNetworkSettings />
+        </div>
+      ) : section === 'health' || section === 'proxy' ? (
+        <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
+          <RuntimeSettings section={section} />
         </div>
       ) : (
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">

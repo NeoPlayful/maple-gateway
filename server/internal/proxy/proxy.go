@@ -354,6 +354,21 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, reque
 }
 
 func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, requestID string, err error) {
+	// 请求体超限（MaxBytesReader 在转发读取时触发）：这是客户端错误，返回 413，
+	// 不应混入上游 502，否则运维会误判为上游故障。
+	var mbErr *http.MaxBytesError
+	if errors.As(err, &mbErr) {
+		if p.logger != nil {
+			p.logger.Warn("request body too large",
+				zap.String("host", r.Host),
+				zap.String("request_id", requestID),
+				zap.Int64("limit", mbErr.Limit),
+			)
+		}
+		p.appendErr(r, requestID, http.StatusRequestEntityTooLarge, "request body exceeds limit")
+		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+		return
+	}
 	// 上游 502 由 statusRecorder 经 129 行统一计数，这里不重复计。
 	if p.logger != nil {
 		p.logger.Error("upstream error",

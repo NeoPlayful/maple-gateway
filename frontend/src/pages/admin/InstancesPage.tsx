@@ -313,7 +313,7 @@ export default function InstancesPage() {
               onChange={(e) => setVerId(e.target.value)}
               className={inputCls}
             >
-              <option value="">{t('bluegreen.selectVersion')}</option>
+              <option value="">{t('releases.selectVersion')}</option>
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>{v.version}</option>
               ))}
