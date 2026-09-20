@@ -22,6 +22,27 @@ func TestRegistry_CounterAndGauge(t *testing.T) {
 	}
 }
 
+// TestRegistry_RenderReleasesReadLock 回归：Render 必须释放读锁。
+// 修复前 Render 泄漏 RLock，导致其后任何指标写入永久阻塞——线上表现为一次
+// /metrics 抓取后，数据面每个请求在写指标处卡死、在途计数涨满触发全量 503。
+// 写入放 goroutine 里，回归时只会超时失败而非整个测试挂死。
+func TestRegistry_RenderReleasesReadLock(t *testing.T) {
+	r := NewRegistry()
+	r.Inc("maple_requests_total", map[string]string{"host": "a.com"})
+	_ = r.RenderText() // 一次抓取
+
+	done := make(chan struct{})
+	go func() {
+		r.Inc("maple_requests_total", map[string]string{"host": "b.com"})
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Render 后写入指标被永久阻塞：Render 泄漏了读锁")
+	}
+}
+
 func TestRegistry_Histogram(t *testing.T) {
 	r := NewRegistry()
 	start := time.Now()

@@ -348,12 +348,13 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		zap.Bool("static_routes", routesPath != ""),
 	)
 
-	// 根据配置构造 upstream transport，使超时配置真实生效。
+	// 根据配置构造 upstream transport，使超时与连接池上限真实生效。
 	transport := proxy.NewTransport(proxy.TransportConfig{
 		ResponseHeaderTimeout: cfg.Proxy.ResponseHeaderTimeout,
 		IdleTimeout:           cfg.Proxy.IdleTimeout,
-		MaxIdleConns:          200,
-		MaxIdleConnsPerHost:   20,
+		MaxConnsPerHost:       cfg.Proxy.MaxConnsPerHost,
+		MaxIdleConns:          cfg.Proxy.MaxIdleConns,
+		MaxIdleConnsPerHost:   cfg.Proxy.MaxIdleConnsPerHost,
 	})
 
 	// 组装并启动数据平面（HTTP 与 HTTPS 可并行；证书齐全才启用 HTTPS）。
@@ -418,8 +419,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		Resolver:            resolver,
 		Transport:           transport,
 		ReadHeaderTimeout:   cfg.Proxy.ReadHeaderTimeout,
+		ReadTimeout:         cfg.Proxy.ReadTimeout,
 		IdleTimeout:         cfg.Proxy.IdleTimeout,
 		MaxHeaderBytes:      cfg.Proxy.MaxHeaderBytes,
+		MaxInFlight:         cfg.Proxy.MaxInFlight,
 		Logger:              logger,
 		Metrics:             metricReg,
 		AccessLog:           accessLog,

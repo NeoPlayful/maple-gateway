@@ -160,6 +160,7 @@ func (r *Registry) ObserveDuration(name string, d time.Duration, labels map[stri
 // metricLine 生成 Prometheus 文本。
 func (r *Registry) Render(buf *strings.Builder) {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.counters)+len(r.gauges)+len(r.histos))
 	for n := range r.counters {
 		names = append(names, n)

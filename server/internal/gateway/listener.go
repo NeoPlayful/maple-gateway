@@ -10,6 +10,7 @@ import (
 // Start 为每个监听器启动独立 goroutine 服务，返回错误通道。
 // 任一监听异常退出即上报；服务正常关闭时错误通道收到 nil。
 func (d *DataPlane) Start() <-chan error {
+	d.startResourceGauges()
 	errCh := make(chan error, len(d.listeners))
 	for _, ln := range d.listeners {
 		ln := ln
