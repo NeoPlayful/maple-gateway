@@ -642,7 +642,8 @@
       "security": "安全",
       "logging": "日志",
       "metrics": "指标",
-      "container": "容器"
+      "container": "容器",
+      "acme": "ACME 证书"
     },
     "appearanceSaving": "保存中…",
     "appearanceSaved": "已保存，对所有访问者生效",
@@ -669,7 +670,19 @@
       "max_conns_per_host": "单上游在途连接上限",
       "max_idle_conns": "全局空闲连接上限",
       "max_idle_conns_per_host": "单上游空闲连接上限",
-      "max_in_flight": "在途请求上限（0=不限）"
+      "max_in_flight": "在途请求上限（0=不限）",
+      "acmeHint": "启用自动签发需先配置加密密钥（tls.cert_enc_key）。更换目录地址/邮箱会注册为新的 CA 账户；已签发证书在续期前继续有效。",
+      "on": "已开启",
+      "off": "已关闭",
+      "enabled": "自动签发与续期",
+      "directory_url": "ACME 目录地址",
+      "email": "账户邮箱",
+      "challenge": "域名验证方式",
+      "key_type": "证书密钥类型",
+      "renew_before": "提前续期窗口",
+      "renew_check_interval": "续期扫描间隔",
+      "max_renew_attempts": "连续失败上限",
+      "rate_limit_backoff": "限流后重试间隔"
     },
     "containerNet": {
       "title": "容器网络",

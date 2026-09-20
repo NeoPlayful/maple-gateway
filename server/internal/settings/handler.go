@@ -61,9 +61,9 @@ func (h *Handler) Get(c fiber.Ctx) error {
 func (h *Handler) Update(c fiber.Ctx) error {
 	section := Section(c.Params("section"))
 	switch section {
-	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance, SectionContainer:
+	case SectionGateway, SectionProxy, SectionHealth, SectionACME, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance, SectionContainer:
 	default:
-		return pkg.Err(c, pkg.ErrValidation("无效的 section（gateway/proxy/health/security/logging/metrics/appearance/container）"))
+		return pkg.Err(c, pkg.ErrValidation("无效的 section（gateway/proxy/health/acme/security/logging/metrics/appearance/container）"))
 	}
 	var body map[string]json.RawMessage
 	if err := c.Bind().Body(&body); err != nil {
@@ -71,6 +71,13 @@ func (h *Handler) Update(c fiber.Ctx) error {
 	}
 	if len(body) == 0 {
 		return pkg.Err(c, pkg.ErrValidation("请求体不能为空"))
+	}
+	// acme 分区：启用开关有跨字段约束（需 directory_url + email 齐备），
+	// 校验值来自本次提交（优先）或当前已存配置。
+	if section == SectionACME {
+		if err := h.validateACMEEnabled(body); err != nil {
+			return pkg.Err(c, err)
+		}
 	}
 	for key, val := range body {
 		// health/proxy 等运行时键做范围校验，非法值直接拒绝，避免把网关配成不可用。
@@ -96,10 +103,40 @@ func (h *Handler) Update(c fiber.Ctx) error {
 // validSection 校验 section 是否受支持。
 func validSection(s string) bool {
 	switch Section(s) {
-	case SectionGateway, SectionProxy, SectionHealth, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance, SectionContainer:
+	case SectionGateway, SectionProxy, SectionHealth, SectionACME, SectionSecurity, SectionLogging, SectionMetrics, SectionAppearance, SectionContainer:
 		return true
 	}
 	return false
+}
+
+// validateACMEEnabled 校验 acme 分区提交的跨字段约束：enabled=true 时
+// directory_url 与 email 必须齐备。值优先取本次提交，缺省回退当前已存配置。
+func (h *Handler) validateACMEEnabled(body map[string]json.RawMessage) error {
+	enabled := h.repo.GetBool(SectionACME, KeyACMEEnabled, false)
+	if raw, ok := body[KeyACMEEnabled]; ok {
+		var b bool
+		if json.Unmarshal(raw, &b) == nil {
+			enabled = b
+		}
+	}
+	if !enabled {
+		return nil
+	}
+	dirURL := h.repo.GetString(SectionACME, KeyACMEDirectoryURL, "")
+	if raw, ok := body[KeyACMEDirectoryURL]; ok {
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			dirURL = s
+		}
+	}
+	email := h.repo.GetString(SectionACME, KeyACMEEmail, "")
+	if raw, ok := body[KeyACMEEmail]; ok {
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			email = s
+		}
+	}
+	return ValidateACMEEnabled(enabled, dirURL, email)
 }
 
 // GetContainerNetwork GET /api/admin/system/container-network
