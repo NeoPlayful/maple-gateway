@@ -61,6 +61,11 @@ func TenantID(v uuid.UUID) predicate.Service {
 	return predicate.Service(sql.FieldEQ(FieldTenantID, v))
 }
 
+// ProjectID applies equality check predicate on the "project_id" field. It's identical to ProjectIDEQ.
+func ProjectID(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldEQ(FieldProjectID, v))
+}
+
 // Name applies equality check predicate on the "name" field. It's identical to NameEQ.
 func Name(v string) predicate.Service {
 	return predicate.Service(sql.FieldEQ(FieldName, v))
@@ -104,6 +109,56 @@ func TenantIDIn(vs ...uuid.UUID) predicate.Service {
 // TenantIDNotIn applies the NotIn predicate on the "tenant_id" field.
 func TenantIDNotIn(vs ...uuid.UUID) predicate.Service {
 	return predicate.Service(sql.FieldNotIn(FieldTenantID, vs...))
+}
+
+// ProjectIDEQ applies the EQ predicate on the "project_id" field.
+func ProjectIDEQ(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldEQ(FieldProjectID, v))
+}
+
+// ProjectIDNEQ applies the NEQ predicate on the "project_id" field.
+func ProjectIDNEQ(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldNEQ(FieldProjectID, v))
+}
+
+// ProjectIDIn applies the In predicate on the "project_id" field.
+func ProjectIDIn(vs ...uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldIn(FieldProjectID, vs...))
+}
+
+// ProjectIDNotIn applies the NotIn predicate on the "project_id" field.
+func ProjectIDNotIn(vs ...uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldNotIn(FieldProjectID, vs...))
+}
+
+// ProjectIDGT applies the GT predicate on the "project_id" field.
+func ProjectIDGT(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldGT(FieldProjectID, v))
+}
+
+// ProjectIDGTE applies the GTE predicate on the "project_id" field.
+func ProjectIDGTE(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldGTE(FieldProjectID, v))
+}
+
+// ProjectIDLT applies the LT predicate on the "project_id" field.
+func ProjectIDLT(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldLT(FieldProjectID, v))
+}
+
+// ProjectIDLTE applies the LTE predicate on the "project_id" field.
+func ProjectIDLTE(v uuid.UUID) predicate.Service {
+	return predicate.Service(sql.FieldLTE(FieldProjectID, v))
+}
+
+// ProjectIDIsNil applies the IsNil predicate on the "project_id" field.
+func ProjectIDIsNil() predicate.Service {
+	return predicate.Service(sql.FieldIsNull(FieldProjectID))
+}
+
+// ProjectIDNotNil applies the NotNil predicate on the "project_id" field.
+func ProjectIDNotNil() predicate.Service {
+	return predicate.Service(sql.FieldNotNull(FieldProjectID))
 }
 
 // NameEQ applies the EQ predicate on the "name" field.

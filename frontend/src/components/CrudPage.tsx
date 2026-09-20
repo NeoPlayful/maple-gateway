@@ -28,7 +28,13 @@ export interface PageDef {
   title: string; // i18n key
   path: string; // /api/admin/<resource>
   listName?: string; // 列表主键 key
-  columns: { key: string; label: string; badge?: boolean; render?: (r: any) => ReactNode }[];
+  columns: {
+    key: string;
+    label: string;
+    badge?: boolean;
+    // render 第二参为按加载路径缓存的外键资源（与表单下拉共用），用于把 id 显示成名称。
+    render?: (r: any, parents: Record<string, any[]>) => ReactNode;
+  }[];
   createFields: FieldDef[];
   editFields?: FieldDef[]; // 声明后行内显示"编辑"，PATCH 部分更新
   filters?: FilterDef[]; // 声明后表格上方显示筛选栏（前端过滤已加载列表）
@@ -423,7 +429,7 @@ export default function CrudPage({ def }: { def: PageDef }) {
                         {c.badge ? (
                           <StatusBadge value={String(r[c.key])} />
                         ) : c.render ? (
-                          c.render(r)
+                          c.render(r, parents)
                         ) : (
                           String(r[c.key] ?? '')
                         )}

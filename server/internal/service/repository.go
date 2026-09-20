@@ -27,6 +27,7 @@ func toModel(e *ent.Service) *Service {
 	return &Service{
 		ID:        e.ID,
 		TenantID:  e.TenantID,
+		ProjectID: e.ProjectID,
 		Name:      e.Name,
 		Protocol:  e.Protocol,
 		Status:    Status(e.Status),
@@ -35,15 +36,27 @@ func toModel(e *ent.Service) *Service {
 	}
 }
 
-// Create 插入。tenant 内 name 冲突返回 Conflict。
+// Create 在指定项目下插入服务。tenant_id 从项目继承，服务与项目一一对应。
+// 经 ent 直接读项目（不依赖 project 包，避免与 project→service 的依赖成环）。
 func (r *Repository) Create(ctx context.Context, in New) (*Service, error) {
+	if in.ProjectID == uuid.Nil {
+		return nil, pkg.ErrValidation("请选择项目")
+	}
+	proj, err := r.ent.Project.Get(ctx, in.ProjectID)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, pkg.ErrValidation("项目不存在")
+		}
+		return nil, fmt.Errorf("get project for service: %w", err)
+	}
 	proto := in.Protocol
 	if proto == "" {
 		proto = "http"
 	}
 	now := time.Now()
 	e, err := r.ent.Service.Create().
-		SetTenantID(in.TenantID).
+		SetTenantID(proj.TenantID).
+		SetProjectID(in.ProjectID).
 		SetName(in.Name).
 		SetProtocol(proto).
 		SetStatus(string(StatusActive)).
@@ -52,7 +65,7 @@ func (r *Repository) Create(ctx context.Context, in New) (*Service, error) {
 		Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
-			return nil, pkg.ErrConflict("服务名在该租户下已存在")
+			return nil, pkg.ErrConflict("该项目已存在服务，或服务名在该租户下已存在")
 		}
 		return nil, fmt.Errorf("insert service: %w", err)
 	}
@@ -85,6 +98,47 @@ func (r *Repository) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*S
 		out = append(out, toModel(e))
 	}
 	return out, nil
+}
+
+// ListByProject 列出某项目的服务（一项目一服务，故至多一条）。
+func (r *Repository) ListByProject(ctx context.Context, projectID uuid.UUID) ([]*Service, error) {
+	es, err := r.ent.Service.Query().
+		Where(entservice.ProjectID(projectID)).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list services by project: %w", err)
+	}
+	out := make([]*Service, 0, len(es))
+	for _, e := range es {
+		out = append(out, toModel(e))
+	}
+	return out, nil
+}
+
+// EnsureForProject 返回项目的服务，不存在则以 name 创建（幂等）。一项目一服务。
+func (r *Repository) EnsureForProject(ctx context.Context, projectID uuid.UUID, name string) (uuid.UUID, error) {
+	if es, err := r.ListByProject(ctx, projectID); err != nil {
+		return uuid.Nil, err
+	} else if len(es) > 0 {
+		return es[0].ID, nil
+	}
+	s, err := r.Create(ctx, New{ProjectID: projectID, Name: name})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return s.ID, nil
+}
+
+// ServiceForProject 返回项目已绑定的服务 ID；未绑定返回 uuid.Nil, false。
+func (r *Repository) ServiceForProject(ctx context.Context, projectID uuid.UUID) (uuid.UUID, bool, error) {
+	es, err := r.ListByProject(ctx, projectID)
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	if len(es) == 0 {
+		return uuid.Nil, false, nil
+	}
+	return es[0].ID, true, nil
 }
 
 // All 返回全部服务（路由缓存构建用）。
@@ -131,6 +185,17 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Serv
 	}
 
 	upd := r.ent.Service.UpdateOneID(id).SetUpdatedAt(time.Now())
+	if in.ProjectID != nil {
+		// 调整归属：连带继承新项目的 tenant_id，保持派生字段一致。
+		proj, err := r.ent.Project.Get(ctx, *in.ProjectID)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return nil, pkg.ErrValidation("项目不存在")
+			}
+			return nil, fmt.Errorf("get project for service update: %w", err)
+		}
+		upd = upd.SetProjectID(*in.ProjectID).SetTenantID(proj.TenantID)
+	}
 	if in.Name != nil {
 		upd = upd.SetName(*in.Name)
 	}
@@ -143,7 +208,7 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in Update) (*Serv
 	e, err := upd.Save(ctx)
 	if err != nil {
 		if pkg.IsUniqueViolation(err) {
-			return nil, pkg.ErrConflict("服务名在该租户下已存在")
+			return nil, pkg.ErrConflict("该项目已存在服务，或服务名在该租户下已存在")
 		}
 		return nil, fmt.Errorf("update service: %w", err)
 	}

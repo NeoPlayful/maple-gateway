@@ -34,6 +34,20 @@ func (sc *ServiceCreate) SetTenantID(u uuid.UUID) *ServiceCreate {
 	return sc
 }
 
+// SetProjectID sets the "project_id" field.
+func (sc *ServiceCreate) SetProjectID(u uuid.UUID) *ServiceCreate {
+	sc.mutation.SetProjectID(u)
+	return sc
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (sc *ServiceCreate) SetNillableProjectID(u *uuid.UUID) *ServiceCreate {
+	if u != nil {
+		sc.SetProjectID(*u)
+	}
+	return sc
+}
+
 // SetName sets the "name" field.
 func (sc *ServiceCreate) SetName(s string) *ServiceCreate {
 	sc.mutation.SetName(s)
@@ -257,6 +271,10 @@ func (sc *ServiceCreate) createSpec() (*Service, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = &id
 	}
+	if value, ok := sc.mutation.ProjectID(); ok {
+		_spec.SetField(service.FieldProjectID, field.TypeUUID, value)
+		_node.ProjectID = &value
+	}
 	if value, ok := sc.mutation.Name(); ok {
 		_spec.SetField(service.FieldName, field.TypeString, value)
 		_node.Name = value
@@ -406,6 +424,24 @@ func (u *ServiceUpsert) UpdateTenantID() *ServiceUpsert {
 	return u
 }
 
+// SetProjectID sets the "project_id" field.
+func (u *ServiceUpsert) SetProjectID(v uuid.UUID) *ServiceUpsert {
+	u.Set(service.FieldProjectID, v)
+	return u
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *ServiceUpsert) UpdateProjectID() *ServiceUpsert {
+	u.SetExcluded(service.FieldProjectID)
+	return u
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *ServiceUpsert) ClearProjectID() *ServiceUpsert {
+	u.SetNull(service.FieldProjectID)
+	return u
+}
+
 // SetName sets the "name" field.
 func (u *ServiceUpsert) SetName(v string) *ServiceUpsert {
 	u.Set(service.FieldName, v)
@@ -516,6 +552,27 @@ func (u *ServiceUpsertOne) SetTenantID(v uuid.UUID) *ServiceUpsertOne {
 func (u *ServiceUpsertOne) UpdateTenantID() *ServiceUpsertOne {
 	return u.Update(func(s *ServiceUpsert) {
 		s.UpdateTenantID()
+	})
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *ServiceUpsertOne) SetProjectID(v uuid.UUID) *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetProjectID(v)
+	})
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *ServiceUpsertOne) UpdateProjectID() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateProjectID()
+	})
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *ServiceUpsertOne) ClearProjectID() *ServiceUpsertOne {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearProjectID()
 	})
 }
 
@@ -804,6 +861,27 @@ func (u *ServiceUpsertBulk) SetTenantID(v uuid.UUID) *ServiceUpsertBulk {
 func (u *ServiceUpsertBulk) UpdateTenantID() *ServiceUpsertBulk {
 	return u.Update(func(s *ServiceUpsert) {
 		s.UpdateTenantID()
+	})
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *ServiceUpsertBulk) SetProjectID(v uuid.UUID) *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.SetProjectID(v)
+	})
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *ServiceUpsertBulk) UpdateProjectID() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.UpdateProjectID()
+	})
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *ServiceUpsertBulk) ClearProjectID() *ServiceUpsertBulk {
+	return u.Update(func(s *ServiceUpsert) {
+		s.ClearProjectID()
 	})
 }
 

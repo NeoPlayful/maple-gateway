@@ -14344,6 +14344,7 @@ type ServiceMutation struct {
 	op                      Op
 	typ                     string
 	id                      *uuid.UUID
+	project_id              *uuid.UUID
 	name                    *string
 	protocol                *string
 	status                  *string
@@ -14504,6 +14505,55 @@ func (m *ServiceMutation) OldTenantID(ctx context.Context) (v uuid.UUID, err err
 // ResetTenantID resets all changes to the "tenant_id" field.
 func (m *ServiceMutation) ResetTenantID() {
 	m.tenant = nil
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *ServiceMutation) SetProjectID(u uuid.UUID) {
+	m.project_id = &u
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *ServiceMutation) ProjectID() (r uuid.UUID, exists bool) {
+	v := m.project_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Service entity.
+// If the Service object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServiceMutation) OldProjectID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (m *ServiceMutation) ClearProjectID() {
+	m.project_id = nil
+	m.clearedFields[service.FieldProjectID] = struct{}{}
+}
+
+// ProjectIDCleared returns if the "project_id" field was cleared in this mutation.
+func (m *ServiceMutation) ProjectIDCleared() bool {
+	_, ok := m.clearedFields[service.FieldProjectID]
+	return ok
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *ServiceMutation) ResetProjectID() {
+	m.project_id = nil
+	delete(m.clearedFields, service.FieldProjectID)
 }
 
 // SetName sets the "name" field.
@@ -14909,9 +14959,12 @@ func (m *ServiceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServiceMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.tenant != nil {
 		fields = append(fields, service.FieldTenantID)
+	}
+	if m.project_id != nil {
+		fields = append(fields, service.FieldProjectID)
 	}
 	if m.name != nil {
 		fields = append(fields, service.FieldName)
@@ -14938,6 +14991,8 @@ func (m *ServiceMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case service.FieldTenantID:
 		return m.TenantID()
+	case service.FieldProjectID:
+		return m.ProjectID()
 	case service.FieldName:
 		return m.Name()
 	case service.FieldProtocol:
@@ -14959,6 +15014,8 @@ func (m *ServiceMutation) OldField(ctx context.Context, name string) (ent.Value,
 	switch name {
 	case service.FieldTenantID:
 		return m.OldTenantID(ctx)
+	case service.FieldProjectID:
+		return m.OldProjectID(ctx)
 	case service.FieldName:
 		return m.OldName(ctx)
 	case service.FieldProtocol:
@@ -14984,6 +15041,13 @@ func (m *ServiceMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTenantID(v)
+		return nil
+	case service.FieldProjectID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
 		return nil
 	case service.FieldName:
 		v, ok := value.(string)
@@ -15049,7 +15113,11 @@ func (m *ServiceMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *ServiceMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(service.FieldProjectID) {
+		fields = append(fields, service.FieldProjectID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -15062,6 +15130,11 @@ func (m *ServiceMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *ServiceMutation) ClearField(name string) error {
+	switch name {
+	case service.FieldProjectID:
+		m.ClearProjectID()
+		return nil
+	}
 	return fmt.Errorf("unknown Service nullable field %s", name)
 }
 
@@ -15071,6 +15144,9 @@ func (m *ServiceMutation) ResetField(name string) error {
 	switch name {
 	case service.FieldTenantID:
 		m.ResetTenantID()
+		return nil
+	case service.FieldProjectID:
+		m.ResetProjectID()
 		return nil
 	case service.FieldName:
 		m.ResetName()

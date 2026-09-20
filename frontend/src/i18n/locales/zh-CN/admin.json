@@ -128,6 +128,8 @@
     "status": "状态",
     "tenant": "租户",
     "parentTenant": "所属租户",
+    "parentProject": "所属项目",
+    "project": "项目",
     "service": "服务",
     "parentService": "所属服务",
     "protocol": "协议",
@@ -193,7 +195,8 @@
   "services": {
     "title": "服务管理",
     "namePh": "如 storefront",
-    "filterPh": "搜索服务名"
+    "filterPh": "搜索服务名",
+    "filterAllProject": "全部项目"
   },
   "domains": {
     "title": "域名管理",

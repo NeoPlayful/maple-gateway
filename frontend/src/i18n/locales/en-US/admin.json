@@ -128,6 +128,8 @@
     "status": "Status",
     "tenant": "Tenant",
     "parentTenant": "Tenant",
+    "parentProject": "Project",
+    "project": "Project",
     "service": "Service",
     "parentService": "Service",
     "protocol": "Protocol",
@@ -193,7 +195,8 @@
   "services": {
     "title": "Services",
     "namePh": "e.g. storefront",
-    "filterPh": "Search service name"
+    "filterPh": "Search service name",
+    "filterAllProject": "All projects"
   },
   "domains": {
     "title": "Domains",

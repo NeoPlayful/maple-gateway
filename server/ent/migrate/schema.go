@@ -523,6 +523,7 @@ var (
 	// ServicesColumns holds the columns for the "services" table.
 	ServicesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "name", Type: field.TypeString},
 		{Name: "protocol", Type: field.TypeString, Default: "http"},
 		{Name: "status", Type: field.TypeString, Default: "active"},
@@ -538,7 +539,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "services_tenants_services",
-				Columns:    []*schema.Column{ServicesColumns[6]},
+				Columns:    []*schema.Column{ServicesColumns[7]},
 				RefColumns: []*schema.Column{TenantsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -547,7 +548,12 @@ var (
 			{
 				Name:    "service_tenant_id_name",
 				Unique:  true,
-				Columns: []*schema.Column{ServicesColumns[6], ServicesColumns[1]},
+				Columns: []*schema.Column{ServicesColumns[7], ServicesColumns[2]},
+			},
+			{
+				Name:    "service_project_id",
+				Unique:  true,
+				Columns: []*schema.Column{ServicesColumns[1]},
 			},
 		},
 	}

@@ -21,6 +21,8 @@ type Service struct {
 	ID uuid.UUID `json:"id,omitempty"`
 	// TenantID holds the value of the "tenant_id" field.
 	TenantID uuid.UUID `json:"tenant_id,omitempty"`
+	// ProjectID holds the value of the "project_id" field.
+	ProjectID *uuid.UUID `json:"project_id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// Protocol holds the value of the "protocol" field.
@@ -95,6 +97,8 @@ func (*Service) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case service.FieldProjectID:
+			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case service.FieldName, service.FieldProtocol, service.FieldStatus:
 			values[i] = new(sql.NullString)
 		case service.FieldCreatedAt, service.FieldUpdatedAt:
@@ -127,6 +131,13 @@ func (s *Service) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field tenant_id", values[i])
 			} else if value != nil {
 				s.TenantID = *value
+			}
+		case service.FieldProjectID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field project_id", values[i])
+			} else if value.Valid {
+				s.ProjectID = new(uuid.UUID)
+				*s.ProjectID = *value.S.(*uuid.UUID)
 			}
 		case service.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -216,6 +227,11 @@ func (s *Service) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", s.ID))
 	builder.WriteString("tenant_id=")
 	builder.WriteString(fmt.Sprintf("%v", s.TenantID))
+	builder.WriteString(", ")
+	if v := s.ProjectID; v != nil {
+		builder.WriteString("project_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(s.Name)

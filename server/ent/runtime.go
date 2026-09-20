@@ -413,15 +413,15 @@ func init() {
 	serviceFields := schema.Service{}.Fields()
 	_ = serviceFields
 	// serviceDescName is the schema descriptor for name field.
-	serviceDescName := serviceFields[2].Descriptor()
+	serviceDescName := serviceFields[3].Descriptor()
 	// service.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	service.NameValidator = serviceDescName.Validators[0].(func(string) error)
 	// serviceDescProtocol is the schema descriptor for protocol field.
-	serviceDescProtocol := serviceFields[3].Descriptor()
+	serviceDescProtocol := serviceFields[4].Descriptor()
 	// service.DefaultProtocol holds the default value on creation for the protocol field.
 	service.DefaultProtocol = serviceDescProtocol.Default.(string)
 	// serviceDescStatus is the schema descriptor for status field.
-	serviceDescStatus := serviceFields[4].Descriptor()
+	serviceDescStatus := serviceFields[5].Descriptor()
 	// service.DefaultStatus holds the default value on creation for the status field.
 	service.DefaultStatus = serviceDescStatus.Default.(string)
 	// serviceDescID is the schema descriptor for id field.
