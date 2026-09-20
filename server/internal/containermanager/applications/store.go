@@ -19,7 +19,6 @@ import (
 // Application 是一个 Compose 应用。
 type Application struct {
 	ID          string `json:"id"`
-	TenantID    string `json:"tenant_id,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Status      string `json:"status"` // active / stopped / removed
@@ -52,7 +51,7 @@ func (s *Store) Load(ctx context.Context) error {
 		return nil
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id::text, COALESCE(tenant_id::text,''), name, COALESCE(description,''),
+		SELECT id::text, name, COALESCE(description,''),
 		       status, COALESCE(node_id,''), COALESCE(service_id::text,''),
 		       COALESCE(version,''), COALESCE(spec,''), COALESCE(target_weight,0),
 		       created_at, updated_at
@@ -63,7 +62,7 @@ func (s *Store) Load(ctx context.Context) error {
 	defer rows.Close()
 	for rows.Next() {
 		var a Application
-		if err := rows.Scan(&a.ID, &a.TenantID, &a.Name, &a.Description, &a.Status,
+		if err := rows.Scan(&a.ID, &a.Name, &a.Description, &a.Status,
 			&a.NodeID, &a.ServiceID, &a.Version, &a.Spec, &a.TargetWeight,
 			&a.CreatedAt, &a.UpdatedAt); err != nil {
 			return fmt.Errorf("scan cm_application: %w", err)
@@ -162,15 +161,15 @@ func (s *Store) persist(a Application) {
 		return
 	}
 	_, _ = s.db.ExecContext(context.Background(), `
-		INSERT INTO cm_applications (id, tenant_id, name, description, status, node_id, service_id,
+		INSERT INTO cm_applications (id, name, description, status, node_id, service_id,
 			version, spec, target_weight, created_at, updated_at)
-		VALUES ($1::uuid, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,'')::uuid,
-			$8, $9, $10, $11, $12)
+		VALUES ($1::uuid, $2, $3, $4, $5, NULLIF($6,'')::uuid,
+			$7, $8, $9, $10, $11)
 		ON CONFLICT (id) DO UPDATE SET
-			tenant_id=EXCLUDED.tenant_id, name=EXCLUDED.name, description=EXCLUDED.description,
+			name=EXCLUDED.name, description=EXCLUDED.description,
 			status=EXCLUDED.status, node_id=EXCLUDED.node_id, service_id=EXCLUDED.service_id,
 			version=EXCLUDED.version, spec=EXCLUDED.spec, target_weight=EXCLUDED.target_weight,
 			updated_at=EXCLUDED.updated_at`,
-		a.ID, a.TenantID, a.Name, a.Description, a.Status, a.NodeID, a.ServiceID,
+		a.ID, a.Name, a.Description, a.Status, a.NodeID, a.ServiceID,
 		a.Version, a.Spec, a.TargetWeight, a.CreatedAt, a.UpdatedAt)
 }

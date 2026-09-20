@@ -122,7 +122,6 @@ func (i *Instantiator) Instantiate(ctx context.Context, projectID uuid.UUID, in 
 	appID := p.ID.String()
 	body := map[string]any{
 		"id":          appID,
-		"tenant_id":   p.TenantID.String(),
 		"name":        p.Name,
 		"description": fmt.Sprintf("%s / %s", tmpl.Name, p.Name),
 		"version":     "v1",

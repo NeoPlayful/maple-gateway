@@ -353,7 +353,6 @@ export interface CMTaskPage {
 // 一个 Compose 应用（CM 应用模型经 /api/admin/cm/applications 透出）。
 export interface CMApplication {
   id: string;
-  tenant_id?: string;
   name: string;
   description?: string;
   status: string; // created / running / stopped / removed / failed

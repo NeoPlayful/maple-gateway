@@ -50,7 +50,6 @@ func project(a Application) string {
 func spec(a Application, networkName string) agentprotocol.ApplicationSpec {
 	return agentprotocol.ApplicationSpec{
 		ApplicationID: a.ID,
-		TenantID:      a.TenantID,
 		Version:       a.Version,
 		Project:       project(a),
 		NetworkName:   networkName,
