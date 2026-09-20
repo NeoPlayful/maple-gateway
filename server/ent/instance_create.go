@@ -73,6 +73,20 @@ func (ic *InstanceCreate) SetNillableVersionID(u *uuid.UUID) *InstanceCreate {
 	return ic
 }
 
+// SetProjectID sets the "project_id" field.
+func (ic *InstanceCreate) SetProjectID(u uuid.UUID) *InstanceCreate {
+	ic.mutation.SetProjectID(u)
+	return ic
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (ic *InstanceCreate) SetNillableProjectID(u *uuid.UUID) *InstanceCreate {
+	if u != nil {
+		ic.SetProjectID(*u)
+	}
+	return ic
+}
+
 // SetVersion sets the "version" field.
 func (ic *InstanceCreate) SetVersion(s string) *InstanceCreate {
 	ic.mutation.SetVersion(s)
@@ -349,6 +363,10 @@ func (ic *InstanceCreate) createSpec() (*Instance, *sqlgraph.CreateSpec) {
 		_spec.SetField(instance.FieldVersionID, field.TypeUUID, value)
 		_node.VersionID = &value
 	}
+	if value, ok := ic.mutation.ProjectID(); ok {
+		_spec.SetField(instance.FieldProjectID, field.TypeUUID, value)
+		_node.ProjectID = &value
+	}
 	if value, ok := ic.mutation.Version(); ok {
 		_spec.SetField(instance.FieldVersion, field.TypeString, value)
 		_node.Version = value
@@ -521,6 +539,24 @@ func (u *InstanceUpsert) UpdateVersionID() *InstanceUpsert {
 // ClearVersionID clears the value of the "version_id" field.
 func (u *InstanceUpsert) ClearVersionID() *InstanceUpsert {
 	u.SetNull(instance.FieldVersionID)
+	return u
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *InstanceUpsert) SetProjectID(v uuid.UUID) *InstanceUpsert {
+	u.Set(instance.FieldProjectID, v)
+	return u
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *InstanceUpsert) UpdateProjectID() *InstanceUpsert {
+	u.SetExcluded(instance.FieldProjectID)
+	return u
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *InstanceUpsert) ClearProjectID() *InstanceUpsert {
+	u.SetNull(instance.FieldProjectID)
 	return u
 }
 
@@ -775,6 +811,27 @@ func (u *InstanceUpsertOne) UpdateVersionID() *InstanceUpsertOne {
 func (u *InstanceUpsertOne) ClearVersionID() *InstanceUpsertOne {
 	return u.Update(func(s *InstanceUpsert) {
 		s.ClearVersionID()
+	})
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *InstanceUpsertOne) SetProjectID(v uuid.UUID) *InstanceUpsertOne {
+	return u.Update(func(s *InstanceUpsert) {
+		s.SetProjectID(v)
+	})
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *InstanceUpsertOne) UpdateProjectID() *InstanceUpsertOne {
+	return u.Update(func(s *InstanceUpsert) {
+		s.UpdateProjectID()
+	})
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *InstanceUpsertOne) ClearProjectID() *InstanceUpsertOne {
+	return u.Update(func(s *InstanceUpsert) {
+		s.ClearProjectID()
 	})
 }
 
@@ -1217,6 +1274,27 @@ func (u *InstanceUpsertBulk) UpdateVersionID() *InstanceUpsertBulk {
 func (u *InstanceUpsertBulk) ClearVersionID() *InstanceUpsertBulk {
 	return u.Update(func(s *InstanceUpsert) {
 		s.ClearVersionID()
+	})
+}
+
+// SetProjectID sets the "project_id" field.
+func (u *InstanceUpsertBulk) SetProjectID(v uuid.UUID) *InstanceUpsertBulk {
+	return u.Update(func(s *InstanceUpsert) {
+		s.SetProjectID(v)
+	})
+}
+
+// UpdateProjectID sets the "project_id" field to the value that was provided on create.
+func (u *InstanceUpsertBulk) UpdateProjectID() *InstanceUpsertBulk {
+	return u.Update(func(s *InstanceUpsert) {
+		s.UpdateProjectID()
+	})
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (u *InstanceUpsertBulk) ClearProjectID() *InstanceUpsertBulk {
+	return u.Update(func(s *InstanceUpsert) {
+		s.ClearProjectID()
 	})
 }
 

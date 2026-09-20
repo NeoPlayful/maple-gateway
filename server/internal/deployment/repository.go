@@ -59,6 +59,7 @@ func toVersion(e *ent.DeploymentVersion) *Version {
 	return &Version{
 		ID:           e.ID,
 		DeploymentID: e.DeploymentID,
+		ProjectID:    e.ProjectID,
 		Version:      e.Version,
 		Image:        e.Image,
 		Weight:       e.Weight,
@@ -244,6 +245,7 @@ func (r *Repository) CreateVersion(ctx context.Context, deploymentID uuid.UUID, 
 	now := time.Now()
 	e, err := r.ent.DeploymentVersion.Create().
 		SetDeploymentID(deploymentID).
+		SetNillableProjectID(in.ProjectID).
 		SetVersion(in.Version).
 		SetImage(in.Image).
 		SetWeight(weight).
@@ -326,6 +328,14 @@ func (r *Repository) UpdateVersion(ctx context.Context, id uuid.UUID, in UpdateV
 		return nil, fmt.Errorf("get version for update: %w", err)
 	}
 	upd := r.ent.DeploymentVersion.UpdateOneID(id).SetUpdatedAt(time.Now())
+	// project_id 三态：uuid.Nil 解挂（写 NULL），有效 UUID 设置。
+	if in.ProjectID != nil {
+		if *in.ProjectID == uuid.Nil {
+			upd = upd.ClearProjectID()
+		} else {
+			upd = upd.SetProjectID(*in.ProjectID)
+		}
+	}
 	if in.Image != nil {
 		upd = upd.SetImage(*in.Image)
 	}

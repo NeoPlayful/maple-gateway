@@ -8,6 +8,8 @@
 //	maple.service_id     = <uuid>
 //	maple.deployment_id  = <uuid>
 //	maple.version_id     = <uuid>
+//	maple.project_id     = <uuid>     项目归属（可空，Compose 应用与单容器共用）
+//	maple.replica_index  = <int>      版本内副本序号（从 1 起），容器名尾段
 package docker
 
 import (
@@ -40,6 +42,10 @@ const (
 	LabelServiceID    = "maple.service_id"
 	LabelDeploymentID = "maple.deployment_id"
 	LabelVersionID    = "maple.version_id"
+	LabelProjectID    = "maple.project_id"
+	// LabelReplicaIndex 是该容器在版本内的副本序号（从 1 起）：CM 据此在重启后
+	// 从观测恢复"已用序号"集合，避免重建时与存活副本撞名。
+	LabelReplicaIndex = "maple.replica_index"
 )
 
 // Client 是 Docker Engine 客户端封装。
@@ -113,10 +119,15 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // CreateSpec 是创建一个容器所需的规格。
 type CreateSpec struct {
-	InstanceID   string            `json:"instance_id"`
-	ServiceID    string            `json:"service_id"`
-	DeploymentID string            `json:"deployment_id"`
-	VersionID    string            `json:"version_id"`
+	InstanceID   string `json:"instance_id"`
+	ServiceID    string `json:"service_id"`
+	DeploymentID string `json:"deployment_id"`
+	VersionID    string `json:"version_id"`
+	ProjectID    string `json:"project_id,omitempty"`
+	// Name 是容器名（CM 指定）；为空则退回 maple-<实例短码>。
+	Name string `json:"name,omitempty"`
+	// ReplicaIndex 是副本序号（版本内从 1 起）；非 0 时打 maple.replica_index 标签。
+	ReplicaIndex int               `json:"replica_index,omitempty"`
 	Image        string            `json:"image"`
 	Port         int               `json:"port"`      // 容器监听端口
 	HostPort     int               `json:"host_port"` // 本机映射端口（0 = 由 Docker 动态分配）
@@ -257,19 +268,7 @@ func (c *Client) Ensure(ctx context.Context, spec CreateSpec, allowedImages []st
 	}
 	sort.Strings(env)
 
-	labels := map[string]string{
-		c.managedLabel:  "true",
-		LabelInstanceID: spec.InstanceID,
-	}
-	if spec.ServiceID != "" {
-		labels[LabelServiceID] = spec.ServiceID
-	}
-	if spec.DeploymentID != "" {
-		labels[LabelDeploymentID] = spec.DeploymentID
-	}
-	if spec.VersionID != "" {
-		labels[LabelVersionID] = spec.VersionID
-	}
+	labels := containerLabels(c.managedLabel, spec)
 
 	cfg := &container.Config{
 		Image:  spec.Image,
@@ -303,7 +302,8 @@ func (c *Client) Ensure(ctx context.Context, spec CreateSpec, allowedImages []st
 		hostCfg.Resources.Memory = parseMemory(spec.Memory)
 	}
 
-	created, err := c.cli.ContainerCreate(ctx, cfg, hostCfg, nil, nil, "maple-"+shortID(spec.InstanceID))
+	// 容器名由 CM 指定（Compose 风格，含项目短码/版本/序号）；未指定则退回实例短码。
+	created, err := c.cli.ContainerCreate(ctx, cfg, hostCfg, nil, nil, resolveContainerName(spec))
 	if err != nil {
 		return "", 0, fmt.Errorf("create container: %w", err)
 	}
@@ -838,6 +838,40 @@ func hostPortFromInspect(insp types.ContainerJSON, containerPort int) int {
 // shortID 取实例 ID 前 12 位用于容器名（UUID 去连字符后）。
 func shortID(id string) string {
 	return pkg.ShortID(id)
+}
+
+// resolveContainerName 决定容器名：CM 指定了 Name 就用它（Compose 风格，含项目/版本/序号），
+// 否则退回 maple-<实例短码>。保证既有「无项目归属」的版本仍有稳定可读的容器名。
+func resolveContainerName(spec CreateSpec) string {
+	if spec.Name != "" {
+		return spec.Name
+	}
+	return "maple-" + shortID(spec.InstanceID)
+}
+
+// containerLabels 组装容器标签：受管标记 + 实例 ID 必填，其余归属字段非空才写。
+// 副本序号非 0 才写（0 视为未分配）。抽出为纯函数便于单测。
+func containerLabels(managedLabel string, spec CreateSpec) map[string]string {
+	labels := map[string]string{
+		managedLabel:    "true",
+		LabelInstanceID: spec.InstanceID,
+	}
+	if spec.ServiceID != "" {
+		labels[LabelServiceID] = spec.ServiceID
+	}
+	if spec.DeploymentID != "" {
+		labels[LabelDeploymentID] = spec.DeploymentID
+	}
+	if spec.VersionID != "" {
+		labels[LabelVersionID] = spec.VersionID
+	}
+	if spec.ProjectID != "" {
+		labels[LabelProjectID] = spec.ProjectID
+	}
+	if spec.ReplicaIndex > 0 {
+		labels[LabelReplicaIndex] = strconv.Itoa(spec.ReplicaIndex)
+	}
+	return labels
 }
 
 // parseMemory 把 "256m"/"1g"/"512m" 解析为字节；解析失败返回 0。

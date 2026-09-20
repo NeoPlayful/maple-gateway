@@ -189,6 +189,7 @@ var (
 	// DeploymentVersionsColumns holds the columns for the "deployment_versions" table.
 	DeploymentVersionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "version", Type: field.TypeString},
 		{Name: "image", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "weight", Type: field.TypeInt, Default: 100},
@@ -212,7 +213,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "deployment_versions_deployments_versions",
-				Columns:    []*schema.Column{DeploymentVersionsColumns[14]},
+				Columns:    []*schema.Column{DeploymentVersionsColumns[15]},
 				RefColumns: []*schema.Column{DeploymentsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -221,7 +222,7 @@ var (
 			{
 				Name:    "deploymentversion_deployment_id_version",
 				Unique:  true,
-				Columns: []*schema.Column{DeploymentVersionsColumns[14], DeploymentVersionsColumns[1]},
+				Columns: []*schema.Column{DeploymentVersionsColumns[15], DeploymentVersionsColumns[2]},
 			},
 		},
 	}
@@ -303,6 +304,7 @@ var (
 		{Name: "node_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "deployment_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "version_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "version", Type: field.TypeString, Default: ""},
 		{Name: "address", Type: field.TypeString},
 		{Name: "port", Type: field.TypeInt},
@@ -323,7 +325,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "instances_services_instances",
-				Columns:    []*schema.Column{InstancesColumns[14]},
+				Columns:    []*schema.Column{InstancesColumns[15]},
 				RefColumns: []*schema.Column{ServicesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -332,7 +334,7 @@ var (
 			{
 				Name:    "instance_health",
 				Unique:  false,
-				Columns: []*schema.Column{InstancesColumns[10]},
+				Columns: []*schema.Column{InstancesColumns[11]},
 			},
 		},
 	}

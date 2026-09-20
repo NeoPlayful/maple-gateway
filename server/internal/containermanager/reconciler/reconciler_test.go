@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/observer"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
+	"github.com/NeoPlayful/maple-gateway/server/pkg"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -28,6 +31,8 @@ type fakeCommander struct {
 	calls   []string
 	results map[string]json.RawMessage
 	fail    map[string]bool // 该 action 是否固定失败
+	// createSpecs 记录每次 container.create 的规格，供断言容器名与序号。
+	createSpecs []gwclient.CreateSpec
 }
 
 func newFakeCommander() *fakeCommander {
@@ -36,17 +41,33 @@ func newFakeCommander() *fakeCommander {
 	}}
 }
 
-func (f *fakeCommander) Call(_ context.Context, _, action string, _ any) (json.RawMessage, error) {
+func (f *fakeCommander) Call(_ context.Context, _, action string, params any) (json.RawMessage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, action)
 	if f.fail[action] {
 		return nil, errors.New("boom")
 	}
+	if action == agentprotocol.ActionContainerCreate {
+		if spec, ok := params.(gwclient.CreateSpec); ok {
+			f.createSpecs = append(f.createSpecs, spec)
+		}
+	}
 	if r, ok := f.results[action]; ok {
 		return r, nil
 	}
 	return nil, nil
+}
+
+// names 返回本次记录的全部容器名（按创建顺序）。
+func (f *fakeCommander) names() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, 0, len(f.createSpecs))
+	for _, s := range f.createSpecs {
+		out = append(out, s.Name)
+	}
+	return out
 }
 
 // Probe 同为请求/响应通道；对账测试不区分记录与否，行为与 Call 一致。
@@ -287,6 +308,107 @@ func TestReconcileStopsAfterRepeatedCreateFailure(t *testing.T) {
 	}
 	if fd.phases[depID].Status != "failed" {
 		t.Errorf("phase = %q, want failed", fd.phases[depID].Status)
+	}
+}
+
+// 容器命名：有项目归属时按 Compose 风格 maple-<项目短码>-<版本>-<序号> 取名，
+// 且同一版本内多副本序号互不相同（从 1 起递增）。
+func TestReconcileNamesContainersWithProject(t *testing.T) {
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
+
+	projID := uuid.New()
+	verID := uuid.New()
+	fd := &fakeDesired{states: []desired.State{{
+		DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: verID,
+		ProjectID: &projID, Version: "v3", Image: "nginx:alpine", Port: 80, Replicas: 3,
+	}}}
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+	r.Reconcile(context.Background())
+
+	names := cmd.names()
+	if len(names) != 3 {
+		t.Fatalf("names = %v, want 3", names)
+	}
+	prefix := "maple-" + pkg.ShortID(projID.String()) + "-v3-"
+	seen := map[string]bool{}
+	for _, n := range names {
+		if !strings.HasPrefix(n, prefix) {
+			t.Errorf("name %q, want prefix %q", n, prefix)
+		}
+		if seen[n] {
+			t.Errorf("duplicate name %q", n)
+		}
+		seen[n] = true
+	}
+	// 序号从 1 起，连续覆盖 1..3。
+	for _, idx := range []int{1, 2, 3} {
+		if !seen[prefix+strconv.Itoa(idx)] {
+			t.Errorf("missing name %q in %v", prefix+strconv.Itoa(idx), names)
+		}
+	}
+}
+
+// 已用序号（观测到的存活容器）在新建时被跳过：新建副本应取下一个空位，不与存量撞名。
+func TestReconcileSkipsUsedIndexes(t *testing.T) {
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
+
+	projID := uuid.New()
+	verID := uuid.New()
+	fd := &fakeDesired{states: []desired.State{{
+		DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: verID,
+		ProjectID: &projID, Version: "v1", Image: "nginx:alpine", Port: 80, Replicas: 2,
+	}}}
+	// 存量副本已占序号 1，目标 2 副本 → 只需补 1 个，应取名 -2。
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{
+		"i1": {
+			NodeName: "n1", InstanceID: "i1",
+			Container: gwclient.Container{
+				ID: "c1", State: "running", InstanceID: "i1",
+				Labels: map[string]string{
+					"maple.version_id": verID.String(),
+					replicaIndexLabel:  "1",
+				},
+			},
+		},
+	}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+	r.Reconcile(context.Background())
+
+	names := cmd.names()
+	if len(names) != 1 {
+		t.Fatalf("names = %v, want 1 new container", names)
+	}
+	want := "maple-" + pkg.ShortID(projID.String()) + "-v1-2"
+	if names[0] != want {
+		t.Errorf("name = %q, want %q (must skip used index 1)", names[0], want)
+	}
+}
+
+// 项目为空：不下发容器名（由 Agent 退回 maple-<实例短码>），序号标签仍分配。
+func TestReconcileNoNameWithoutProject(t *testing.T) {
+	cmd := newFakeCommander()
+	reg := newOnlineRegistry(cmd)
+
+	fd := &fakeDesired{states: []desired.State{{
+		DeploymentID: uuid.New(), ServiceID: uuid.New(), VersionID: uuid.New(),
+		Image: "nginx:alpine", Port: 80, Replicas: 1,
+	}}}
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{}}
+	gw := gwclient.NewGatewayClient("", "")
+	r := New(fd, fa, reg, gw, time.Second, zap.NewNop())
+	r.Reconcile(context.Background())
+
+	names := cmd.names()
+	if len(names) != 1 {
+		t.Fatalf("names = %v, want 1", names)
+	}
+	if names[0] != "" {
+		t.Errorf("name = %q, want empty (Agent falls back to instance short id)", names[0])
 	}
 }
 

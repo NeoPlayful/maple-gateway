@@ -48,6 +48,9 @@ export interface Mount {
 export interface Version {
   id: string;
   deployment_id: string;
+  // project_id 是版本所属项目（可空）：该版本创建的容器带 maple.project_id 标签，
+  // 使单容器与 Compose 应用共用同一项目隔离单元（数据目录 <租户>/<模板>/<项目>）。
+  project_id?: string | null;
   version: string;
   image?: string;
   weight: number;

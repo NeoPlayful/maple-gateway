@@ -20,6 +20,9 @@ func (DeploymentVersion) Fields() []ent.Field {
 	return []ent.Field{
 		field.UUID("id", uuid.UUID{}).Default(uuid.New).Immutable(),
 		field.UUID("deployment_id", uuid.UUID{}),
+		// project_id 是版本所属项目（projects.id，可空）。非空时该版本创建的容器带
+		// maple.project_id 标签，项目成为单容器与 Compose 应用共用的隔离单元。
+		field.UUID("project_id", uuid.UUID{}).Optional().Nillable(),
 		field.String("version").NotEmpty(),
 		field.String("image").Optional().Default(""),
 		field.Int("weight").Default(100),

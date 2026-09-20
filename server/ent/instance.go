@@ -27,6 +27,8 @@ type Instance struct {
 	DeploymentID *uuid.UUID `json:"deployment_id,omitempty"`
 	// VersionID holds the value of the "version_id" field.
 	VersionID *uuid.UUID `json:"version_id,omitempty"`
+	// ProjectID holds the value of the "project_id" field.
+	ProjectID *uuid.UUID `json:"project_id,omitempty"`
 	// Version holds the value of the "version" field.
 	Version string `json:"version,omitempty"`
 	// Address holds the value of the "address" field.
@@ -78,7 +80,7 @@ func (*Instance) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case instance.FieldNodeID, instance.FieldDeploymentID, instance.FieldVersionID:
+		case instance.FieldNodeID, instance.FieldDeploymentID, instance.FieldVersionID, instance.FieldProjectID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case instance.FieldPort, instance.FieldWeight:
 			values[i] = new(sql.NullInt64)
@@ -135,6 +137,13 @@ func (i *Instance) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				i.VersionID = new(uuid.UUID)
 				*i.VersionID = *value.S.(*uuid.UUID)
+			}
+		case instance.FieldProjectID:
+			if value, ok := values[j].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field project_id", values[j])
+			} else if value.Valid {
+				i.ProjectID = new(uuid.UUID)
+				*i.ProjectID = *value.S.(*uuid.UUID)
 			}
 		case instance.FieldVersion:
 			if value, ok := values[j].(*sql.NullString); !ok {
@@ -253,6 +262,11 @@ func (i *Instance) String() string {
 	builder.WriteString(", ")
 	if v := i.VersionID; v != nil {
 		builder.WriteString("version_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := i.ProjectID; v != nil {
+		builder.WriteString("project_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

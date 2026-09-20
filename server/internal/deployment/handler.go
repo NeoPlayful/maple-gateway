@@ -59,6 +59,7 @@ func (h *Handler) pushVersion(c fiber.Ctx, v *Version, strategy string) {
 		DeploymentID: v.DeploymentID,
 		ServiceID:    dep.ServiceID,
 		VersionID:    v.ID,
+		ProjectID:    v.ProjectID,
 		Version:      v.Version,
 		Status:       string(v.Status),
 		Image:        v.Image,

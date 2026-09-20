@@ -76,6 +76,11 @@ func VersionID(v uuid.UUID) predicate.Instance {
 	return predicate.Instance(sql.FieldEQ(FieldVersionID, v))
 }
 
+// ProjectID applies equality check predicate on the "project_id" field. It's identical to ProjectIDEQ.
+func ProjectID(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldEQ(FieldProjectID, v))
+}
+
 // Version applies equality check predicate on the "version" field. It's identical to VersionEQ.
 func Version(v string) predicate.Instance {
 	return predicate.Instance(sql.FieldEQ(FieldVersion, v))
@@ -294,6 +299,56 @@ func VersionIDIsNil() predicate.Instance {
 // VersionIDNotNil applies the NotNil predicate on the "version_id" field.
 func VersionIDNotNil() predicate.Instance {
 	return predicate.Instance(sql.FieldNotNull(FieldVersionID))
+}
+
+// ProjectIDEQ applies the EQ predicate on the "project_id" field.
+func ProjectIDEQ(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldEQ(FieldProjectID, v))
+}
+
+// ProjectIDNEQ applies the NEQ predicate on the "project_id" field.
+func ProjectIDNEQ(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldNEQ(FieldProjectID, v))
+}
+
+// ProjectIDIn applies the In predicate on the "project_id" field.
+func ProjectIDIn(vs ...uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldIn(FieldProjectID, vs...))
+}
+
+// ProjectIDNotIn applies the NotIn predicate on the "project_id" field.
+func ProjectIDNotIn(vs ...uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldNotIn(FieldProjectID, vs...))
+}
+
+// ProjectIDGT applies the GT predicate on the "project_id" field.
+func ProjectIDGT(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldGT(FieldProjectID, v))
+}
+
+// ProjectIDGTE applies the GTE predicate on the "project_id" field.
+func ProjectIDGTE(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldGTE(FieldProjectID, v))
+}
+
+// ProjectIDLT applies the LT predicate on the "project_id" field.
+func ProjectIDLT(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldLT(FieldProjectID, v))
+}
+
+// ProjectIDLTE applies the LTE predicate on the "project_id" field.
+func ProjectIDLTE(v uuid.UUID) predicate.Instance {
+	return predicate.Instance(sql.FieldLTE(FieldProjectID, v))
+}
+
+// ProjectIDIsNil applies the IsNil predicate on the "project_id" field.
+func ProjectIDIsNil() predicate.Instance {
+	return predicate.Instance(sql.FieldIsNull(FieldProjectID))
+}
+
+// ProjectIDNotNil applies the NotNil predicate on the "project_id" field.
+func ProjectIDNotNil() predicate.Instance {
+	return predicate.Instance(sql.FieldNotNull(FieldProjectID))
 }
 
 // VersionEQ applies the EQ predicate on the "version" field.

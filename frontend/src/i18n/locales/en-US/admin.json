@@ -310,7 +310,10 @@
     "noMounts": "No mounts",
     "mountPathPh": "e.g. tenant_1001/webapp/shop-a/db",
     "mountTargetPh": "e.g. /var/lib/postgresql/data",
-    "mountReadOnly": "Read-only"
+    "mountReadOnly": "Read-only",
+    "project": "Project",
+    "projectHint": "Containers created from this version join the project and get a maple.project_id label, sharing the same project isolation unit as Compose apps. Leave empty for no project association.",
+    "noProject": "(no project)"
   },
   "nodes": {
     "title": "Nodes",

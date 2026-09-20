@@ -61,6 +61,11 @@ func DeploymentID(v uuid.UUID) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldEQ(FieldDeploymentID, v))
 }
 
+// ProjectID applies equality check predicate on the "project_id" field. It's identical to ProjectIDEQ.
+func ProjectID(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldProjectID, v))
+}
+
 // Version applies equality check predicate on the "version" field. It's identical to VersionEQ.
 func Version(v string) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldEQ(FieldVersion, v))
@@ -124,6 +129,56 @@ func DeploymentIDIn(vs ...uuid.UUID) predicate.DeploymentVersion {
 // DeploymentIDNotIn applies the NotIn predicate on the "deployment_id" field.
 func DeploymentIDNotIn(vs ...uuid.UUID) predicate.DeploymentVersion {
 	return predicate.DeploymentVersion(sql.FieldNotIn(FieldDeploymentID, vs...))
+}
+
+// ProjectIDEQ applies the EQ predicate on the "project_id" field.
+func ProjectIDEQ(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldEQ(FieldProjectID, v))
+}
+
+// ProjectIDNEQ applies the NEQ predicate on the "project_id" field.
+func ProjectIDNEQ(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNEQ(FieldProjectID, v))
+}
+
+// ProjectIDIn applies the In predicate on the "project_id" field.
+func ProjectIDIn(vs ...uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIn(FieldProjectID, vs...))
+}
+
+// ProjectIDNotIn applies the NotIn predicate on the "project_id" field.
+func ProjectIDNotIn(vs ...uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotIn(FieldProjectID, vs...))
+}
+
+// ProjectIDGT applies the GT predicate on the "project_id" field.
+func ProjectIDGT(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGT(FieldProjectID, v))
+}
+
+// ProjectIDGTE applies the GTE predicate on the "project_id" field.
+func ProjectIDGTE(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldGTE(FieldProjectID, v))
+}
+
+// ProjectIDLT applies the LT predicate on the "project_id" field.
+func ProjectIDLT(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLT(FieldProjectID, v))
+}
+
+// ProjectIDLTE applies the LTE predicate on the "project_id" field.
+func ProjectIDLTE(v uuid.UUID) predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldLTE(FieldProjectID, v))
+}
+
+// ProjectIDIsNil applies the IsNil predicate on the "project_id" field.
+func ProjectIDIsNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldIsNull(FieldProjectID))
+}
+
+// ProjectIDNotNil applies the NotNil predicate on the "project_id" field.
+func ProjectIDNotNil() predicate.DeploymentVersion {
+	return predicate.DeploymentVersion(sql.FieldNotNull(FieldProjectID))
 }
 
 // VersionEQ applies the EQ predicate on the "version" field.
