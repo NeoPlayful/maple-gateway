@@ -73,6 +73,10 @@ func (h *Handler) Update(c fiber.Ctx) error {
 		return pkg.Err(c, pkg.ErrValidation("请求体不能为空"))
 	}
 	for key, val := range body {
+		// health/proxy 等运行时键做范围校验，非法值直接拒绝，避免把网关配成不可用。
+		if err := ValidateRuntimeKey(section, key, val); err != nil {
+			return pkg.Err(c, err)
+		}
 		if _, err := h.repo.Upsert(c.Context(), section, key, val); err != nil {
 			// debug 级：默认 info 不输出，排查时把 log.level 调成 debug 即可看到保存失败原因。
 			pkg.Log().Debug("settings update: upsert failed",

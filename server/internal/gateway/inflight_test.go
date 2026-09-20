@@ -68,3 +68,38 @@ func TestInFlightLimiter_ZeroMeansUnlimited(t *testing.T) {
 		}
 	}
 }
+
+// TestInFlightLimiter_SetLimitHot 验证 SetLimit 热更新即时生效：
+// 降到 0 后不再拦截，升回后重新拦截。
+func TestInFlightLimiter_SetLimitHot(t *testing.T) {
+	release := make(chan struct{})
+	entered := make(chan struct{}, 8)
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered <- struct{}{}
+		<-release
+		w.WriteHeader(200)
+	})
+	h := NewInFlightLimiter(1, next)
+
+	// 占满唯一槽位。
+	go h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	<-entered
+
+	// 上限降为 0 → 不再拦截：应放行进入 handler。
+	h.SetLimit(0)
+	if got := h.Limit(); got != 0 {
+		t.Fatalf("SetLimit(0) 后上限应为 0，实际 %d", got)
+	}
+	go h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	<-entered
+
+	// 上限升回 1，但当前在途已 >1：新请求应被拒。
+	h.SetLimit(1)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("恢复上限后在途已超限应 503，实际 %d", rec.Code)
+	}
+
+	close(release)
+}

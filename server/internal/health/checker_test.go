@@ -204,6 +204,48 @@ func TestChecker_PrunesRemovedInstances(t *testing.T) {
 	}
 }
 
+// TestChecker_SetConfigHot 验证 SetConfig 热更新后，新阈值立即用于判定。
+func TestChecker_SetConfigHot(t *testing.T) {
+	id := uuid.New()
+	up := httptest.NewServer(nil)
+	defer up.Close()
+	repo := &fakeRepo{insts: []*instance.Instance{instFromURL(up.URL, id)}}
+
+	cfg := Config{
+		Interval:         50 * time.Millisecond,
+		Timeout:          500 * time.Millisecond,
+		FailureThreshold: 100, // 初始极高：不应被标 unhealthy
+		SuccessThreshold: 1,
+		GracePeriod:      0,
+		Path:             "/health",
+	}
+	c := NewChecker(repo, cfg, zap.NewNop())
+	ctx := context.Background()
+
+	up.Close() // 制造探测失败
+	// 阈值极高，连续失败也不会触发 unhealthy。
+	for i := 0; i < 5; i++ {
+		c.checkOnce(ctx)
+	}
+	if repo.lastChange() != "" {
+		t.Fatalf("高阈值下不应有状态变更，实际 %s", repo.lastChange())
+	}
+
+	// 热更新：把失败阈值降到 1，下一轮即应标 unhealthy。
+	c.SetConfig(Config{
+		Interval:         50 * time.Millisecond,
+		Timeout:          500 * time.Millisecond,
+		FailureThreshold: 1,
+		SuccessThreshold: 1,
+		GracePeriod:      0,
+		Path:             "/health",
+	})
+	c.checkOnce(ctx)
+	if got := repo.lastChange(); !strings.HasSuffix(got, string(instance.HealthUnhealthy)) {
+		t.Fatalf("热更新阈值后应变 unhealthy，实际 %s", got)
+	}
+}
+
 func repoChanges(repo *fakeRepo) []string {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()

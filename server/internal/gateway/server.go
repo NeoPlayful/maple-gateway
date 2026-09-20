@@ -41,6 +41,7 @@ type DataPlane struct {
 	listeners []listener
 	logger    *zap.Logger
 	inflight  *inFlightLimiter
+	bodyLim   *bodyLimiter
 	metrics   *metrics.Registry
 }
 
@@ -61,6 +62,8 @@ type DataPlaneConfig struct {
 	ReadTimeout         time.Duration
 	IdleTimeout         time.Duration
 	MaxHeaderBytes      int
+	// MaxBodyBytes 是请求体大小上限（0=不限）。超限读取时返回 413。
+	MaxBodyBytes int64
 	// MaxInFlight 是数据面在途请求上限（0=不限）。超限快速返回 503。
 	MaxInFlight int
 	Logger      *zap.Logger
@@ -89,11 +92,14 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 	if cfg.ACMEChallenge != nil {
 		handler = challengeHandler{next: handler, cr: cfg.ACMEChallenge}
 	}
+	// 请求体大小限制：在代理转发读取时按上限截断，超限由 proxy 返回 413。
+	bodyLim := NewBodyLimiter(cfg.MaxBodyBytes, handler)
+	handler = bodyLim
 	// 过载背压：在途请求超上限即返回 503，避免无界排队拖垮进程。
 	limiter := NewInFlightLimiter(cfg.MaxInFlight, handler)
 	handler = limiter
 
-	d := &DataPlane{logger: cfg.Logger, inflight: limiter, metrics: cfg.Metrics}
+	d := &DataPlane{logger: cfg.Logger, inflight: limiter, bodyLim: bodyLim, metrics: cfg.Metrics}
 	newServer := func(addr string, tlsCfg *tls.Config) *http.Server {
 		return &http.Server{
 			Addr:              addr,
