@@ -92,10 +92,18 @@ type HealthConfig struct {
 
 type ProxyConfig struct {
 	ReadHeaderTimeout     time.Duration `yaml:"read_header_timeout"`
+	ReadTimeout           time.Duration `yaml:"read_timeout"`
 	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
 	IdleTimeout           time.Duration `yaml:"idle_timeout"`
 	MaxHeaderBytes        int           `yaml:"max_header_bytes"`
 	MaxBodyBytes          int64         `yaml:"max_body_bytes"`
+	// 上游连接池上限。MaxConnsPerHost 为单上游在途连接上限（含建连与转发中）。
+	// 缺失上限时并发请求各开一条上游连接，形成无界 dial 风暴直至线程耗尽。
+	MaxConnsPerHost     int `yaml:"max_conns_per_host"`
+	MaxIdleConns        int `yaml:"max_idle_conns"`
+	MaxIdleConnsPerHost int `yaml:"max_idle_conns_per_host"`
+	// MaxInFlight 是数据面同时在途请求上限（0=不限）。超限快速返回 503，作为过载背压。
+	MaxInFlight int `yaml:"max_in_flight"`
 }
 
 type DatabaseConfig struct {
@@ -200,10 +208,17 @@ func Default() *Config {
 		},
 		Proxy: ProxyConfig{
 			ReadHeaderTimeout:     10 * time.Second,
+			ReadTimeout:           60 * time.Second,
 			ResponseHeaderTimeout: 60 * time.Second,
 			IdleTimeout:           120 * time.Second,
 			MaxHeaderBytes:        1 << 20,
 			MaxBodyBytes:          10 << 20,
+			// 上游连接池与数据面背压的有界默认值：上限存在与否决定过载时
+			// 是「排队/拒绝」还是「进程崩溃」。
+			MaxConnsPerHost:     512,
+			MaxIdleConns:        512,
+			MaxIdleConnsPerHost: 128,
+			MaxInFlight:         4096,
 		},
 		RateLimit: RateLimitConfig{Mode: "memory"},
 		Logging:   LoggingConfig{Level: "info"},

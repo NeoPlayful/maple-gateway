@@ -40,6 +40,8 @@ type listener struct {
 type DataPlane struct {
 	listeners []listener
 	logger    *zap.Logger
+	inflight  *inFlightLimiter
+	metrics   *metrics.Registry
 }
 
 // DataPlaneConfig 数据平面依赖。
@@ -56,13 +58,16 @@ type DataPlaneConfig struct {
 	Resolver            router.Resolver
 	Transport           *http.Transport
 	ReadHeaderTimeout   time.Duration
+	ReadTimeout         time.Duration
 	IdleTimeout         time.Duration
 	MaxHeaderBytes      int
-	Logger              *zap.Logger
-	Metrics             *metrics.Registry // 可空；nil 时不采集指标
-	AccessLog           *logs.AccessLog   // 可空；nil 时不记录访问日志
-	ErrLog              *logs.ErrLog      // 可空；nil 时不记录错误日志
-	Tracer              tracex.Tracer     // 可空；nil 时不埋 OTel trace
+	// MaxInFlight 是数据面在途请求上限（0=不限）。超限快速返回 503。
+	MaxInFlight int
+	Logger      *zap.Logger
+	Metrics     *metrics.Registry // 可空；nil 时不采集指标
+	AccessLog   *logs.AccessLog   // 可空；nil 时不记录访问日志
+	ErrLog      *logs.ErrLog      // 可空；nil 时不记录错误日志
+	Tracer      tracex.Tracer     // 可空；nil 时不埋 OTel trace
 	// ACMEChallenge 可空；注入后在代理前短路应答 ACME http-01 挑战。
 	ACMEChallenge ChallengeResponder
 }
@@ -84,13 +89,17 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 	if cfg.ACMEChallenge != nil {
 		handler = challengeHandler{next: handler, cr: cfg.ACMEChallenge}
 	}
+	// 过载背压：在途请求超上限即返回 503，避免无界排队拖垮进程。
+	limiter := NewInFlightLimiter(cfg.MaxInFlight, handler)
+	handler = limiter
 
-	d := &DataPlane{logger: cfg.Logger}
+	d := &DataPlane{logger: cfg.Logger, inflight: limiter, metrics: cfg.Metrics}
 	newServer := func(addr string, tlsCfg *tls.Config) *http.Server {
 		return &http.Server{
 			Addr:              addr,
 			Handler:           handler,
 			ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+			ReadTimeout:       cfg.ReadTimeout,
 			IdleTimeout:       cfg.IdleTimeout,
 			MaxHeaderBytes:    cfg.MaxHeaderBytes,
 			TLSConfig:         tlsCfg,

@@ -14,6 +14,10 @@ type TransportConfig struct {
 	IdleTimeout           time.Duration
 	MaxIdleConns          int
 	MaxIdleConnsPerHost   int
+	// MaxConnsPerHost 是单个上游主机的在途连接上限（含正在建连与转发中的）。
+	// 0 表示不限——缺失此项时并发请求会各开一条上游连接，形成无界 dial 风暴；
+	// Windows 上每条阻塞 socket 占一个 OS 线程，线程数撞 10000 上限会触发运行时 fatal。
+	MaxConnsPerHost int
 }
 
 // NewTransport 构建可复用的 upstream http.Transport。
@@ -23,6 +27,7 @@ func NewTransport(cfg TransportConfig) *http.Transport {
 		// 每个请求的连接可复用，避免频繁建连。
 		MaxIdleConns:          cfg.MaxIdleConns,
 		MaxIdleConnsPerHost:   cfg.MaxIdleConnsPerHost,
+		MaxConnsPerHost:       cfg.MaxConnsPerHost,
 		IdleConnTimeout:       cfg.IdleTimeout,
 		ResponseHeaderTimeout: cfg.ResponseHeaderTimeout,
 		// 允许 HTTP/2 Cleartext（h2c）upstream。
