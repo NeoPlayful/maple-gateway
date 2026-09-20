@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '../../lib/client';
-import type { CMApplication, CMAppService, Tenant } from '../../types';
+import type { CMApplication, CMAppService, Service, Tenant } from '../../types';
 import { PageHeader } from '../../themes';
 import { ActionBtn } from '../../components/admin/ActionBtn';
 import { StatusBadge } from '../../components/admin/StatusBadge';
@@ -30,6 +30,7 @@ export default function ApplicationsPage() {
   const { t } = useTranslation('admin');
   const [apps, setApps] = useState<CMApplication[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [err, setErr] = useState('');
   const [last, setLast] = useState('');
@@ -37,7 +38,7 @@ export default function ApplicationsPage() {
 
   // 编辑弹窗（新建 / 编辑复用）。
   const [editing, setEditing] = useState<CMApplication | null>(null);
-  const [form, setForm] = useState({ id: '', tenantId: '', name: '', description: '', version: '', spec: '' });
+  const [form, setForm] = useState({ id: '', tenantId: '', name: '', description: '', version: '', spec: '', serviceId: '' });
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -71,22 +72,30 @@ export default function ApplicationsPage() {
     } catch { setTenants([]); }
   }, []);
 
+  // 服务清单供表单绑定归属；失败不影响列表。
+  const loadServices = useCallback(async () => {
+    try {
+      setServices(await api.get<Service[]>('/api/admin/services'));
+    } catch { setServices([]); }
+  }, []);
+
   useEffect(() => {
     load();
     loadTenants();
+    loadServices();
     const timer = setInterval(load, 10000);
     return () => clearInterval(timer);
-  }, [load, loadTenants]);
+  }, [load, loadTenants, loadServices]);
 
   const openNew = () => {
     setEditing({} as CMApplication);
-    setForm({ id: '', tenantId: '', name: '', description: '', version: 'v1', spec: SAMPLE_SPEC });
+    setForm({ id: '', tenantId: '', name: '', description: '', version: 'v1', spec: SAMPLE_SPEC, serviceId: '' });
     setFormErr('');
   };
 
   const openEdit = (a: CMApplication) => {
     setEditing(a);
-    setForm({ id: a.id, tenantId: a.tenant_id ?? '', name: a.name, description: a.description ?? '', version: a.version ?? '', spec: a.spec ?? '' });
+    setForm({ id: a.id, tenantId: a.tenant_id ?? '', name: a.name, description: a.description ?? '', version: a.version ?? '', spec: a.spec ?? '', serviceId: a.service_id ?? '' });
     setFormErr('');
   };
 
@@ -109,6 +118,7 @@ export default function ApplicationsPage() {
         description: form.description,
         version: form.version,
         spec: form.spec,
+        service_id: form.serviceId,
       });
       toast.success(t('common.updateSuccess'));
       setEditing(null);
@@ -298,7 +308,15 @@ export default function ApplicationsPage() {
               <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.colVersion')}</label>
               <input value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} placeholder="v1" className={inputCls} />
             </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.serviceLabel')}</label>
+              <select value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} className={inputCls}>
+                <option value="">{t('applications.serviceNone')}</option>
+                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
           </div>
+          <p className="text-xs text-slate-400">{t('applications.serviceHint')}</p>
           <div>
             <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.description')}</label>
             <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />

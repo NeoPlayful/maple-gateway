@@ -104,6 +104,18 @@ func (s *Store) Get(id string) (Application, bool) {
 	return a, ok
 }
 
+// ServiceForApplication 返回应用绑定的 Gateway 服务 ID（未绑定则为空）。
+// 供观测器把该应用的 Compose 容器归入对应服务的路由池。
+func (s *Store) ServiceForApplication(appID string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	a, ok := s.apps[appID]
+	if !ok || a.ServiceID == "" {
+		return "", false
+	}
+	return a.ServiceID, true
+}
+
 // Delete 删除一个 Application。按 id 与 map 键双向匹配，兼容个别脏键残留记录。
 func (s *Store) Delete(id string) {
 	s.mu.Lock()

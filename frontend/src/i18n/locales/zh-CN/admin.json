@@ -466,6 +466,7 @@
     "registerFailed": "注册失败",
     "confirmDelete": "确认删除该实例？此操作不可撤销。",
     "container": "容器",
+    "containerName": "容器名",
     "containerId": "容器 ID"
   },
   "logs": {
@@ -689,6 +690,9 @@
     "restart": "重启",
     "errName": "请填写应用名",
     "tenantNone": "不归属租户",
+    "serviceLabel": "所属服务",
+    "serviceNone": "不绑定服务",
+    "serviceHint": "绑定后，本应用的容器将注册为实例并归入该服务的路由池。",
     "errSpec": "请填写 Compose 规格",
     "statusRunning": "运行中",
     "confirmRemove": "确认移除该应用？将经 `docker compose down -v` 停止并移除其容器。"

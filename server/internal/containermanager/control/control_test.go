@@ -170,3 +170,71 @@ func TestRemoveDeploymentEmptyIDIsNoop(t *testing.T) {
 		t.Errorf("remove calls = %d, want 0", n)
 	}
 }
+
+// idRecordingCommander 记录每次下发动作携带的 ID 入参。
+type idRecordingCommander struct {
+	mu   sync.Mutex
+	ids  []string
+	acts []string
+}
+
+func (f *idRecordingCommander) Call(_ context.Context, _, action string, params any) (json.RawMessage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.acts = append(f.acts, action)
+	switch p := params.(type) {
+	case agentprotocol.IDParams:
+		f.ids = append(f.ids, p.ID)
+	case agentprotocol.RemoveParams:
+		f.ids = append(f.ids, p.ID)
+	case agentprotocol.LogsReadParams:
+		f.ids = append(f.ids, p.ID)
+	}
+	return nil, nil
+}
+
+func (f *idRecordingCommander) Probe(ctx context.Context, _, action string, params any) (json.RawMessage, error) {
+	return f.Call(ctx, "", action, params)
+}
+
+func (f *idRecordingCommander) SenderFor(string) (tasksys.Sender, bool) { return nil, false }
+
+// 逐容器操作应下发真实容器 ID，而非（Compose 容器派生出的）instance_id：
+// 派生 ID 并非容器标签，下发它会在 Agent 侧解析失败；容器 ID 恒可直达。
+func TestControlSendsRealContainerID(t *testing.T) {
+	const derivedID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	const realCID = "sha256realcontainerid"
+
+	cmd := &idRecordingCommander{}
+	reg := newOnlineRegistry(cmd)
+	fa := &fakeActual{snap: map[string]observer.ObservedContainer{
+		derivedID: {
+			NodeName: "n1", InstanceID: derivedID,
+			Container: gwclient.Container{
+				ID: realCID, Name: "maple-574aa2d4d469-web-1", State: "running", InstanceID: derivedID,
+			},
+		},
+	}}
+	c := New(reg, fa, desired.NewStore(nil), nil, zap.NewNop())
+
+	if err := c.Stop(context.Background(), derivedID); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	if err := c.Restart(context.Background(), derivedID); err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+	if err := c.Remove(context.Background(), derivedID, true); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+
+	cmd.mu.Lock()
+	defer cmd.mu.Unlock()
+	if len(cmd.ids) != 3 {
+		t.Fatalf("recorded ids = %v, want 3", cmd.ids)
+	}
+	for i, id := range cmd.ids {
+		if id != realCID {
+			t.Errorf("action %s sent id = %q, want real container id %q", cmd.acts[i], id, realCID)
+		}
+	}
+}

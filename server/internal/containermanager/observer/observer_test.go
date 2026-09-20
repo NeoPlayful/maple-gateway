@@ -15,6 +15,7 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/nodes"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/tasksys"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -281,6 +282,191 @@ func TestObserverDeregistersVanished(t *testing.T) {
 	defer mu.Unlock()
 	if deleted != 1 {
 		t.Errorf("deleted = %d, want 1", deleted)
+	}
+}
+
+// fakeServiceResolver 按应用 ID 返回预置的服务绑定。
+type fakeServiceResolver struct {
+	services map[string]string
+}
+
+func (f *fakeServiceResolver) ServiceForApplication(appID string) (string, bool) {
+	s, ok := f.services[appID]
+	return s, ok
+}
+
+// Compose 容器（无 instance_id 标签、带 application_id）应派生稳定实例 ID 并注册；
+// 同一容器名跨轮、跨进程派生出同一 UUID，与运行时容器列表一一对应。
+func TestObserverRegistersComposeContainerWithDerivedID(t *testing.T) {
+	const appID = "11111111-1111-1111-1111-111111111111"
+	const svcID = "22222222-2222-2222-2222-222222222222"
+
+	name := "maple-574aa2d4d469-web-1"
+	wantID := deriveInstanceID(name)
+
+	cmd := newFakeCommander(`[{"id":"c1","name":"` + name + `","state":"running","host_port":8080,
+		"labels":{"maple.managed":"true","maple.application_id":"` + appID + `"}}]`)
+	reg := onlineRegistry(cmd)
+
+	rec := &gwRecorder{}
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec.mu.Lock()
+		defer rec.mu.Unlock()
+		switch {
+		case r.URL.Path == "/api/internal/nodes/register":
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"node-uuid-1"}}`))
+		case r.URL.Path == "/api/internal/instances/register":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			rec.instReg = append(rec.instReg, body)
+			rec.instRegistered = true
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"` + wantID + `"}}`))
+		case r.URL.Path == "/api/internal/instances/"+wantID+"/heartbeat":
+			// 未注册前心跳 404，逼出注册路径（与 TestObserverReportsContainers 同）。
+			if !rec.instRegistered {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"code":"NOT_FOUND"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		}
+	}))
+	defer gateway.Close()
+
+	gw := gwclient.NewGatewayClient(gateway.URL, "tok")
+	obs := New(reg, gw, time.Second, zap.NewNop()).
+		WithServiceResolver(&fakeServiceResolver{services: map[string]string{appID: svcID}})
+
+	obs.tick(context.Background())
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.instReg) != 1 {
+		t.Fatalf("instance register = %d, want 1 (Compose container must register)", len(rec.instReg))
+	}
+	if rec.instReg[0]["id"] != wantID {
+		t.Errorf("registered id = %v, want %s (derived from name)", rec.instReg[0]["id"], wantID)
+	}
+	if rec.instReg[0]["service_id"] != svcID {
+		t.Errorf("service_id = %v, want %s (resolved from application binding)", rec.instReg[0]["service_id"], svcID)
+	}
+}
+
+// 已绑定应用的 Compose 容器：跨轮派生 ID 稳定（同一容器名 → 同一 UUID）。
+func TestDeriveInstanceIDStable(t *testing.T) {
+	name := "maple-737865817cdf-web-1"
+	if a, b := deriveInstanceID(name), deriveInstanceID(name); a != b {
+		t.Errorf("deriveInstanceID(%q) not stable: %s != %s", name, a, b)
+	}
+	if deriveInstanceID("maple-574aa2d4d469-web-1") == deriveInstanceID("maple-737865817cdf-web-1") {
+		t.Error("different container names must derive different instance IDs")
+	}
+	if _, err := uuid.Parse(deriveInstanceID(name)); err != nil {
+		t.Errorf("derived id is not a UUID: %v", err)
+	}
+}
+
+// 应用未绑定服务：其 Compose 容器无服务归属，不进实例视图（注册必被 Gateway 拒）。
+func TestObserverSkipsComposeContainerWithoutService(t *testing.T) {
+	const appID = "11111111-1111-1111-1111-111111111111"
+
+	cmd := newFakeCommander(`[{"id":"c1","name":"maple-574aa2d4d469-web-1","state":"running","host_port":8080,
+		"labels":{"maple.managed":"true","maple.application_id":"` + appID + `"}}]`)
+	reg := onlineRegistry(cmd)
+
+	rec := &gwRecorder{}
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec.mu.Lock()
+		defer rec.mu.Unlock()
+		switch r.URL.Path {
+		case "/api/internal/nodes/register":
+			_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"node-uuid-1"}}`))
+		case "/api/internal/instances/register":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			rec.instReg = append(rec.instReg, body)
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":"OK"}`))
+		}
+	}))
+	defer gateway.Close()
+
+	gw := gwclient.NewGatewayClient(gateway.URL, "tok")
+	// 解析器不含该应用 → 无绑定服务。
+	obs := New(reg, gw, time.Second, zap.NewNop()).
+		WithServiceResolver(&fakeServiceResolver{services: map[string]string{}})
+
+	obs.tick(context.Background())
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.instReg) != 0 {
+		t.Errorf("instance register = %d, want 0 (no service binding → not an instance)", len(rec.instReg))
+	}
+}
+
+// 未绑定服务的 Compose 容器虽不入上报流，但仍须按其派生实例 ID 进入 snapshot，
+// 否则运行时页按该 ID 发起的操作（指标/日志/启停）会因定位不到而失败（502）。
+func TestObserverSnapshotCoversUnboundComposeContainer(t *testing.T) {
+	const appID = "11111111-1111-1111-1111-111111111111"
+
+	name := "maple-574aa2d4d469-web-1"
+	wantID := deriveInstanceID(name)
+
+	cmd := newFakeCommander(`[{"id":"c1","name":"` + name + `","state":"running","host_port":8080,
+		"labels":{"maple.managed":"true","maple.application_id":"` + appID + `"}}]`)
+	reg := onlineRegistry(cmd)
+
+	gw := gwclient.NewGatewayClient("", "tok") // 未启用 Gateway：只验 snapshot，不发上报
+	obs := New(reg, gw, time.Second, zap.NewNop()).
+		WithServiceResolver(&fakeServiceResolver{services: map[string]string{}})
+
+	obs.tick(context.Background())
+
+	if _, ok := obs.Snapshot()[wantID]; !ok {
+		t.Errorf("snapshot missing %s (unbound Compose container must still be locatable by derived id)", wantID)
+	}
+}
+
+// 未绑定服务的 Compose 容器从未注册，其消失不得触发 Gateway 注销。
+func TestObserverDoesNotDeregisterUnreportedComposeContainer(t *testing.T) {
+	const appID = "11111111-1111-1111-1111-111111111111"
+
+	name := "maple-574aa2d4d469-web-1"
+	derivedID := deriveInstanceID(name)
+
+	cmd := newFakeCommander(`[{"id":"c1","name":"` + name + `","state":"running","host_port":8080,
+		"labels":{"maple.managed":"true","maple.application_id":"` + appID + `"}}]`)
+	reg := onlineRegistry(cmd)
+
+	var mu sync.Mutex
+	deleted := 0
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/internal/instances/"+derivedID:
+			deleted++
+		}
+		_, _ = w.Write([]byte(`{"code":"OK","data":{"id":"node-uuid-1"}}`))
+	}))
+	defer gateway.Close()
+
+	gw := gwclient.NewGatewayClient(gateway.URL, "tok")
+	obs := New(reg, gw, time.Second, zap.NewNop()).
+		WithServiceResolver(&fakeServiceResolver{services: map[string]string{}}) // 无服务绑定
+
+	obs.tick(context.Background()) // 第一轮：容器在，但未上报（无服务）
+	cmd.Set(agentprotocol.ActionContainerList, `[]`)
+	obs.tick(context.Background()) // 第二轮：容器消失
+
+	mu.Lock()
+	defer mu.Unlock()
+	if deleted != 0 {
+		t.Errorf("deregister calls = %d, want 0 (never-registered container must not be deregistered)", deleted)
 	}
 }
 
