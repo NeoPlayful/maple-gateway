@@ -134,7 +134,8 @@ func run(configPath string) error {
 	allocator := netpools.NewAllocator(poolStore, netStore, sqlDB)
 
 	registry := agentregistry.New(cfg.CM.Nodes, tasks, nodeStore)
-	obs := observer.New(registry, gw, cfg.CM.ObserveInterval, logger)
+	obs := observer.New(registry, gw, cfg.CM.ObserveInterval, logger).
+		WithServiceResolver(appStore)
 	rec := reconciler.New(store, obs, registry, gw, cfg.CM.ReconcileInterval, logger)
 	provisioner := netpools.NewProvisioner(allocator, registryNodeResolver{registry}, logger)
 	netChecker := netpools.NewNodeChecker(registryNodeResolver{registry})

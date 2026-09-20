@@ -35,3 +35,20 @@ func TestDeleteByIDRemovesStrayKey(t *testing.T) {
 		t.Fatalf("Delete 后应剩 0 条，实际 %d 条", got)
 	}
 }
+
+// ServiceForApplication：已绑定应用返回服务 ID，未绑定/不存在返回 false（观测器据此跳过）。
+func TestServiceForApplication(t *testing.T) {
+	s := NewStore(nil)
+	s.Put(Application{ID: "app-bound", Name: "a", ServiceID: "svc-1"})
+	s.Put(Application{ID: "app-unbound", Name: "b"})
+
+	if got, ok := s.ServiceForApplication("app-bound"); !ok || got != "svc-1" {
+		t.Errorf("bound = (%q,%v), want (svc-1,true)", got, ok)
+	}
+	if _, ok := s.ServiceForApplication("app-unbound"); ok {
+		t.Error("unbound application must report no service")
+	}
+	if _, ok := s.ServiceForApplication("missing"); ok {
+		t.Error("missing application must report no service")
+	}
+}

@@ -59,11 +59,11 @@ func (c *Controller) locate(id string) (*agentregistry.Node, observer.ObservedCo
 
 // Restart 重启实例容器（不影响期望态，对账器无需干预）。
 func (c *Controller) Restart(ctx context.Context, instanceID string) error {
-	node, _, err := c.locate(instanceID)
+	node, oc, err := c.locate(instanceID)
 	if err != nil {
 		return err
 	}
-	if _, err := node.Call(ctx, agentprotocol.ActionContainerRestart, agentprotocol.IDParams{ID: instanceID}); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerRestart, agentprotocol.IDParams{ID: oc.Container.ID}); err != nil {
 		return err
 	}
 	c.store.Resume(instanceID)
@@ -77,7 +77,7 @@ func (c *Controller) Stop(ctx context.Context, instanceID string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := node.Call(ctx, agentprotocol.ActionContainerStop, agentprotocol.IDParams{ID: instanceID}); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerStop, agentprotocol.IDParams{ID: oc.Container.ID}); err != nil {
 		return err
 	}
 	c.store.Pause(instanceID, oc.Container.Labels["maple.version_id"])
@@ -88,11 +88,11 @@ func (c *Controller) Stop(ctx context.Context, instanceID string) error {
 
 // Start 启动实例容器并解除人工维护标记，交回对账器接管。
 func (c *Controller) Start(ctx context.Context, instanceID string) error {
-	node, _, err := c.locate(instanceID)
+	node, oc, err := c.locate(instanceID)
 	if err != nil {
 		return err
 	}
-	if _, err := node.Call(ctx, agentprotocol.ActionContainerStart, agentprotocol.IDParams{ID: instanceID}); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerStart, agentprotocol.IDParams{ID: oc.Container.ID}); err != nil {
 		return err
 	}
 	c.store.Resume(instanceID)
@@ -105,11 +105,11 @@ func (c *Controller) Start(ctx context.Context, instanceID string) error {
 // 删除是否会被对账器补回，取决于该容器是否对应一份期望态——有期望态则下轮重建，
 // 无期望态（如手工贴标签的容器）则就此消失。
 func (c *Controller) Remove(ctx context.Context, instanceID string, force bool) error {
-	node, _, err := c.locate(instanceID)
+	node, oc, err := c.locate(instanceID)
 	if err != nil {
 		return err
 	}
-	if _, err := node.Call(ctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: instanceID, Force: force}); err != nil {
+	if _, err := node.Call(ctx, agentprotocol.ActionContainerRemove, agentprotocol.RemoveParams{ID: oc.Container.ID, Force: force}); err != nil {
 		return err
 	}
 	c.store.Resume(instanceID)
@@ -185,11 +185,11 @@ func (c *Controller) RemoveVersion(ctx context.Context, deploymentID, versionID 
 
 // Logs 读取实例容器最近 tail 行日志。
 func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (string, error) {
-	node, _, err := c.locate(instanceID)
+	node, oc, err := c.locate(instanceID)
 	if err != nil {
 		return "", err
 	}
-	raw, err := node.Call(ctx, agentprotocol.ActionLogsRead, agentprotocol.LogsReadParams{ID: instanceID, Tail: tail})
+	raw, err := node.Call(ctx, agentprotocol.ActionLogsRead, agentprotocol.LogsReadParams{ID: oc.Container.ID, Tail: tail})
 	if err != nil {
 		return "", err
 	}
@@ -203,11 +203,11 @@ func (c *Controller) Logs(ctx context.Context, instanceID string, tail int) (str
 // Stats 采集实例容器的资源用量（CPU/内存/网络/磁盘 IO）。
 // 走 Probe 通道（详情面板按需轮询，不产生任务记录）；速率为两次采样差分，首次为 0。
 func (c *Controller) Stats(ctx context.Context, instanceID string) (gwclient.ContainerStats, error) {
-	node, _, err := c.locate(instanceID)
+	node, oc, err := c.locate(instanceID)
 	if err != nil {
 		return gwclient.ContainerStats{}, err
 	}
-	raw, err := node.Probe(ctx, agentprotocol.ActionContainerStats, agentprotocol.IDParams{ID: instanceID})
+	raw, err := node.Probe(ctx, agentprotocol.ActionContainerStats, agentprotocol.IDParams{ID: oc.Container.ID})
 	if err != nil {
 		return gwclient.ContainerStats{}, err
 	}
@@ -221,7 +221,7 @@ func (c *Controller) Stats(ctx context.Context, instanceID string) (gwclient.Con
 // FollowLogs 打开一条实时日志流并返回其句柄。调用方负责在结束时 Close。
 // 流经 logs.open 下发到实例所在节点；ctx 取消时向 Agent 下发 logs.close。
 func (c *Controller) FollowLogs(ctx context.Context, instanceID string, tail int) (*logstream.Stream, error) {
-	node, _, err := c.locate(instanceID)
+	node, oc, err := c.locate(instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func (c *Controller) FollowLogs(ctx context.Context, instanceID string, tail int
 		return nil, fmt.Errorf("实例所在节点 %s 不在线", node.Name)
 	}
 	env, _ := agentprotocol.New(agentprotocol.TypeLogsOpen, stream.ID, agentprotocol.LogsOpenPayload{
-		StreamID: stream.ID, Target: instanceID, Tail: tail, Follow: true,
+		StreamID: stream.ID, Target: oc.Container.ID, Tail: tail, Follow: true,
 	})
 	if !sender.Send(env) {
 		c.streams.Close(stream.ID)

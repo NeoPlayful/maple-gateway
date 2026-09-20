@@ -18,8 +18,27 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/internal/agentprotocol"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/agentregistry"
 	"github.com/NeoPlayful/maple-gateway/server/internal/containermanager/gwclient"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+// applicationIDLabel 是 Compose 容器携带的应用标识标签（由应用注入，值即项目 ID）。
+const applicationIDLabel = "maple.application_id"
+
+// instanceIDNamespace 是 Compose 容器派生实例 ID 的 UUIDv5 命名空间（固定常量）。
+// 同一容器名在任何进程、任何重启下都派生出同一实例 ID，保证跨 compose 重建稳定。
+var instanceIDNamespace = uuid.MustParse("6f6f6b1e-9c2a-4b7e-9f1a-2b3c4d5e6f70")
+
+// ServiceResolver 按应用 ID 解析其绑定的 Gateway 服务 ID，供 Compose 容器归入路由。
+type ServiceResolver interface {
+	ServiceForApplication(appID string) (serviceID string, ok bool)
+}
+
+// deriveInstanceID 为无 instance_id 的 Compose 容器派生稳定实例 ID：以容器名为唯一输入
+// 做 UUIDv5，使其像单容器一样注册为实例，并在管理端与运行时容器列表一一对应。
+func deriveInstanceID(name string) string {
+	return uuid.NewSHA1(instanceIDNamespace, []byte(name)).String()
+}
 
 // NodeInfo 是节点容量摘要（对应 Agent docker.NodeInfo）。
 type NodeInfo struct {
@@ -66,6 +85,9 @@ type Observer struct {
 	gw       *gwclient.GatewayClient
 	interval time.Duration
 	logger   *zap.Logger
+	// apps 按应用 ID 解析绑定服务，供 Compose 容器归入路由（可空：nil 时 Compose
+	// 容器因无服务归属而不上报）。
+	apps ServiceResolver
 
 	// kick 用于事件驱动的即时观测：docker 事件到达时触发一次 tick，
 	// 让容器/部署状态尽快收敛，而不必等待下一个轮询周期。
@@ -80,6 +102,9 @@ type Observer struct {
 	// byContainerID 是按容器 ID 索引的全量受管容器（含无 instance_id 的 Compose 容器），
 	// 供容器列表展示与按容器 ID 的人工操作；对账仍只读 instance_id 索引的 snapshot。
 	byContainerID map[string]ObservedContainer
+	// reported 是本轮实际上报（注册/心跳）过的实例：instance_id → 节点名。仅这些实例
+	// 在消失时才需向 Gateway 注销；无服务归属的 Compose 容器从未注册，不入此集合。
+	reported map[string]string
 	metrics       map[string]NodeMetric
 	info          map[string]NodeInfo
 	errors        []RuntimeError
@@ -183,11 +208,37 @@ func New(registry *agentregistry.Registry, gw *gwclient.GatewayClient, interval 
 		kick:          make(chan struct{}, 1),
 		snapshot:      map[string]ObservedContainer{},
 		byContainerID: map[string]ObservedContainer{},
+		reported:      map[string]string{},
 		metrics:       map[string]NodeMetric{},
 		info:          map[string]NodeInfo{},
 		eventKeys:     map[string]struct{}{},
 		observeHealth: map[string]*nodeHealth{},
 	}
+}
+
+// WithServiceResolver 注入应用→服务解析器（Compose 容器据此归入路由）。
+func (o *Observer) WithServiceResolver(r ServiceResolver) *Observer {
+	o.apps = r
+	return o
+}
+
+// serviceFor 解析容器归属的服务 ID：优先取容器标签（声明式容器自带），
+// 为空则按应用 ID 查其绑定服务（Compose 容器）。
+func (o *Observer) serviceFor(ct gwclient.Container) string {
+	if sid := ct.Labels["maple.service_id"]; sid != "" {
+		return sid
+	}
+	if o.apps == nil {
+		return ""
+	}
+	appID := ct.Labels[applicationIDLabel]
+	if appID == "" {
+		return ""
+	}
+	if sid, ok := o.apps.ServiceForApplication(appID); ok {
+		return sid
+	}
+	return ""
 }
 
 // Run 启动周期观测循环，直到 ctx 取消。docker 事件到达时经 kick 触发即时观测。
@@ -276,6 +327,8 @@ func (o *Observer) tick(ctx context.Context) {
 	infos := make(map[string]NodeInfo, len(nodes))
 	var runtimeErrs []RuntimeError
 	observedNodes := map[string]bool{}
+	// reported 汇总本轮实际进入实例视图（有服务归属）的实例：仅这些实例在消失时才需注销。
+	reported := map[string]string{}
 	now := time.Now()
 	for _, n := range nodes {
 		// 仅在节点有活跃 WS 会话、且已认领 Gateway 身份时才观测。
@@ -324,12 +377,26 @@ func (o *Observer) tick(ctx context.Context) {
 		upCt++
 		ct += len(containers)
 		observedNodes[n.Name] = true
-		for _, c := range containers {
+		for i := range containers {
+			c := containers[i]
+			// Compose 容器无 instance_id 标签：以容器名派生稳定实例 ID，使其像单容器
+			// 一样进入实例视图（与运行时容器列表一一对应）。派生仅按标签，不改容器本身。
+			if c.InstanceID == "" && c.Name != "" && c.Labels[applicationIDLabel] != "" {
+				c.InstanceID = deriveInstanceID(c.Name)
+				containers[i].InstanceID = c.InstanceID
+			}
 			if c.ID != "" {
 				byCID[c.ID] = ObservedContainer{NodeName: n.Name, InstanceID: c.InstanceID, Container: c}
 			}
+			// snapshot 收全部有实例 ID 的容器（含未绑定服务的 Compose 容器）：它是人工操作
+			// （stats/logs/启停）定位容器的索引，须覆盖运行时列表里的每一个容器，否则按
+			// 派生实例 ID 发起的操作会因定位不到而失败。
 			if c.InstanceID != "" {
 				snap[c.InstanceID] = ObservedContainer{NodeName: n.Name, InstanceID: c.InstanceID, Container: c}
+			}
+			// 仅"有服务归属"的容器真正进入实例视图；记入 reported，供消失注销按需收敛。
+			if c.InstanceID != "" && o.serviceFor(c) != "" {
+				reported[c.InstanceID] = n.Name
 			}
 			if c.InstanceID != "" && c.State != "running" {
 				runtimeErrs = append(runtimeErrs, RuntimeError{
@@ -342,11 +409,12 @@ func (o *Observer) tick(ctx context.Context) {
 	}
 
 	o.mu.Lock()
-	prev := o.snapshot
+	prevReported := o.reported
 	o.nodeUpCt = upCt
 	o.containerCt = ct
 	o.snapshot = snap
 	o.byContainerID = byCID
+	o.reported = reported
 	o.metrics = metrics
 	o.info = infos
 	o.errors = runtimeErrs
@@ -358,12 +426,14 @@ func (o *Observer) tick(ctx context.Context) {
 	}
 	o.mu.Unlock()
 
-	// 消失注销：上一轮见过、本轮未见于"已成功观测节点"上的实例 → 通知 Gateway 注销。
-	for iid, pc := range prev {
-		if !observedNodes[pc.NodeName] {
+	// 消失注销：上一轮确实注册过、本轮未见于"已成功观测节点"上的实例 → 通知 Gateway 注销。
+	// 以 reported（有服务归属）而非 snapshot 为基准：无服务归属的 Compose 容器从未注册，
+	// 其消失不应触发注销告警。
+	for iid, nodeName := range prevReported {
+		if !observedNodes[nodeName] {
 			continue
 		}
-		if _, still := snap[iid]; still {
+		if _, still := reported[iid]; still {
 			continue
 		}
 		if o.gw.Enabled() {
@@ -372,7 +442,7 @@ func (o *Observer) tick(ctx context.Context) {
 					zap.String("instance_id", iid), zap.Error(err))
 			} else {
 				o.logger.Info("vanished instance deregistered",
-					zap.String("instance_id", iid), zap.String("node", pc.NodeName))
+					zap.String("instance_id", iid), zap.String("node", nodeName))
 			}
 		}
 	}
@@ -509,6 +579,10 @@ func (o *Observer) reportNode(ctx context.Context, n *agentregistry.Node, contai
 		if ct.InstanceID == "" {
 			continue
 		}
+		// 无服务归属的容器不进实例视图：它无法参与路由，注册也会被 Gateway 拒（service_id 必填）。
+		if o.serviceFor(ct) == "" {
+			continue
+		}
 		if ct.State != "running" {
 			o.reportUnhealthy(ctx, n, nodeID, ct)
 			continue
@@ -524,7 +598,7 @@ func (o *Observer) reportUnhealthy(ctx context.Context, n *agentregistry.Node, n
 	}
 	rep := gwclient.InstanceReport{
 		ID:           ct.InstanceID,
-		ServiceID:    ct.Labels["maple.service_id"],
+		ServiceID:    o.serviceFor(ct),
 		DeploymentID: ct.Labels["maple.deployment_id"],
 		VersionID:    ct.Labels["maple.version_id"],
 		ProjectID:    ct.Labels["maple.project_id"],
@@ -553,7 +627,7 @@ func (o *Observer) reportInstance(ctx context.Context, n *agentregistry.Node, no
 	}
 	rep := gwclient.InstanceReport{
 		ID:           ct.InstanceID,
-		ServiceID:    ct.Labels["maple.service_id"],
+		ServiceID:    o.serviceFor(ct),
 		DeploymentID: ct.Labels["maple.deployment_id"],
 		VersionID:    ct.Labels["maple.version_id"],
 		ProjectID:    ct.Labels["maple.project_id"],
