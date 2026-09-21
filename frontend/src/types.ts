@@ -163,6 +163,7 @@ export interface AccessLogRow {
   status: number;
   client_ip: string;
   duration_ms: number;
+  request_id?: string;
 }
 
 export interface ErrorLogRow {
@@ -171,6 +172,7 @@ export interface ErrorLogRow {
   path: string;
   status: number;
   error: string;
+  request_id?: string;
 }
 
 export interface AuditLogRow {

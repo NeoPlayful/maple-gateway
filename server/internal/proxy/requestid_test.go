@@ -69,7 +69,7 @@ func TestProxy_RequestID_InAccessLog(t *testing.T) {
 	px.ServeHTTP(rec, req)
 
 	rid := rec.Header().Get(RequestIDHeader)
-	entries := access.Query("", 0, rid, time.Time{}, time.Time{}, 10, 0)
+	entries, _ := access.Query("", 0, rid, time.Time{}, time.Time{}, 10, 0)
 	if len(entries) != 1 {
 		t.Fatalf("access log by request_id got %d entries, want 1", len(entries))
 	}
