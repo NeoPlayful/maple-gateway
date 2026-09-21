@@ -64,7 +64,7 @@ export default function HealthPage() {
       <PageHeader
         title={t('health.title')}
         right={
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
             <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">{t('common.refresh')}</button>
             {last && <span>{t('health.updatedAt', { time: last })}</span>}
           </div>
@@ -75,20 +75,20 @@ export default function HealthPage() {
       {/* 健康汇总 */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-2xl font-bold text-emerald-600">{counts.healthy}</p>
-          <p className="text-xs text-slate-500">{t('health.healthySummary')}</p>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{counts.healthy}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('health.healthySummary')}</p>
         </div>
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-2xl font-bold text-rose-600">{counts.unhealthy}</p>
-          <p className="text-xs text-slate-500">{t('health.unhealthySummary')}</p>
+          <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{counts.unhealthy}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('health.unhealthySummary')}</p>
         </div>
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-2xl font-bold text-amber-500">{counts.recovering}</p>
-          <p className="text-xs text-slate-500">{t('health.recoveringSummary')}</p>
+          <p className="text-2xl font-bold text-amber-500 dark:text-amber-400">{counts.recovering}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('health.recoveringSummary')}</p>
         </div>
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-2xl font-bold text-slate-500">{counts.unknown}</p>
-          <p className="text-xs text-slate-500">{t('health.unknownSummary')}</p>
+          <p className="text-2xl font-bold text-slate-500 dark:text-slate-400">{counts.unknown}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('health.unknownSummary')}</p>
         </div>
       </div>
 
@@ -101,7 +101,7 @@ export default function HealthPage() {
           <div key={serviceId} className="rounded-th-card border border-slate-200 bg-white p-4 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{svcName(serviceId)}</p>
-              <p className="text-xs text-slate-400">{t('health.instanceCount', { count: insts.length })}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">{t('health.instanceCount', { count: insts.length })}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {insts.map((inst) => (

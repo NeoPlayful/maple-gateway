@@ -243,9 +243,9 @@ export function NetworkPoolsModal({
               <tr key={p.id} className="border-b border-slate-200 dark:border-slate-700">
                 <td className="px-3 py-2">
                   {p.name}
-                  {p.is_system_default && <span className="ml-1 text-xs text-slate-400">(default)</span>}
+                  {p.is_system_default && <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">(default)</span>}
                   {p.last_conflict_reason && (
-                    <div className="text-xs text-rose-500">{p.last_conflict_reason}</div>
+                    <div className="text-xs text-rose-500 dark:text-rose-400">{p.last_conflict_reason}</div>
                   )}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{p.address_pool}</td>

@@ -28,8 +28,8 @@ function InstanceRow({
       <div className="flex min-w-0 items-center gap-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${inst.health === 'healthy' ? 'bg-emerald-500' : inst.health === 'unhealthy' ? 'bg-rose-500' : 'bg-slate-400'}`} />
         <span className="font-mono text-slate-600 dark:text-slate-300">{shortId(inst.id)}</span>
-        <span className="text-slate-400">{nodeName}</span>
-        <span className="font-mono text-slate-400">{inst.port > 0 ? `${inst.address}:${inst.port}` : inst.address}</span>
+        <span className="text-slate-400 dark:text-slate-500">{nodeName}</span>
+        <span className="font-mono text-slate-400 dark:text-slate-500">{inst.port > 0 ? `${inst.address}:${inst.port}` : inst.address}</span>
         <StatusBadge value={inst.health} />
         <StatusBadge value={inst.status} />
       </div>
@@ -150,19 +150,19 @@ function DeploymentDetail({ deploymentId }: { deploymentId: string }) {
         </p>
       )}
       {cmEnabled && phase && <PhaseFlow phase={phase} />}
-      {versions.length === 0 && <p className="text-xs text-slate-400">{t('deployments.noVersions')}</p>}
+      {versions.length === 0 && <p className="text-xs text-slate-400 dark:text-slate-500">{t('deployments.noVersions')}</p>}
       {versions.map((v) => {
         const insts = instances.filter((i) => i.version_id === v.id);
         return (
           <div key={v.id}>
             <div className="mb-2 flex items-center gap-2 text-xs">
               <span className="font-semibold text-slate-700 dark:text-slate-200">{v.version}</span>
-              <span className="font-mono text-slate-400">{v.image ?? '-'}</span>
+              <span className="font-mono text-slate-400 dark:text-slate-500">{v.image ?? '-'}</span>
               <StatusBadge value={v.status} />
-              <span className="text-slate-400">{insts.length} {t('deployments.instances')}</span>
+              <span className="text-slate-400 dark:text-slate-500">{insts.length} {t('deployments.instances')}</span>
             </div>
             {insts.length === 0
-              ? <p className="pl-2 text-xs text-slate-400">{t('deployments.noInstances')}</p>
+              ? <p className="pl-2 text-xs text-slate-400 dark:text-slate-500">{t('deployments.noInstances')}</p>
               : (
                 <div className="space-y-1.5">
                   {insts.map((i) => (

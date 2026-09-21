@@ -7,7 +7,7 @@ export default function DashboardStatCard({ label, value, unit }: DashboardStatC
       <p className="text-sm font-medium text-cyan-700/80 dark:text-cyan-200/80">{label}</p>
       <p className="mt-1 bg-gradient-to-br from-slate-800 to-slate-950 bg-clip-text text-3xl font-extrabold text-transparent dark:from-white dark:to-cyan-100">
         {value}
-        {unit && <span className="ml-1 bg-none text-base font-normal text-slate-400">{unit}</span>}
+        {unit && <span className="ml-1 bg-none text-base font-normal text-slate-400 dark:text-slate-500">{unit}</span>}
       </p>
       <span className="mt-3 block h-1 w-8 rounded-full bg-gradient-to-r from-cyan-500 to-cyan-300 dark:from-cyan-400 dark:to-cyan-200" />
     </div>

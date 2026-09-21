@@ -8,7 +8,7 @@ export default function DashboardStatCard({ label, value, unit }: DashboardStatC
       <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
       <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">
         {value}
-        {unit && <span className="ml-1 text-base font-normal text-slate-400">{unit}</span>}
+        {unit && <span className="ml-1 text-base font-normal text-slate-400 dark:text-slate-500">{unit}</span>}
       </p>
     </div>
   );

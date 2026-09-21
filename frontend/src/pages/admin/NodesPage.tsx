@@ -41,7 +41,7 @@ function usageColor(pct: number): string {
 }
 
 function UsageCell({ pct }: { pct?: number }) {
-  if (pct === undefined || pct === null) return <span className="text-slate-400">-</span>;
+  if (pct === undefined || pct === null) return <span className="text-slate-400 dark:text-slate-500">-</span>;
   return <span className={`font-mono text-xs ${usageColor(pct)}`}>{pct.toFixed(0)}%</span>;
 }
 
@@ -332,26 +332,26 @@ export default function NodesPage() {
                         {cn.healthy ? t('runtime.agentOnline') : t('runtime.agentOffline')}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-400">-</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                     )}
                   </td>
                   <td className="px-4 py-2"><UsageCell pct={hostm?.available ? hostm.cpu_percent : undefined} /></td>
                   <td className="px-4 py-2">
                     {hostm?.available
                       ? <span className="font-mono text-xs">{fmtBytes(hostm.mem_used)} / {fmtBytes(hostm.mem_total)}</span>
-                      : <span className="text-slate-400">-</span>}
+                      : <span className="text-slate-400 dark:text-slate-500">-</span>}
                   </td>
                   <td className="px-4 py-2">
                     {hostm?.available
                       ? <span className="font-mono text-xs">{fmtBytes(hostm.disk_used)} / {fmtBytes(hostm.disk_total)}</span>
-                      : <span className="text-slate-400">-</span>}
+                      : <span className="text-slate-400 dark:text-slate-500">-</span>}
                   </td>
                   <td className="px-4 py-2">
                     {cn?.docker_version
-                      ? <span className="font-mono text-xs">{cn.docker_version}<span className="ml-1 text-slate-400">{cn.cpus ?? ''}{(cn.cpus ?? 0) > 0 ? 'c' : ''}{docker?.containers !== undefined ? ` · ${docker.containers}` : ''}</span></span>
-                      : <span className="text-slate-400">-</span>}
+                      ? <span className="font-mono text-xs">{cn.docker_version}<span className="ml-1 text-slate-400 dark:text-slate-500">{cn.cpus ?? ''}{(cn.cpus ?? 0) > 0 ? 'c' : ''}{docker?.containers !== undefined ? ` · ${docker.containers}` : ''}</span></span>
+                      : <span className="text-slate-400 dark:text-slate-500">-</span>}
                   </td>
-                  <td className="px-4 py-2 text-xs text-slate-400">
+                  <td className="px-4 py-2 text-xs text-slate-400 dark:text-slate-500">
                     {cn?.last_seen_ms ? new Date(cn.last_seen_ms).toLocaleString() : (r.last_seen_at ? new Date(r.last_seen_at).toLocaleString() : '-')}
                   </td>
                   <td className="px-4 py-2">

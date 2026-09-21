@@ -301,7 +301,7 @@ export default function LogsPage() {
                     <td className={`${tdCell} font-mono text-xs`}>{r.host}</td>
                     <td className={`${tdCell} font-mono text-xs`}>{r.path}</td>
                     <td className={tdCell}>{r.status}</td>
-                    <td className={`${tdCell} text-xs text-rose-600`}>{r.error}</td>
+                    <td className={`${tdCell} text-xs text-rose-600 dark:text-rose-400`}>{r.error}</td>
                     <td className={`${tdCell} font-mono text-xs`}>{(r as any).request_id ? shortId((r as any).request_id) : '-'}</td>
                   </tr>
                   {renderDetail(r, i)}

@@ -119,11 +119,11 @@ function NodeTasks({
                 </td>
                 <td className="px-3 py-1.5 font-mono">{tk.action}</td>
                 <td className="px-3 py-1.5"><StatusBadge value={tk.status} raw /></td>
-                <td className="px-3 py-1.5 text-slate-500">
+                <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">
                   {tk.percent !== undefined && tk.percent > 0 ? `${tk.percent}%` : '-'}
-                  {!!tk.attempts && tk.attempts > 1 && <span className="ml-1 text-slate-400">×{tk.attempts}</span>}
+                  {!!tk.attempts && tk.attempts > 1 && <span className="ml-1 text-slate-400 dark:text-slate-500">×{tk.attempts}</span>}
                 </td>
-                <td className="px-3 py-1.5 text-slate-400">{tk.created_at_ms ? new Date(tk.created_at_ms).toLocaleString() : '-'}</td>
+                <td className="px-3 py-1.5 text-slate-400 dark:text-slate-500">{tk.created_at_ms ? new Date(tk.created_at_ms).toLocaleString() : '-'}</td>
                 <td className="px-3 py-1.5">
                   <div className="flex flex-wrap gap-1">
                     <ActionBtn onClick={() => onOpen(tk.id)}>{t('runtime.taskDetail')}</ActionBtn>
@@ -176,7 +176,7 @@ function NodeEvents({
               <tr><td colSpan={5} className="px-3 py-4 text-center text-slate-400 dark:text-slate-500">{t('runtime.noEvents')}</td></tr>
             ) : shown.map((e, i) => (
               <tr key={`${e.container_id}-${e.action}-${e.at}-${i}`} className="border-b border-slate-200 last:border-b-0 dark:border-slate-700">
-                <td className="px-3 py-1.5 text-slate-400">{e.at ? new Date(e.at * 1000).toLocaleString() : '-'}</td>
+                <td className="px-3 py-1.5 text-slate-400 dark:text-slate-500">{e.at ? new Date(e.at * 1000).toLocaleString() : '-'}</td>
                 <td className="px-3 py-1.5">
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-700 dark:text-slate-200">{e.action}</span>
                 </td>
@@ -210,14 +210,14 @@ function ContainerDetail({
   const card = 'rounded-th-control border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800';
   const cardLabel = 'mb-2 text-xs text-slate-500 dark:text-slate-400';
   const cardValue = 'font-mono text-sm text-slate-700 dark:text-slate-200';
-  const cardSub = 'mt-1 font-mono text-xs text-slate-400';
+  const cardSub = 'mt-1 font-mono text-xs text-slate-400 dark:text-slate-500';
   return (
     <div>
       <p className="mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.detailUsage')}</p>
       {error ? (
         <p className="py-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>
       ) : !stats ? (
-        <p className="py-1 text-xs text-slate-400">{t('runtime.metricsLoading')}</p>
+        <p className="py-1 text-xs text-slate-400 dark:text-slate-500">{t('runtime.metricsLoading')}</p>
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <div className={card}>
@@ -562,7 +562,7 @@ export default function RuntimePage() {
       <PageHeader
         title={t('runtime.title')}
         right={
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
             <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">{t('common.refresh')}</button>
             {last && <span>{last}</span>}
           </div>
@@ -573,16 +573,16 @@ export default function RuntimePage() {
       {/* 观测概览 */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-2xl font-bold text-emerald-600">{stats?.node_up ?? 0}</p>
-          <p className="text-xs text-slate-500">{t('runtime.nodeUp')}</p>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats?.node_up ?? 0}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('runtime.nodeUp')}</p>
         </div>
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-2xl font-bold text-sky-600">{stats?.containers ?? 0}</p>
-          <p className="text-xs text-slate-500">{t('runtime.containers')}</p>
+          <p className="text-2xl font-bold text-sky-600 dark:text-sky-400">{stats?.containers ?? 0}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('runtime.containers')}</p>
         </div>
         <div className="rounded-th-card border border-slate-200 bg-white p-4 text-center shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{lastReport}</p>
-          <p className="text-xs text-slate-500">{t('runtime.lastReport')}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('runtime.lastReport')}</p>
         </div>
       </div>
 
@@ -625,10 +625,10 @@ export default function RuntimePage() {
                   >
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400">{open ? '▾' : '▸'}</span>
+                        <span className="text-slate-400 dark:text-slate-500">{open ? '▾' : '▸'}</span>
                         <div>
                           <p className="font-semibold text-slate-700 dark:text-slate-200">{n.name}</p>
-                          <p className="font-mono text-xs text-slate-400">{n.host}{n.region ? ` · ${n.region}` : ''}</p>
+                          <p className="font-mono text-xs text-slate-400 dark:text-slate-500">{n.host}{n.region ? ` · ${n.region}` : ''}</p>
                         </div>
                       </div>
                     </td>
@@ -648,9 +648,9 @@ export default function RuntimePage() {
                         <td className="px-4 py-2"><div className="w-40"><UsageBar label="" pct={host.disk_percent} /></div></td>
                       </>
                     ) : (
-                      <td colSpan={3} className="px-4 py-2 text-xs text-slate-400">{mt?.error ?? t('runtime.metricsUnavailable')}</td>
+                      <td colSpan={3} className="px-4 py-2 text-xs text-slate-400 dark:text-slate-500">{mt?.error ?? t('runtime.metricsUnavailable')}</td>
                     )}
-                    <td className="px-4 py-2 text-xs text-slate-400">{n.last_seen_ms ? new Date(n.last_seen_ms).toLocaleString() : '-'}</td>
+                    <td className="px-4 py-2 text-xs text-slate-400 dark:text-slate-500">{n.last_seen_ms ? new Date(n.last_seen_ms).toLocaleString() : '-'}</td>
                   </tr>
                   {open && (
                     <tr className="border-b border-slate-200 last:border-b-0 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/30">
@@ -666,7 +666,7 @@ export default function RuntimePage() {
                             <span>{t('runtime.gatewayId')}: {n.gateway_id || '-'}</span>
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-400">{mt?.error ?? t('runtime.metricsUnavailable')}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">{mt?.error ?? t('runtime.metricsUnavailable')}</p>
                         )}
 
                         {!n.gateway_id ? (
@@ -743,7 +743,7 @@ export default function RuntimePage() {
                     onClick={() => toggleSet(setExpandedContainers, cid)}
                     className="cursor-pointer border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40"
                   >
-                    <td className="px-2 py-2 text-center text-slate-400">{open ? '▾' : '▸'}</td>
+                    <td className="px-2 py-2 text-center text-slate-400 dark:text-slate-500">{open ? '▾' : '▸'}</td>
                     <td className="px-4 py-2 font-mono text-xs">
                       {ct.instance_id ? shortId(ct.instance_id) : '-'}
                       {!inst && (
@@ -819,7 +819,7 @@ export default function RuntimePage() {
                 <td className="px-4 py-2"><span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">{e.state}</span></td>
                 <td className="px-4 py-2 font-mono text-xs">{e.exit_code}</td>
                 <td className="px-4 py-2 text-xs">{e.oom_killed ? t('runtime.oomYes') : '-'}</td>
-                <td className="px-4 py-2 text-xs text-slate-400">{new Date(e.at * 1000).toLocaleString()}</td>
+                <td className="px-4 py-2 text-xs text-slate-400 dark:text-slate-500">{new Date(e.at * 1000).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
@@ -866,26 +866,26 @@ export default function RuntimePage() {
         {taskDetail && (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-              <div><span className="text-slate-400">{t('runtime.colAction')}: </span><span className="font-mono">{taskDetail.action}</span></div>
-              <div><span className="text-slate-400">{t('runtime.colStatus')}: </span><StatusBadge value={taskDetail.status} raw /></div>
-              <div><span className="text-slate-400">{t('runtime.colNode')}: </span><span className="font-mono">{taskDetail.node_id ? shortId(taskDetail.node_id) : '-'}</span></div>
-              <div><span className="text-slate-400">{t('runtime.colProgress')}: </span>{taskDetail.percent ?? 0}%</div>
-              <div><span className="text-slate-400">{t('runtime.createdBy')}: </span>{taskDetail.created_by || '-'}</div>
-              <div><span className="text-slate-400">{t('runtime.attempts')}: </span>{taskDetail.attempts}</div>
-              {taskDetail.parent_task_id && <div><span className="text-slate-400">{t('runtime.parentTask')}: </span><span className="font-mono">{shortId(taskDetail.parent_task_id)}</span></div>}
-              <div><span className="text-slate-400">{t('runtime.colCreatedAt')}: </span>{taskDetail.created_at_ms ? new Date(taskDetail.created_at_ms).toLocaleString() : '-'}</div>
-              {taskDetail.finished_at_ms ? <div><span className="text-slate-400">{t('runtime.finishedAt')}: </span>{new Date(taskDetail.finished_at_ms).toLocaleString()}</div> : null}
-              {taskDetail.message && <div className="col-span-2"><span className="text-slate-400">{t('runtime.message')}: </span>{taskDetail.message}</div>}
-              {taskDetail.error && <div className="col-span-2 text-rose-600 dark:text-rose-400"><span className="text-slate-400">{t('runtime.errorLabel')}: </span>{taskDetail.error}</div>}
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.colAction')}: </span><span className="font-mono">{taskDetail.action}</span></div>
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.colStatus')}: </span><StatusBadge value={taskDetail.status} raw /></div>
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.colNode')}: </span><span className="font-mono">{taskDetail.node_id ? shortId(taskDetail.node_id) : '-'}</span></div>
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.colProgress')}: </span>{taskDetail.percent ?? 0}%</div>
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.createdBy')}: </span>{taskDetail.created_by || '-'}</div>
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.attempts')}: </span>{taskDetail.attempts}</div>
+              {taskDetail.parent_task_id && <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.parentTask')}: </span><span className="font-mono">{shortId(taskDetail.parent_task_id)}</span></div>}
+              <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.colCreatedAt')}: </span>{taskDetail.created_at_ms ? new Date(taskDetail.created_at_ms).toLocaleString() : '-'}</div>
+              {taskDetail.finished_at_ms ? <div><span className="text-slate-400 dark:text-slate-500">{t('runtime.finishedAt')}: </span>{new Date(taskDetail.finished_at_ms).toLocaleString()}</div> : null}
+              {taskDetail.message && <div className="col-span-2"><span className="text-slate-400 dark:text-slate-500">{t('runtime.message')}: </span>{taskDetail.message}</div>}
+              {taskDetail.error && <div className="col-span-2 text-rose-600 dark:text-rose-400"><span className="text-slate-400 dark:text-slate-500">{t('runtime.errorLabel')}: </span>{taskDetail.error}</div>}
             </div>
             <div>
-              <p className="mb-1 text-xs font-semibold text-slate-500">{t('runtime.payload')}</p>
+              <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.payload')}</p>
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 font-mono text-xs text-slate-100">
                 {taskDetail.params ? JSON.stringify(taskDetail.params, null, 2) : '-'}
               </pre>
             </div>
             <div>
-              <p className="mb-1 text-xs font-semibold text-slate-500">{t('runtime.result')}</p>
+              <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('runtime.result')}</p>
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 font-mono text-xs text-slate-100">
                 {taskDetail.result ? JSON.stringify(taskDetail.result, null, 2) : '-'}
               </pre>

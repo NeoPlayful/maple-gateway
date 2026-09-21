@@ -4,7 +4,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
     <div>
       <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</p>}
     </div>
   );
 }

@@ -176,7 +176,7 @@ export default function RuntimeSettings({ section }: { section: 'health' | 'prox
               <span className={`rounded px-1.5 py-0.5 text-xs ${effectCls(f.effect)}`}>
                 {t(`settings.runtime.effect.${f.effect}`)}
               </span>
-              <span className="text-xs text-slate-400">v{meta[f.key]?.version ?? 1}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">v{meta[f.key]?.version ?? 1}</span>
               <span className={`text-xs ${on ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
                 {on ? t('settings.runtime.on') : t('settings.runtime.off')}
               </span>
@@ -209,7 +209,7 @@ export default function RuntimeSettings({ section }: { section: 'health' | 'prox
               <span className={`rounded px-1.5 py-0.5 text-xs ${effectCls(f.effect)}`}>
                 {t(`settings.runtime.effect.${f.effect}`)}
               </span>
-              <span className="text-xs text-slate-400">v{meta[f.key]?.version ?? 1}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">v{meta[f.key]?.version ?? 1}</span>
             </label>
             {f.kind === 'enum' ? (
               <select

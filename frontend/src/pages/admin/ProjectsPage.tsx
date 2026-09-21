@@ -291,7 +291,7 @@ export default function ProjectsPage() {
         )}
         <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">{t('projects.instantiateHint')}</p>
         {(inst?.template?.params ?? []).length === 0 ? (
-          <p className="text-sm text-slate-400">{t('projects.noParams')}</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t('projects.noParams')}</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {(inst?.template?.params ?? []).map((p) => (
