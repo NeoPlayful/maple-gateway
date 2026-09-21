@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { AccessLogRow, ErrorLogRow, AuditLogRow } from '../../types';
 import { PageHeader } from '../../themes';
 import { shortId } from '../../lib/ids';
+import { ExpandedLogDetail, ExpandChevron, StatusPill } from '../../components/admin/LogDetail';
 
 type Tab = 'access' | 'error' | 'audit';
 
@@ -141,23 +142,26 @@ export default function LogsPage() {
 
   const fmt = (ts: string) => new Date(ts).toLocaleString();
 
-  const detailFields = (r: Row): [string, unknown][] => Object.entries(r);
-
-  const renderDetail = (r: Row, i: number) =>
-    expanded === i ? (
-      <tr key={`d-${i}`} className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40">
-        <td colSpan={8} className="px-4 py-3">
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-            {detailFields(r).map(([k, v]) => (
-              <div key={k} className="flex gap-2 text-xs">
-                <dt className="w-28 shrink-0 text-slate-400 dark:text-slate-500">{k}</dt>
-                <dd className="break-all font-mono text-slate-700 dark:text-slate-200">{v == null ? '-' : String(v)}</dd>
-              </div>
-            ))}
-          </dl>
-        </td>
-      </tr>
-    ) : null;
+  // 展开/收起切换列：按钮独立响应，避免与整行点击重复触发。
+  const renderChevron = (i: number) => {
+    const open = expanded === i;
+    return (
+      <td className="w-8 py-1.5 pl-4 pr-0 align-middle">
+        <button
+          type="button"
+          aria-label={open ? t('common.collapse') : t('common.expand')}
+          aria-expanded={open}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(open ? null : i);
+          }}
+          className="rounded p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600"
+        >
+          <ExpandChevron open={open} />
+        </button>
+      </td>
+    );
+  };
 
   return (
     <div>
@@ -252,6 +256,7 @@ export default function LogsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
               <tr>
+                <th className="w-8 px-4 py-2" aria-label={t('common.expand')}></th>
                 <th className={theadCell}>{t('logs.time')}</th>
                 <th className={theadCell}>Host</th>
                 <th className={theadCell}>Method</th>
@@ -265,17 +270,21 @@ export default function LogsPage() {
             <tbody>
               {(rows as AccessLogRow[]).map((r, i) => (
                 <Fragment key={i}>
-                  <tr onClick={() => setExpanded(expanded === i ? null : i)} className={`${rowCls} cursor-pointer`}>
+                  <tr
+                    onClick={() => setExpanded(expanded === i ? null : i)}
+                    className={`${rowCls} cursor-pointer ${expanded === i ? 'bg-sky-50 dark:bg-sky-900/20' : ''}`}
+                  >
+                    {renderChevron(i)}
                     <td className={`${tdCell} ${timeTxt}`}>{fmt(r.timestamp)}</td>
                     <td className={`${tdCell} font-mono text-xs`}>{r.host}</td>
                     <td className={tdCell}>{r.method}</td>
-                    <td className={`${tdCell} font-mono text-xs`}>{r.path}</td>
-                    <td className={tdCell}>{r.status}</td>
+                    <td className={`${tdCell} font-mono text-xs`} title={r.path}>{r.path}</td>
+                    <td className={tdCell}><StatusPill code={r.status} /></td>
                     <td className={`${tdCell} font-mono text-xs`}>{r.client_ip}</td>
                     <td className={tdCell}>{r.duration_ms}</td>
                     <td className={`${tdCell} font-mono text-xs`}>{r.request_id ? shortId(r.request_id) : '-'}</td>
                   </tr>
-                  {renderDetail(r, i)}
+                  {expanded === i && <ExpandedLogDetail tab="access" row={r} colSpan={9} />}
                 </Fragment>
               ))}
             </tbody>
@@ -285,6 +294,7 @@ export default function LogsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
               <tr>
+                <th className="w-8 px-4 py-2" aria-label={t('common.expand')}></th>
                 <th className={theadCell}>{t('logs.time')}</th>
                 <th className={theadCell}>Host</th>
                 <th className={theadCell}>Path</th>
@@ -296,15 +306,19 @@ export default function LogsPage() {
             <tbody>
               {(rows as ErrorLogRow[]).map((r, i) => (
                 <Fragment key={i}>
-                  <tr onClick={() => setExpanded(expanded === i ? null : i)} className={`${rowCls} cursor-pointer`}>
+                  <tr
+                    onClick={() => setExpanded(expanded === i ? null : i)}
+                    className={`${rowCls} cursor-pointer ${expanded === i ? 'bg-sky-50 dark:bg-sky-900/20' : ''}`}
+                  >
+                    {renderChevron(i)}
                     <td className={`${tdCell} ${timeTxt}`}>{fmt(r.timestamp)}</td>
                     <td className={`${tdCell} font-mono text-xs`}>{r.host}</td>
-                    <td className={`${tdCell} font-mono text-xs`}>{r.path}</td>
-                    <td className={tdCell}>{r.status}</td>
+                    <td className={`${tdCell} font-mono text-xs`} title={r.path}>{r.path}</td>
+                    <td className={tdCell}><StatusPill code={r.status} /></td>
                     <td className={`${tdCell} text-xs text-rose-600 dark:text-rose-400`}>{r.error}</td>
-                    <td className={`${tdCell} font-mono text-xs`}>{(r as any).request_id ? shortId((r as any).request_id) : '-'}</td>
+                    <td className={`${tdCell} font-mono text-xs`}>{r.request_id ? shortId(r.request_id) : '-'}</td>
                   </tr>
-                  {renderDetail(r, i)}
+                  {expanded === i && <ExpandedLogDetail tab="error" row={r} colSpan={7} />}
                 </Fragment>
               ))}
             </tbody>
@@ -314,6 +328,7 @@ export default function LogsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
               <tr>
+                <th className="w-8 px-4 py-2" aria-label={t('common.expand')}></th>
                 <th className={theadCell}>{t('logs.time')}</th>
                 <th className={theadCell}>Action</th>
                 <th className={theadCell}>{t('logs.type')}</th>
@@ -325,7 +340,11 @@ export default function LogsPage() {
             <tbody>
               {(rows as AuditLogRow[]).map((r, i) => (
                 <Fragment key={r.id}>
-                  <tr onClick={() => setExpanded(expanded === i ? null : i)} className={`${rowCls} cursor-pointer`}>
+                  <tr
+                    onClick={() => setExpanded(expanded === i ? null : i)}
+                    className={`${rowCls} cursor-pointer ${expanded === i ? 'bg-sky-50 dark:bg-sky-900/20' : ''}`}
+                  >
+                    {renderChevron(i)}
                     <td className={`${tdCell} ${timeTxt}`}>{fmt(r.created_at)}</td>
                     <td className={tdCell}>{r.action}</td>
                     <td className={tdCell}>{r.target_type}</td>
@@ -333,7 +352,7 @@ export default function LogsPage() {
                     <td className={`${tdCell} font-mono text-xs`}>{r.admin_id ? shortId(r.admin_id) : '-'}</td>
                     <td className={`${tdCell} font-mono text-xs`}>{r.ip ?? '-'}</td>
                   </tr>
-                  {renderDetail(r, i)}
+                  {expanded === i && <ExpandedLogDetail tab="audit" row={r} colSpan={7} />}
                 </Fragment>
               ))}
             </tbody>
