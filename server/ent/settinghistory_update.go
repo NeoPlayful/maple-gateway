@@ -105,6 +105,20 @@ func (shu *SettingHistoryUpdate) SetNillableCreatedAt(t *time.Time) *SettingHist
 	return shu
 }
 
+// SetUpdatedAt sets the "updated_at" field.
+func (shu *SettingHistoryUpdate) SetUpdatedAt(t time.Time) *SettingHistoryUpdate {
+	shu.mutation.SetUpdatedAt(t)
+	return shu
+}
+
+// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
+func (shu *SettingHistoryUpdate) SetNillableUpdatedAt(t *time.Time) *SettingHistoryUpdate {
+	if t != nil {
+		shu.SetUpdatedAt(*t)
+	}
+	return shu
+}
+
 // Mutation returns the SettingHistoryMutation object of the builder.
 func (shu *SettingHistoryUpdate) Mutation() *SettingHistoryMutation {
 	return shu.mutation
@@ -186,6 +200,9 @@ func (shu *SettingHistoryUpdate) sqlSave(ctx context.Context) (n int, err error)
 	}
 	if value, ok := shu.mutation.CreatedAt(); ok {
 		_spec.SetField(settinghistory.FieldCreatedAt, field.TypeTime, value)
+	}
+	if value, ok := shu.mutation.UpdatedAt(); ok {
+		_spec.SetField(settinghistory.FieldUpdatedAt, field.TypeTime, value)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, shu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -278,6 +295,20 @@ func (shuo *SettingHistoryUpdateOne) SetCreatedAt(t time.Time) *SettingHistoryUp
 func (shuo *SettingHistoryUpdateOne) SetNillableCreatedAt(t *time.Time) *SettingHistoryUpdateOne {
 	if t != nil {
 		shuo.SetCreatedAt(*t)
+	}
+	return shuo
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (shuo *SettingHistoryUpdateOne) SetUpdatedAt(t time.Time) *SettingHistoryUpdateOne {
+	shuo.mutation.SetUpdatedAt(t)
+	return shuo
+}
+
+// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
+func (shuo *SettingHistoryUpdateOne) SetNillableUpdatedAt(t *time.Time) *SettingHistoryUpdateOne {
+	if t != nil {
+		shuo.SetUpdatedAt(*t)
 	}
 	return shuo
 }
@@ -393,6 +424,9 @@ func (shuo *SettingHistoryUpdateOne) sqlSave(ctx context.Context) (_node *Settin
 	}
 	if value, ok := shuo.mutation.CreatedAt(); ok {
 		_spec.SetField(settinghistory.FieldCreatedAt, field.TypeTime, value)
+	}
+	if value, ok := shuo.mutation.UpdatedAt(); ok {
+		_spec.SetField(settinghistory.FieldUpdatedAt, field.TypeTime, value)
 	}
 	_node = &SettingHistory{config: shuo.config}
 	_spec.Assign = _node.assignValues

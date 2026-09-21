@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// SettingHistory 对应 settings_history 表。无 updated_at，只追加。
+// SettingHistory 对应 settings_history 表。只追加；行不修改，故 updated_at 与 created_at 恒等。
 type SettingHistory struct {
 	ent.Schema
 }
@@ -25,6 +25,7 @@ func (SettingHistory) Fields() []ent.Field {
 		field.Int("version"),
 		field.JSON("value", json.RawMessage{}),
 		field.Time("created_at"),
+		field.Time("updated_at"),
 	}
 }
 

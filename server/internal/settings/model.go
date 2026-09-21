@@ -42,4 +42,6 @@ type HistoryEntry struct {
 	Version   int             `json:"version"`
 	Value     json.RawMessage `json:"value"`
 	ChangedAt time.Time       `json:"changed_at"`
+	// UpdatedAt 与 ChangedAt 同值（只追加表，行不修改），补齐以对齐 settings 表字段。
+	UpdatedAt time.Time `json:"updated_at"`
 }
