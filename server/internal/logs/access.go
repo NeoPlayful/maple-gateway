@@ -50,7 +50,8 @@ func (a *AccessLog) Append(e AccessEntry) {
 }
 
 // Query 按时间倒序返回过滤后的记录，支持 request_id / host / status / limit/offset。
-func (a *AccessLog) Query(host string, status int, requestID string, from, to time.Time, limit, offset int) []AccessEntry {
+// 第二个返回值为"缓冲内匹配过滤条件的总条数"（不受 limit/offset 影响），供分页。
+func (a *AccessLog) Query(host string, status int, requestID string, from, to time.Time, limit, offset int) ([]AccessEntry, int) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	// 从最新往旧遍历（head-1 是最新写入）。
@@ -59,7 +60,7 @@ func (a *AccessLog) Query(host string, status int, requestID string, from, to ti
 		n = len(a.ring)
 	}
 	out := []AccessEntry{}
-	skipped := 0
+	matched := 0
 	for i := 0; i < n; i++ {
 		idx := (a.head - 1 - i + len(a.ring)) % len(a.ring)
 		e := a.ring[idx]
@@ -81,16 +82,16 @@ func (a *AccessLog) Query(host string, status int, requestID string, from, to ti
 		if !to.IsZero() && e.Timestamp.After(to) {
 			continue
 		}
-		if skipped < offset {
-			skipped++
+		matched++
+		if matched <= offset {
 			continue
 		}
 		if len(out) >= limit {
-			break
+			continue // 继续计数以便返回总数
 		}
 		out = append(out, e)
 	}
-	return out
+	return out, matched
 }
 
 // Count 返回当前已写条数（诊断）。
@@ -141,7 +142,8 @@ func (e *ErrLog) Append(entry ErrEntry) {
 }
 
 // Query 按时间倒序返回过滤后的错误记录（request_id / host / status / from / to + limit/offset）。
-func (e *ErrLog) Query(host string, status int, requestID string, from, to time.Time, limit, offset int) []ErrEntry {
+// 第二个返回值为"缓冲内匹配过滤条件的总条数"（不受 limit/offset 影响），供分页。
+func (e *ErrLog) Query(host string, status int, requestID string, from, to time.Time, limit, offset int) ([]ErrEntry, int) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	n := e.head
@@ -149,7 +151,7 @@ func (e *ErrLog) Query(host string, status int, requestID string, from, to time.
 		n = len(e.ring)
 	}
 	out := []ErrEntry{}
-	skipped := 0
+	matched := 0
 	for i := 0; i < n; i++ {
 		idx := (e.head - 1 - i + len(e.ring)) % len(e.ring)
 		entry := e.ring[idx]
@@ -171,16 +173,16 @@ func (e *ErrLog) Query(host string, status int, requestID string, from, to time.
 		if !to.IsZero() && entry.Timestamp.After(to) {
 			continue
 		}
-		if skipped < offset {
-			skipped++
+		matched++
+		if matched <= offset {
 			continue
 		}
 		if len(out) >= limit {
-			break
+			continue // 继续计数以便返回总数
 		}
 		out = append(out, entry)
 	}
-	return out
+	return out, matched
 }
 
 // Count 返回当前已写条数。

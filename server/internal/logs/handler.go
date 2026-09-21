@@ -68,8 +68,8 @@ func (h *Handler) Access(c fiber.Ctx) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
-	items := h.access.Query(c.Query("host"), status, c.Query("request_id"), from, to, limit, offset)
-	return pkg.OKMeta(c, items, fiber.Map{"total": len(items), "count": h.access.Count(),
+	items, total := h.access.Query(c.Query("host"), status, c.Query("request_id"), from, to, limit, offset)
+	return pkg.OKMeta(c, items, fiber.Map{"total": total, "count": h.access.Count(),
 		"limit": limit, "offset": offset})
 }
 
@@ -84,7 +84,7 @@ func (h *Handler) Error(c fiber.Ctx) error {
 	if err != nil {
 		return pkg.Err(c, err)
 	}
-	items := h.errLog.Query(c.Query("host"), status, c.Query("request_id"), from, to, limit, offset)
-	return pkg.OKMeta(c, items, fiber.Map{"total": len(items), "count": h.errLog.Count(),
+	items, total := h.errLog.Query(c.Query("host"), status, c.Query("request_id"), from, to, limit, offset)
+	return pkg.OKMeta(c, items, fiber.Map{"total": total, "count": h.errLog.Count(),
 		"limit": limit, "offset": offset})
 }
