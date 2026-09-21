@@ -199,7 +199,7 @@ export default function ApplicationsPage() {
       <PageHeader
         title={t('applications.title')}
         right={
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
             <button onClick={load} className="rounded bg-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">{t('common.refresh')}</button>
             {last && <span>{last}</span>}
             <button onClick={openNew} className="rounded bg-th-accent px-3 py-1.5 text-sm text-white hover:bg-th-accent-hover">+ {t('applications.new')}</button>
@@ -241,7 +241,7 @@ export default function ApplicationsPage() {
                 <td className="px-4 py-2"><IdCell id={a.id} /></td>
                 <td className="px-4 py-2">
                   <button onClick={() => openDetail(a)} className="font-semibold text-sky-600 hover:underline dark:text-sky-400">{a.name}</button>
-                  {a.description && <p className="text-xs text-slate-400">{a.description}</p>}
+                  {a.description && <p className="text-xs text-slate-400 dark:text-slate-500">{a.description}</p>}
                 </td>
                 <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
                   {serviceName(a.service_id) || '-'}
@@ -249,7 +249,7 @@ export default function ApplicationsPage() {
                 <td className="px-4 py-2 font-mono text-xs">{a.version || '-'}</td>
                 <td className="px-4 py-2"><StatusBadge value={a.status} raw label={a.status === 'running' ? t('applications.statusRunning') : undefined} /></td>
                 <td className="px-4 py-2 font-mono text-xs">{a.node_id ? shortId(a.node_id) : '-'}</td>
-                <td className="px-4 py-2 text-xs text-slate-400">{a.updated_at ? new Date(a.updated_at).toLocaleString() : '-'}</td>
+                <td className="px-4 py-2 text-xs text-slate-400 dark:text-slate-500">{a.updated_at ? new Date(a.updated_at).toLocaleString() : '-'}</td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">
                     <ActionBtn onClick={() => validate(a.id)}>{t('applications.validate')}</ActionBtn>
@@ -298,7 +298,7 @@ export default function ApplicationsPage() {
               <option value="">{t('applications.serviceNone')}</option>
               {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <p className="mt-1 text-xs text-slate-400">{t('applications.serviceHint')}</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{t('applications.serviceHint')}</p>
           </div>
           <div>
             <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('fields.description')}</label>
@@ -307,7 +307,7 @@ export default function ApplicationsPage() {
           <div>
             <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{t('applications.specLabel')}</label>
             <textarea value={form.spec} onChange={(e) => setForm({ ...form, spec: e.target.value })} rows={12} spellCheck={false} className={taCls} />
-            <p className="mt-1 text-xs text-slate-400">{t('applications.specHint')}</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{t('applications.specHint')}</p>
           </div>
         </div>
       </Modal>
@@ -320,9 +320,9 @@ export default function ApplicationsPage() {
         maxWidth="max-w-4xl"
       >
         {detailLoading ? (
-          <p className="text-sm text-slate-400">{t('common.loading')}</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t('common.loading')}</p>
         ) : detail && detail.services.length === 0 ? (
-          <p className="text-sm text-slate-400">{t('applications.noServices')}</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t('applications.noServices')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

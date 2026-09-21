@@ -393,12 +393,12 @@ export default function InstancesPage() {
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2">
                   {svcName(r.service_id)}
-                  <span className="ml-1 text-xs text-slate-400">{r.version}</span>
+                  <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">{r.version}</span>
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{r.port > 0 ? `${r.address}:${r.port}` : r.address}</td>
                 <td className="px-4 py-2">{nodeLabel(r)}</td>
                 <td className="px-4 py-2 font-mono text-xs">
-                  {cmEnabled && ct?.ip ? ct.ip : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                  {cmEnabled && ct?.ip ? ct.ip : <span className="text-xs text-slate-400 dark:text-slate-500">{cmEnabled ? '-' : ''}</span>}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{ct ? fmtPortPair(ct.host_port, ct.container_port) : (r.port || '-')}</td>
                 <td className="px-4 py-2"><StatusBadge value={r.health} /></td>
@@ -406,17 +406,17 @@ export default function InstancesPage() {
                 <td className="px-4 py-2">
                   {cmEnabled && ct
                     ? <StatusBadge value={ct.state} raw label={ct.state === 'running' ? t('runtime.statusRunning') : undefined} />
-                    : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                    : <span className="text-xs text-slate-400 dark:text-slate-500">{cmEnabled ? '-' : ''}</span>}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">
                   {cmEnabled && ct?.name
                     ? <span title={ct.name}>{ct.name}</span>
-                    : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                    : <span className="text-xs text-slate-400 dark:text-slate-500">{cmEnabled ? '-' : ''}</span>}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">
                   {cmEnabled && ct?.container_id
                     ? <span title={ct.container_id}>{ct.container_id.slice(0, 12)}</span>
-                    : <span className="text-xs text-slate-400">{cmEnabled ? '-' : ''}</span>}
+                    : <span className="text-xs text-slate-400 dark:text-slate-500">{cmEnabled ? '-' : ''}</span>}
                 </td>
                 <td className="px-4 py-2">
                   <div className="flex flex-wrap gap-1">

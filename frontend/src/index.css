@@ -51,6 +51,16 @@
   ::backdrop {
     border-color: var(--color-slate-200);
   }
+
+  /* 基础文字色：无显式 text-* 类的元素继承此色。缺省（浏览器默认黑色）在
+     data-mode="dark" 的深色底上不可见，故按模式给一份可读兜底；
+     带 text-* 工具类的元素选择器优先级更高，不受影响。 */
+  html {
+    color: var(--color-slate-800);
+  }
+  html[data-mode="dark"] {
+    color: var(--color-slate-200);
+  }
 }
 
 /*

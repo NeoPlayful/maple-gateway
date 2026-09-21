@@ -188,7 +188,7 @@ export default function DashboardPage() {
         <div className="rounded-th-card border border-slate-200 bg-white p-5 shadow-th-card dark:border-slate-700 dark:bg-slate-800">
           <p className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.runningCanary')}</p>
           {!ov.running_canary?.length ? (
-            <p className="text-sm text-slate-400">{t('dashboard.noRunning')}</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t('dashboard.noRunning')}</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {ov.running_canary.map((r) => (
@@ -196,10 +196,10 @@ export default function DashboardPage() {
                   <div>
                     <p className="font-medium text-slate-700 dark:text-slate-200">
                       {r.name}
-                      {r.service_name && <span className="ml-1 text-xs text-slate-400">（{r.service_name}）</span>}
+                      {r.service_name && <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">（{r.service_name}）</span>}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-slate-500">
+                  <div className="text-right text-xs text-slate-500 dark:text-slate-400">
                     <span className="mr-2 font-semibold text-slate-700 dark:text-slate-300">{phaseText[r.phase] ?? r.phase}</span>
                     {r.canary_weight}/{r.target_weight}%
                   </div>

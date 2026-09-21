@@ -55,7 +55,7 @@ export default function LoginPage() {
             required
           />
         </div>
-        {err && <p className="mb-3 text-sm text-red-600">{err}</p>}
+        {err && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{err}</p>}
         <button
           disabled={busy}
           className="w-full rounded bg-th-accent py-2 text-sm font-medium text-white hover:bg-th-accent-hover disabled:opacity-50"

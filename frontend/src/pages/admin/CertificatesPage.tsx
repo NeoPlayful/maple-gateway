@@ -595,7 +595,7 @@ export default function CertificatesPage() {
                 <td className="px-4 py-2">
                   <StatusBadge value={r.status} />
                   {r.last_error ? (
-                    <span className="ml-1 text-xs text-rose-500" title={r.last_error}>
+                    <span className="ml-1 text-xs text-rose-500 dark:text-rose-400" title={r.last_error}>
                       !
                     </span>
                   ) : null}
@@ -606,7 +606,7 @@ export default function CertificatesPage() {
                 <td className="px-4 py-2">
                   {r.next_renew_at ? new Date(r.next_renew_at).toLocaleString() : '-'}
                   {r.renew_attempts ? (
-                    <span className="ml-1 text-xs text-amber-600" title={r.last_renew_error}>
+                    <span className="ml-1 text-xs text-amber-600 dark:text-amber-400" title={r.last_renew_error}>
                       {`↻${r.renew_attempts}`}
                     </span>
                   ) : null}

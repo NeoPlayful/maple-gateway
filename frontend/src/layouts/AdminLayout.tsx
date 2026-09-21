@@ -24,7 +24,7 @@ export default function AdminLayout() {
         header={
           <>
             <span className="text-lg font-bold text-th-brand-text">🍁 Maple</span>
-            <span className="text-xs text-slate-400">Gateway</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">Gateway</span>
           </>
         }
         footer={

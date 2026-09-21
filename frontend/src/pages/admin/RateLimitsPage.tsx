@@ -323,12 +323,12 @@ export default function RateLimitsPage() {
             {filtered.map((r) => (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2 font-medium">{r.name}</td>
-                <td className="px-4 py-2 text-xs text-slate-500">{t(`ratelimit.scopeValue.${r.scope}`, { defaultValue: r.scope })}</td>
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{t(`ratelimit.scopeValue.${r.scope}`, { defaultValue: r.scope })}</td>
                 <td className="px-4 py-2 text-xs">{refName(r)}</td>
                 <td className="px-4 py-2">
                   <span className="font-mono text-xs">{r.limit}</span>
-                  <span className="text-slate-400">/ {r.window_seconds}s</span>
-                  {r.burst ? <span className="ml-1 text-xs text-amber-600">burst {r.burst}</span> : null}
+                  <span className="text-slate-400 dark:text-slate-500">/ {r.window_seconds}s</span>
+                  {r.burst ? <span className="ml-1 text-xs text-amber-600 dark:text-amber-400">burst {r.burst}</span> : null}
                 </td>
                 <td className="px-4 py-2"><StatusBadge value={r.status} /></td>
                 <td className="px-4 py-2">

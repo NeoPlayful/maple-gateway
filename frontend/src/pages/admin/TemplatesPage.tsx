@@ -226,7 +226,7 @@ export default function TemplatesPage() {
           <Field label={t('templates.specLabel')}>
             <textarea value={spec} onChange={(e) => setSpec(e.target.value)} rows={10} spellCheck={false} className={taCls} />
           </Field>
-          <p className="mt-1 text-xs text-slate-400">{t('templates.specHint')}</p>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{t('templates.specHint')}</p>
         </div>
 
         {/* 参数定义：每个键对应规格中的 {{键}}；data_path 为内置可用的数据目录占位符。 */}
