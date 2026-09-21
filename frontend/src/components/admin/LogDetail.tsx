@@ -174,6 +174,10 @@ export function ExpandedLogDetail({
   const upstream = access?.upstream ?? err?.upstream;
   const gatewayInstance = access?.gateway_instance ?? err?.gateway_instance;
   const node = access?.node ?? err?.node;
+  const routeName = access?.route_name ?? err?.route_name;
+  const realClientIp = access?.real_client_ip ?? err?.real_client_ip;
+  const xForwardedFor = access?.x_forwarded_for ?? err?.x_forwarded_for;
+  const xRealIp = access?.x_real_ip ?? err?.x_real_ip;
 
   const timeStr = time ? new Date(time).toLocaleString() : '';
 
@@ -232,10 +236,11 @@ export function ExpandedLogDetail({
 
             <InfoCard title={t('logs.clientInfo')} icon={<GlobeAltIcon className={cardIcon} />}>
               <InfoRow label={t('logs.clientIp')} value={emptyIfBlank(clientIp)} mono />
+              {/* 真实客户端 IP / 转发头仅当来源命中可信代理白名单时才有值，否则留「—」。 */}
+              <InfoRow label={t('logs.realClientIp')} value={emptyIfBlank(realClientIp)} mono title={realClientIp} />
               <InfoRow label={t('logs.userAgent')} value={emptyIfBlank(userAgent)} mono title={userAgent} />
-              {/* 后端尚未采集以下转发头，固定以「—」占位，不伪造数据。 */}
-              <InfoRow label={t('logs.xForwardedFor')} value={DASH} mono />
-              <InfoRow label={t('logs.xRealIp')} value={DASH} mono />
+              <InfoRow label={t('logs.xForwardedFor')} value={emptyIfBlank(xForwardedFor)} mono title={xForwardedFor} />
+              <InfoRow label={t('logs.xRealIp')} value={emptyIfBlank(xRealIp)} mono title={xRealIp} />
             </InfoCard>
 
             <InfoCard title={t('logs.traceInfo')} icon={<ServerIcon className={cardIcon} />}>
@@ -257,8 +262,8 @@ export function ExpandedLogDetail({
               <InfoRow label={t('logs.upstream')} value={emptyIfBlank(upstream)} mono title={upstream} />
               <InfoRow label={t('logs.gatewayInstance')} value={emptyIfBlank(gatewayInstance)} mono title={gatewayInstance} />
               <InfoRow label={t('logs.node')} value={emptyIfBlank(node)} mono title={node} />
-              {/* 后端尚未提供路由名，固定以「—」占位。 */}
-              <InfoRow label={t('logs.routeName')} value={DASH} />
+              {/* 路由名取所属 Service 名；静态路由（无 DB）时为空。 */}
+              <InfoRow label={t('logs.routeName')} value={emptyIfBlank(routeName)} title={routeName} />
             </InfoCard>
           </div>
 

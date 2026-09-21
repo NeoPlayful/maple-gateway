@@ -29,6 +29,13 @@ type AccessEntry struct {
 	// GatewayInstance / Node 是处理本请求的网关实例身份与所在主机（进程级常量）。
 	GatewayInstance string `json:"gateway_instance,omitempty"`
 	Node            string `json:"node,omitempty"`
+	// RouteName 是命中路由的可读名（取所属 Service 名），供快速定位转发到哪个服务。
+	RouteName string `json:"route_name,omitempty"`
+	// ClientIP 为 socket 对端（不可伪造）；以下转发头字段仅在来源可信时才有值。
+	// RealClientIP 是扣除可信代理跳后的真实客户端 IP；XForwardedFor / XRealIP 为原始头留证。
+	RealClientIP  string `json:"real_client_ip,omitempty"`
+	XForwardedFor string `json:"x_forwarded_for,omitempty"`
+	XRealIP       string `json:"x_real_ip,omitempty"`
 }
 
 // AccessLog 是访问日志环形缓冲（线程安全，固定容量）。
@@ -131,6 +138,12 @@ type ErrEntry struct {
 	Node            string `json:"node,omitempty"`
 	// Upstream 在路由拒绝时为空；上游失败时尽力填充命中实例地址。
 	Upstream string `json:"upstream,omitempty"`
+	// RouteName 是命中路由的可读名（取所属 Service 名）。
+	RouteName string `json:"route_name,omitempty"`
+	// 转发头字段：仅在来源可信时有值，语义同 AccessEntry。
+	RealClientIP  string `json:"real_client_ip,omitempty"`
+	XForwardedFor string `json:"x_forwarded_for,omitempty"`
+	XRealIP       string `json:"x_real_ip,omitempty"`
 }
 
 // ErrLog 是错误日志环形缓冲（线程安全，固定容量）。

@@ -35,6 +35,9 @@ type Target struct {
 	VersionID uuid.UUID
 	// SetSticky 非空表示本次响应需下发 Sticky 会话 cookie（首访无会话键时）。
 	SetSticky *StickyCookie
+	// RouteName 是命中路由的可读名（取所属 Service 名），供日志展示定位；
+	// 静态 resolver 不解析服务名，留空。
+	RouteName string
 }
 
 // StickyCookie 描述数据面应写回的会话 cookie。

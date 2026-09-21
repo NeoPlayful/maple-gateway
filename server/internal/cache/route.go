@@ -34,7 +34,9 @@ type RouteEntry struct {
 	Hostname  string
 	TenantID  uuid.UUID
 	ServiceID uuid.UUID
-	Protocol  string
+	// ServiceName 是所属 Service 的可读名，作为路由名透传给日志（系统无独立路由实体）。
+	ServiceName string
+	Protocol    string
 	// TenantOK 指示租户状态可路由（active）。false 时数据平面应拒绝。
 	TenantOK bool
 	Pool     []router.PoolMember // 仅 healthy + enabled 实例
@@ -265,9 +267,11 @@ func buildTable(tenants []*tenant.Tenant, services []*service.Service,
 	}
 	serviceProto := make(map[uuid.UUID]string, len(services))
 	serviceTenant := make(map[uuid.UUID]uuid.UUID, len(services))
+	serviceName := make(map[uuid.UUID]string, len(services))
 	for _, s := range services {
 		serviceProto[s.ID] = s.Protocol
 		serviceTenant[s.ID] = s.TenantID
+		serviceName[s.ID] = s.Name
 	}
 
 	// limitsFor 按 domain/tenant/service 归属预分组，避免每 entry 全量扫描。
@@ -311,12 +315,13 @@ func buildTable(tenants []*tenant.Tenant, services []*service.Service,
 		tenID := serviceTenant[sid]
 
 		entry := &RouteEntry{
-			DomainID:  d.ID,
-			Hostname:  d.Hostname,
-			TenantID:  tenID,
-			ServiceID: sid,
-			Protocol:  sproto,
-			TenantOK:  tenantStatus[tenID],
+			DomainID:    d.ID,
+			Hostname:    d.Hostname,
+			TenantID:    tenID,
+			ServiceID:   sid,
+			ServiceName: serviceName[sid],
+			Protocol:    sproto,
+			TenantOK:    tenantStatus[tenID],
 		}
 		// 路由适用限流 = global + domain + tenant + service 维度规则（判定时取最严）。
 		entry.Limits = append(entry.Limits, globalLim...)

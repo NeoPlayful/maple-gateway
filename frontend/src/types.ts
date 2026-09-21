@@ -170,6 +170,11 @@ export interface AccessLogRow {
   upstream?: string;
   gateway_instance?: string;
   node?: string;
+  route_name?: string;
+  // 转发头字段仅在来源可信（命中 trusted_proxies 白名单）时才有值。
+  real_client_ip?: string;
+  x_forwarded_for?: string;
+  x_real_ip?: string;
 }
 
 export interface ErrorLogRow {
@@ -187,6 +192,10 @@ export interface ErrorLogRow {
   upstream?: string;
   gateway_instance?: string;
   node?: string;
+  route_name?: string;
+  real_client_ip?: string;
+  x_forwarded_for?: string;
+  x_real_ip?: string;
 }
 
 export interface AuditLogRow {

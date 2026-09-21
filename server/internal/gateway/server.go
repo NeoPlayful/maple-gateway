@@ -76,6 +76,8 @@ type DataPlaneConfig struct {
 	// GatewayInstance / Node 是处理本进程请求的网关实例标识与所在主机，写入每条访问日志。
 	GatewayInstance string
 	Node            string
+	// Trust 是可信代理判定集，仅对受信来源采信转发头；nil 表示无可信代理。
+	Trust *proxy.ProxyTrust
 }
 
 // NewDataPlane 组装数据平面服务（不启动）。Address 与 HTTPSAddress 至少其一非空。
@@ -91,6 +93,7 @@ func NewDataPlane(cfg DataPlaneConfig) *DataPlane {
 		EnforceSNIHostMatch: cfg.EnforceSNIHostMatch,
 		GatewayInstance:     cfg.GatewayInstance,
 		Node:                cfg.Node,
+		Trust:               cfg.Trust,
 	})
 	handler := http.Handler(px)
 	// ACME http-01 挑战代答：在代理之前短路，未命中回落常规路由。

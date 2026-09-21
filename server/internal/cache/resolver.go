@@ -464,7 +464,7 @@ func targetFromMember(e *RouteEntry, m *router.PoolMember, versionID uuid.UUID) 
 	if scheme == "" {
 		scheme = "http"
 	}
-	return &router.Target{Scheme: scheme, Host: m.Endpoint, InstanceID: m.ID, VersionID: versionID}
+	return &router.Target{Scheme: scheme, Host: m.Endpoint, InstanceID: m.ID, VersionID: versionID, RouteName: e.ServiceName}
 }
 
 // stickySelect 用会话键对池做一致性哈希选择（同 key 恒同实例，pool 变化时重映射）。
