@@ -564,6 +564,7 @@ var (
 		{Name: "key", Type: field.TypeString},
 		{Name: "value", Type: field.TypeJSON},
 		{Name: "version", Type: field.TypeInt, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
 	// SettingsTable holds the schema information for the "settings" table.

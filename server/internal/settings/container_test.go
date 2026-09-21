@@ -3,7 +3,34 @@ package settings
 import (
 	"encoding/json"
 	"testing"
+	"time"
+
+	"github.com/NeoPlayful/maple-gateway/server/ent"
 )
+
+// toEntry 映射创建时间与更新时间（Upsert 更新分支不动 created_at，这里只验证映射）。
+func TestToEntryMapsTimestamps(t *testing.T) {
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	updated := time.Date(2026, 6, 7, 8, 9, 10, 0, time.UTC)
+	e := &ent.Setting{
+		Section:   string(SectionLogging),
+		Key:       "debug",
+		Value:     json.RawMessage(`true`),
+		Version:   3,
+		CreatedAt: created,
+		UpdatedAt: updated,
+	}
+	got := toEntry(e)
+	if !got.CreatedAt.Equal(created) {
+		t.Errorf("CreatedAt = %v, want %v", got.CreatedAt, created)
+	}
+	if !got.UpdatedAt.Equal(updated) {
+		t.Errorf("UpdatedAt = %v, want %v", got.UpdatedAt, updated)
+	}
+	if got.Version != 3 {
+		t.Errorf("Version = %d, want 3", got.Version)
+	}
+}
 
 // newTestRepo 构造一个仅内存缓存可用的 Repository（不触达 Ent，仅测缓存读取路径）。
 func newTestRepo(entries ...Entry) *Repository {

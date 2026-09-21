@@ -33,7 +33,7 @@ func groupBySection(items []Entry) fiber.Map {
 		if err := json.Unmarshal(e.Value, &val); err != nil {
 			val = nil
 		}
-		m[e.Key] = fiber.Map{"value": val, "version": e.Version, "updated_at": e.UpdatedAt}
+		m[e.Key] = fiber.Map{"value": val, "version": e.Version, "created_at": e.CreatedAt, "updated_at": e.UpdatedAt}
 	}
 	return out
 }

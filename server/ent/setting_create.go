@@ -57,6 +57,12 @@ func (sc *SettingCreate) SetNillableVersion(i *int) *SettingCreate {
 	return sc
 }
 
+// SetCreatedAt sets the "created_at" field.
+func (sc *SettingCreate) SetCreatedAt(t time.Time) *SettingCreate {
+	sc.mutation.SetCreatedAt(t)
+	return sc
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (sc *SettingCreate) SetUpdatedAt(t time.Time) *SettingCreate {
 	sc.mutation.SetUpdatedAt(t)
@@ -150,6 +156,9 @@ func (sc *SettingCreate) check() error {
 	if _, ok := sc.mutation.Version(); !ok {
 		return &ValidationError{Name: "version", err: errors.New(`ent: missing required field "Setting.version"`)}
 	}
+	if _, ok := sc.mutation.CreatedAt(); !ok {
+		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Setting.created_at"`)}
+	}
 	if _, ok := sc.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Setting.updated_at"`)}
 	}
@@ -204,6 +213,10 @@ func (sc *SettingCreate) createSpec() (*Setting, *sqlgraph.CreateSpec) {
 	if value, ok := sc.mutation.Version(); ok {
 		_spec.SetField(setting.FieldVersion, field.TypeInt, value)
 		_node.Version = value
+	}
+	if value, ok := sc.mutation.CreatedAt(); ok {
+		_spec.SetField(setting.FieldCreatedAt, field.TypeTime, value)
+		_node.CreatedAt = value
 	}
 	if value, ok := sc.mutation.UpdatedAt(); ok {
 		_spec.SetField(setting.FieldUpdatedAt, field.TypeTime, value)
@@ -343,6 +356,9 @@ func (u *SettingUpsertOne) UpdateNewValues() *SettingUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(setting.FieldID)
+		}
+		if _, exists := u.create.mutation.CreatedAt(); exists {
+			s.SetIgnore(setting.FieldCreatedAt)
 		}
 	}))
 	return u
@@ -634,6 +650,9 @@ func (u *SettingUpsertBulk) UpdateNewValues() *SettingUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(setting.FieldID)
+			}
+			if _, exists := b.mutation.CreatedAt(); exists {
+				s.SetIgnore(setting.FieldCreatedAt)
 			}
 		}
 	}))

@@ -7,7 +7,7 @@ import ContainerNetworkSettings from '../../components/admin/ContainerNetworkSet
 import RuntimeSettings from '../../components/admin/RuntimeSettings';
 import { PageHeader } from '../../themes';
 
-type KV = { value: unknown; version: number; updated_at: string };
+type KV = { value: unknown; version: number; created_at: string; updated_at: string };
 type SettingsMap = Record<string, Record<string, KV>>;
 
 const sections = ['gateway', 'proxy', 'health', 'acme', 'security', 'logging', 'metrics'];
@@ -110,8 +110,19 @@ export default function SettingsPage() {
             const isDebug = section === 'logging' && k === 'debug';
             return (
               <div key={k} className="mb-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
-                <label className="w-56 shrink-0 text-sm text-slate-600 dark:text-slate-300">{isDebug ? t('settings.logDebug') : k}
+                <label className="w-56 shrink-0 text-sm text-slate-600 dark:text-slate-300">
+                  {isDebug ? t('settings.logDebug') : k}
                   <span className="ml-1 text-xs text-slate-400">v{current[k]?.version ?? 1}</span>
+                  {current[k]?.created_at && (
+                    <span className="mt-0.5 block text-xs text-slate-400">
+                      {t('fields.createdAt')}: {new Date(current[k].created_at).toLocaleString()}
+                    </span>
+                  )}
+                  {current[k]?.updated_at && (
+                    <span className="mt-0.5 block text-xs text-slate-400">
+                      {t('fields.updatedAt')}: {new Date(current[k].updated_at).toLocaleString()}
+                    </span>
+                  )}
                 </label>
                 {isDebug ? (
                   <input

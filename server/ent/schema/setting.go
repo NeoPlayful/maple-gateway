@@ -22,6 +22,7 @@ func (Setting) Fields() []ent.Field {
 		field.String("key").NotEmpty(),
 		field.JSON("value", json.RawMessage{}).Default(json.RawMessage("null")),
 		field.Int("version").Default(1),
+		field.Time("created_at").Immutable(),
 		field.Time("updated_at"),
 	}
 }
