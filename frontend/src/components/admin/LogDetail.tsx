@@ -161,13 +161,19 @@ export function ExpandedLogDetail({
   const audit = tab === 'audit' ? (row as AuditLogRow) : null;
 
   const status = access?.status ?? err?.status;
-  const method = access?.method;
+  const method = access?.method ?? err?.method;
   const host = access?.host ?? err?.host;
   const path = access?.path ?? err?.path;
-  const clientIp = access?.client_ip;
+  const clientIp = access?.client_ip ?? err?.client_ip;
   const duration = access?.duration_ms;
   const requestId = access?.request_id ?? err?.request_id ?? audit?.id;
   const time = access?.timestamp ?? err?.timestamp ?? audit?.created_at;
+  const protocol = access?.protocol ?? err?.protocol;
+  const query = access?.query ?? err?.query;
+  const userAgent = access?.user_agent ?? err?.user_agent;
+  const upstream = access?.upstream ?? err?.upstream;
+  const gatewayInstance = access?.gateway_instance ?? err?.gateway_instance;
+  const node = access?.node ?? err?.node;
 
   const timeStr = time ? new Date(time).toLocaleString() : '';
 
@@ -217,15 +223,17 @@ export function ExpandedLogDetail({
               <InfoRow label={t('logs.time')} value={orDash(timeStr)} mono title={timeStr} />
               <InfoRow label={t('logs.host')} value={emptyIfBlank(host)} mono title={host} />
               <InfoRow label={t('logs.method')} value={emptyIfBlank(method)} mono />
+              <InfoRow label={t('logs.protocol')} value={emptyIfBlank(protocol)} mono />
               <InfoRow label={t('logs.path')} value={emptyIfBlank(path)} mono title={path} />
+              <InfoRow label={t('logs.query')} value={emptyIfBlank(query)} mono title={query} />
               <InfoRow label={t('logs.statusCode')} value={orDash(status)} mono />
               <InfoRow label={t('logs.duration')} value={duration === undefined ? DASH : `${duration} ms`} mono />
             </InfoCard>
 
             <InfoCard title={t('logs.clientInfo')} icon={<GlobeAltIcon className={cardIcon} />}>
               <InfoRow label={t('logs.clientIp')} value={emptyIfBlank(clientIp)} mono />
-              {/* 后端当前未采集以下字段，固定以「—」占位，不伪造数据。 */}
-              <InfoRow label={t('logs.userAgent')} value={DASH} mono />
+              <InfoRow label={t('logs.userAgent')} value={emptyIfBlank(userAgent)} mono title={userAgent} />
+              {/* 后端尚未采集以下转发头，固定以「—」占位，不伪造数据。 */}
               <InfoRow label={t('logs.xForwardedFor')} value={DASH} mono />
               <InfoRow label={t('logs.xRealIp')} value={DASH} mono />
             </InfoCard>
@@ -246,11 +254,11 @@ export function ExpandedLogDetail({
                   )}
                 </span>
               </div>
-              {/* 后端当前未提供以下追踪字段，固定以「—」占位。 */}
-              <InfoRow label={t('logs.upstream')} value={DASH} />
+              <InfoRow label={t('logs.upstream')} value={emptyIfBlank(upstream)} mono title={upstream} />
+              <InfoRow label={t('logs.gatewayInstance')} value={emptyIfBlank(gatewayInstance)} mono title={gatewayInstance} />
+              <InfoRow label={t('logs.node')} value={emptyIfBlank(node)} mono title={node} />
+              {/* 后端尚未提供路由名，固定以「—」占位。 */}
               <InfoRow label={t('logs.routeName')} value={DASH} />
-              <InfoRow label={t('logs.gatewayInstance')} value={DASH} />
-              <InfoRow label={t('logs.node')} value={DASH} />
             </InfoCard>
           </div>
 

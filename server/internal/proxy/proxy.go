@@ -38,6 +38,10 @@ type Config struct {
 	// EnforceSNIHostMatch 仅 Direct TLS（tls.mode=direct）开启：
 	// TLS 握手 SNI 与 HTTP Host 不一致时返回 421 Misdirected Request。
 	EnforceSNIHostMatch bool
+	// GatewayInstance / Node 是处理本进程请求的网关实例标识与所在主机（进程级常量，
+	// 写入每条日志，供多实例下定位是哪台网关处理的）。
+	GatewayInstance string
+	Node            string
 }
 
 // Proxy 是数据平面反向代理。
@@ -50,6 +54,8 @@ type Proxy struct {
 	errLog              *logs.ErrLog
 	tracer              tracex.Tracer
 	enforceSNIHostMatch bool
+	gatewayInstance     string
+	node                string
 }
 
 // New 构造 Proxy。transport 为空时使用默认配置。
@@ -72,6 +78,8 @@ func New(cfg Config) *Proxy {
 		errLog:              cfg.ErrLog,
 		tracer:              cfg.Tracer,
 		enforceSNIHostMatch: cfg.EnforceSNIHostMatch,
+		gatewayInstance:     cfg.GatewayInstance,
+		node:                cfg.Node,
 	}
 	p.director = &httputil.ReverseProxy{
 		Transport:     transport,
@@ -204,14 +212,20 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	respStatus = rec.status
 	if p.access != nil {
 		p.access.Append(logs.AccessEntry{
-			Timestamp:  time.Now(),
-			Host:       host,
-			Method:     r.Method,
-			Path:       r.URL.Path,
-			Status:     rec.status,
-			ClientIP:   clientIP(r.RemoteAddr),
-			RequestID:  requestID,
-			DurationMS: elapsed.Milliseconds(),
+			Timestamp:       time.Now(),
+			Host:            host,
+			Method:          r.Method,
+			Path:            r.URL.Path,
+			Status:          rec.status,
+			ClientIP:        clientIP(r.RemoteAddr),
+			RequestID:       requestID,
+			DurationMS:      elapsed.Milliseconds(),
+			UserAgent:       truncateUA(r.UserAgent()),
+			Protocol:        requestScheme(r),
+			Query:           r.URL.RawQuery,
+			Upstream:        target.Host,
+			GatewayInstance: p.gatewayInstance,
+			Node:            p.node,
 		})
 	}
 }
@@ -348,7 +362,7 @@ func (p *Proxy) handleResolveError(w http.ResponseWriter, r *http.Request, reque
 			zap.Int("status", status),
 		)
 	}
-	p.appendErr(r, requestID, status, err.Error())
+	p.appendErr(r, nil, requestID, status, err.Error())
 	http.Error(w, http.StatusText(status), status)
 	return status
 }
@@ -365,7 +379,7 @@ func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, requ
 				zap.Int64("limit", mbErr.Limit),
 			)
 		}
-		p.appendErr(r, requestID, http.StatusRequestEntityTooLarge, "request body exceeds limit")
+		p.appendErr(r, targetFromContext(r.Context()), requestID, http.StatusRequestEntityTooLarge, "request body exceeds limit")
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
 		return
 	}
@@ -377,7 +391,7 @@ func (p *Proxy) handleUpstreamError(w http.ResponseWriter, r *http.Request, requ
 			zap.String("err", err.Error()),
 		)
 	}
-	p.appendErr(r, requestID, http.StatusBadGateway, err.Error())
+	p.appendErr(r, targetFromContext(r.Context()), requestID, http.StatusBadGateway, err.Error())
 	http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 }
 
@@ -396,18 +410,30 @@ func (p *Proxy) countRequest(r *http.Request, status int) {
 	})
 }
 
-// appendErr 写入错误日志缓冲（若启用）。
-func (p *Proxy) appendErr(r *http.Request, requestID string, status int, msg string) {
+// appendErr 写入错误日志缓冲（若启用）。target 可空：路由拒绝时为 nil，上游失败时携带命中实例。
+func (p *Proxy) appendErr(r *http.Request, target *router.Target, requestID string, status int, msg string) {
 	if p.errLog == nil {
 		return
 	}
+	upstream := ""
+	if target != nil {
+		upstream = target.Host
+	}
 	p.errLog.Append(logs.ErrEntry{
-		Timestamp: time.Now(),
-		Host:      normalizeHostLabel(r.Host),
-		Path:      r.URL.Path,
-		Status:    status,
-		RequestID: requestID,
-		Error:     msg,
+		Timestamp:       time.Now(),
+		Host:            normalizeHostLabel(r.Host),
+		Path:            r.URL.Path,
+		Status:          status,
+		RequestID:       requestID,
+		Error:           msg,
+		Method:          r.Method,
+		ClientIP:        clientIP(r.RemoteAddr),
+		UserAgent:       truncateUA(r.UserAgent()),
+		Protocol:        requestScheme(r),
+		Query:           r.URL.RawQuery,
+		Upstream:        upstream,
+		GatewayInstance: p.gatewayInstance,
+		Node:            p.node,
 	})
 }
 

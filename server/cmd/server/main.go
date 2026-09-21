@@ -266,12 +266,14 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 
 	// 多实例 HA：本进程在 gateway_instances 注册 + 心跳；启用协调时竞逐 Leader
 	// （Redis 锁优先，断连降级 DB lease）。实例 ID 缺省自动生成，进程内保持稳定。
+	// 该身份同时写入数据平面访问日志（gateway_instance 字段），故在 HA 之外也需可用。
+	instanceID := cfg.HA.InstanceID
+	if instanceID == "" {
+		instanceID = uuid.NewString()[:8]
+	}
+	nodeName, _ := os.Hostname()
 	var coord *ha.Coordinator
 	if db != nil {
-		instanceID := cfg.HA.InstanceID
-		if instanceID == "" {
-			instanceID = uuid.NewString()[:8]
-		}
 		coord = ha.NewCoordinator(ha.NewRepository(entClient), redisClient, logger, ha.Config{
 			InstanceID: instanceID,
 			Addr:       cfg.Addr(cfg.Management.Port),
@@ -506,6 +508,8 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		ErrLog:              errLog,
 		Tracer:              trc,
 		ACMEChallenge:       acmeResponder,
+		GatewayInstance:     instanceID,
+		Node:                nodeName,
 	})
 	dpErrCh := dp.Start()
 

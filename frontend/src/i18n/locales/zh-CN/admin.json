@@ -510,6 +510,8 @@
     "traceInfo": "追踪信息",
     "method": "方法",
     "path": "路径",
+    "protocol": "协议",
+    "query": "查询串",
     "host": "主机",
     "duration": "耗时",
     "clientIp": "客户端 IP",
