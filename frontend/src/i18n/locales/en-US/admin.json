@@ -510,6 +510,8 @@
     "traceInfo": "Trace information",
     "method": "Method",
     "path": "Path",
+    "protocol": "Protocol",
+    "query": "Query string",
     "host": "Host",
     "duration": "Duration",
     "clientIp": "Client IP",

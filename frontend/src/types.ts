@@ -164,6 +164,12 @@ export interface AccessLogRow {
   client_ip: string;
   duration_ms: number;
   request_id?: string;
+  user_agent?: string;
+  protocol?: string;
+  query?: string;
+  upstream?: string;
+  gateway_instance?: string;
+  node?: string;
 }
 
 export interface ErrorLogRow {
@@ -173,6 +179,14 @@ export interface ErrorLogRow {
   status: number;
   error: string;
   request_id?: string;
+  method?: string;
+  client_ip?: string;
+  user_agent?: string;
+  protocol?: string;
+  query?: string;
+  upstream?: string;
+  gateway_instance?: string;
+  node?: string;
 }
 
 export interface AuditLogRow {

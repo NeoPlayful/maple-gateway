@@ -29,6 +29,26 @@ func clientIP(remoteAddr string) string {
 	return host
 }
 
+// requestScheme 判定入站请求协议（TLS 连接为 https，否则 http）。
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+// maxUserAgentLen 限制写入日志的 UA 长度：访问日志是常驻内存的环形缓冲，
+// 过长 UA 会显著抬高单条体积，截断后加省略号。
+const maxUserAgentLen = 256
+
+// truncateUA 截断超长 User-Agent，保留前缀并标注已截断。
+func truncateUA(ua string) string {
+	if len(ua) <= maxUserAgentLen {
+		return ua
+	}
+	return ua[:maxUserAgentLen] + "..."
+}
+
 // applyForwardedHeaders 补全 X-Forwarded-For / Proto / Host，并尽量保留原始。
 //
 // 规则（Phase 1 简化）：

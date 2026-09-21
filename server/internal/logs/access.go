@@ -20,6 +20,15 @@ type AccessEntry struct {
 	ClientIP   string    `json:"client_ip"`
 	RequestID  string    `json:"request_id,omitempty"` // 关联 OTel trace / 跨组件排查
 	DurationMS int64     `json:"duration_ms"`
+	// UserAgent 截断后的客户端 UA；Protocol 为入站协议（http/https）；Query 保留原始查询串。
+	UserAgent string `json:"user_agent,omitempty"`
+	Protocol  string `json:"protocol,omitempty"`
+	Query     string `json:"query,omitempty"`
+	// Upstream 是命中实例的内部地址（host:port），供定位实际转发目标。
+	Upstream string `json:"upstream,omitempty"`
+	// GatewayInstance / Node 是处理本请求的网关实例身份与所在主机（进程级常量）。
+	GatewayInstance string `json:"gateway_instance,omitempty"`
+	Node            string `json:"node,omitempty"`
 }
 
 // AccessLog 是访问日志环形缓冲（线程安全，固定容量）。
@@ -112,6 +121,16 @@ type ErrEntry struct {
 	Status    int       `json:"status"`
 	RequestID string    `json:"request_id,omitempty"` // 关联 OTel trace / 跨组件排查
 	Error     string    `json:"error"`
+	// 以下为补齐的上下文，与 AccessEntry 保持一致的展示口径。
+	Method          string `json:"method,omitempty"`
+	ClientIP        string `json:"client_ip,omitempty"`
+	UserAgent       string `json:"user_agent,omitempty"`
+	Protocol        string `json:"protocol,omitempty"`
+	Query           string `json:"query,omitempty"`
+	GatewayInstance string `json:"gateway_instance,omitempty"`
+	Node            string `json:"node,omitempty"`
+	// Upstream 在路由拒绝时为空；上游失败时尽力填充命中实例地址。
+	Upstream string `json:"upstream,omitempty"`
 }
 
 // ErrLog 是错误日志环形缓冲（线程安全，固定容量）。
