@@ -114,6 +114,7 @@ func (r *Repository) appendHistory(ctx context.Context, section Section, key str
 		SetVersion(version).
 		SetValue(value).
 		SetCreatedAt(at).
+		SetUpdatedAt(at).
 		Save(ctx)
 	if err != nil {
 		return fmt.Errorf("append setting history: %w", err)
@@ -139,6 +140,7 @@ func (r *Repository) History(ctx context.Context, section Section, key string) (
 			Version:   h.Version,
 			Value:     h.Value,
 			ChangedAt: h.CreatedAt,
+			UpdatedAt: h.UpdatedAt,
 		})
 	}
 	return out, nil

@@ -55,6 +55,12 @@ func (shc *SettingHistoryCreate) SetCreatedAt(t time.Time) *SettingHistoryCreate
 	return shc
 }
 
+// SetUpdatedAt sets the "updated_at" field.
+func (shc *SettingHistoryCreate) SetUpdatedAt(t time.Time) *SettingHistoryCreate {
+	shc.mutation.SetUpdatedAt(t)
+	return shc
+}
+
 // SetID sets the "id" field.
 func (shc *SettingHistoryCreate) SetID(u uuid.UUID) *SettingHistoryCreate {
 	shc.mutation.SetID(u)
@@ -137,6 +143,9 @@ func (shc *SettingHistoryCreate) check() error {
 	if _, ok := shc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "SettingHistory.created_at"`)}
 	}
+	if _, ok := shc.mutation.UpdatedAt(); !ok {
+		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "SettingHistory.updated_at"`)}
+	}
 	return nil
 }
 
@@ -192,6 +201,10 @@ func (shc *SettingHistoryCreate) createSpec() (*SettingHistory, *sqlgraph.Create
 	if value, ok := shc.mutation.CreatedAt(); ok {
 		_spec.SetField(settinghistory.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := shc.mutation.UpdatedAt(); ok {
+		_spec.SetField(settinghistory.FieldUpdatedAt, field.TypeTime, value)
+		_node.UpdatedAt = value
 	}
 	return _node, _spec
 }
@@ -308,6 +321,18 @@ func (u *SettingHistoryUpsert) SetCreatedAt(v time.Time) *SettingHistoryUpsert {
 // UpdateCreatedAt sets the "created_at" field to the value that was provided on create.
 func (u *SettingHistoryUpsert) UpdateCreatedAt() *SettingHistoryUpsert {
 	u.SetExcluded(settinghistory.FieldCreatedAt)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *SettingHistoryUpsert) SetUpdatedAt(v time.Time) *SettingHistoryUpsert {
+	u.Set(settinghistory.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *SettingHistoryUpsert) UpdateUpdatedAt() *SettingHistoryUpsert {
+	u.SetExcluded(settinghistory.FieldUpdatedAt)
 	return u
 }
 
@@ -433,6 +458,20 @@ func (u *SettingHistoryUpsertOne) SetCreatedAt(v time.Time) *SettingHistoryUpser
 func (u *SettingHistoryUpsertOne) UpdateCreatedAt() *SettingHistoryUpsertOne {
 	return u.Update(func(s *SettingHistoryUpsert) {
 		s.UpdateCreatedAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *SettingHistoryUpsertOne) SetUpdatedAt(v time.Time) *SettingHistoryUpsertOne {
+	return u.Update(func(s *SettingHistoryUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *SettingHistoryUpsertOne) UpdateUpdatedAt() *SettingHistoryUpsertOne {
+	return u.Update(func(s *SettingHistoryUpsert) {
+		s.UpdateUpdatedAt()
 	})
 }
 
@@ -725,6 +764,20 @@ func (u *SettingHistoryUpsertBulk) SetCreatedAt(v time.Time) *SettingHistoryUpse
 func (u *SettingHistoryUpsertBulk) UpdateCreatedAt() *SettingHistoryUpsertBulk {
 	return u.Update(func(s *SettingHistoryUpsert) {
 		s.UpdateCreatedAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *SettingHistoryUpsertBulk) SetUpdatedAt(v time.Time) *SettingHistoryUpsertBulk {
+	return u.Update(func(s *SettingHistoryUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *SettingHistoryUpsertBulk) UpdateUpdatedAt() *SettingHistoryUpsertBulk {
+	return u.Update(func(s *SettingHistoryUpsert) {
+		s.UpdateUpdatedAt()
 	})
 }
 

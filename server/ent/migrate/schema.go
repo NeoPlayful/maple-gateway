@@ -593,6 +593,7 @@ var (
 		{Name: "version", Type: field.TypeInt},
 		{Name: "value", Type: field.TypeJSON},
 		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
 	}
 	// SettingsHistoryTable holds the schema information for the "settings_history" table.
 	SettingsHistoryTable = &schema.Table{
