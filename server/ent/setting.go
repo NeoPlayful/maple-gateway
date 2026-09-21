@@ -27,6 +27,8 @@ type Setting struct {
 	Value json.RawMessage `json:"value,omitempty"`
 	// Version holds the value of the "version" field.
 	Version int `json:"version,omitempty"`
+	// CreatedAt holds the value of the "created_at" field.
+	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 	selectValues sql.SelectValues
@@ -43,7 +45,7 @@ func (*Setting) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case setting.FieldSection, setting.FieldKey:
 			values[i] = new(sql.NullString)
-		case setting.FieldUpdatedAt:
+		case setting.FieldCreatedAt, setting.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		case setting.FieldID:
 			values[i] = new(uuid.UUID)
@@ -93,6 +95,12 @@ func (s *Setting) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field version", values[i])
 			} else if value.Valid {
 				s.Version = int(value.Int64)
+			}
+		case setting.FieldCreatedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field created_at", values[i])
+			} else if value.Valid {
+				s.CreatedAt = value.Time
 			}
 		case setting.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -147,6 +155,9 @@ func (s *Setting) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("version=")
 	builder.WriteString(fmt.Sprintf("%v", s.Version))
+	builder.WriteString(", ")
+	builder.WriteString("created_at=")
+	builder.WriteString(s.CreatedAt.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(s.UpdatedAt.Format(time.ANSIC))

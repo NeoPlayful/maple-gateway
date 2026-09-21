@@ -32,6 +32,7 @@ func toEntry(e *ent.Setting) Entry {
 		Key:       e.Key,
 		Value:     e.Value,
 		Version:   e.Version,
+		CreatedAt: e.CreatedAt,
 		UpdatedAt: e.UpdatedAt,
 	}
 }
@@ -78,6 +79,7 @@ func (r *Repository) Upsert(ctx context.Context, section Section, key string, va
 		SetKey(key).
 		SetValue(value).
 		SetVersion(1).
+		SetCreatedAt(now).
 		SetUpdatedAt(now).
 		OnConflictColumns("section", "key").
 		Update(func(u *ent.SettingUpsert) {

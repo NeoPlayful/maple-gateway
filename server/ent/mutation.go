@@ -15333,6 +15333,7 @@ type SettingMutation struct {
 	appendvalue   json.RawMessage
 	version       *int
 	addversion    *int
+	created_at    *time.Time
 	updated_at    *time.Time
 	clearedFields map[string]struct{}
 	done          bool
@@ -15623,6 +15624,42 @@ func (m *SettingMutation) ResetVersion() {
 	m.addversion = nil
 }
 
+// SetCreatedAt sets the "created_at" field.
+func (m *SettingMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SettingMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Setting entity.
+// If the Setting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SettingMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SettingMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (m *SettingMutation) SetUpdatedAt(t time.Time) {
 	m.updated_at = &t
@@ -15693,7 +15730,7 @@ func (m *SettingMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SettingMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.section != nil {
 		fields = append(fields, setting.FieldSection)
 	}
@@ -15705,6 +15742,9 @@ func (m *SettingMutation) Fields() []string {
 	}
 	if m.version != nil {
 		fields = append(fields, setting.FieldVersion)
+	}
+	if m.created_at != nil {
+		fields = append(fields, setting.FieldCreatedAt)
 	}
 	if m.updated_at != nil {
 		fields = append(fields, setting.FieldUpdatedAt)
@@ -15725,6 +15765,8 @@ func (m *SettingMutation) Field(name string) (ent.Value, bool) {
 		return m.Value()
 	case setting.FieldVersion:
 		return m.Version()
+	case setting.FieldCreatedAt:
+		return m.CreatedAt()
 	case setting.FieldUpdatedAt:
 		return m.UpdatedAt()
 	}
@@ -15744,6 +15786,8 @@ func (m *SettingMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldValue(ctx)
 	case setting.FieldVersion:
 		return m.OldVersion(ctx)
+	case setting.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
 	case setting.FieldUpdatedAt:
 		return m.OldUpdatedAt(ctx)
 	}
@@ -15782,6 +15826,13 @@ func (m *SettingMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetVersion(v)
+		return nil
+	case setting.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
 		return nil
 	case setting.FieldUpdatedAt:
 		v, ok := value.(time.Time)
@@ -15865,6 +15916,9 @@ func (m *SettingMutation) ResetField(name string) error {
 		return nil
 	case setting.FieldVersion:
 		m.ResetVersion()
+		return nil
+	case setting.FieldCreatedAt:
+		m.ResetCreatedAt()
 		return nil
 	case setting.FieldUpdatedAt:
 		m.ResetUpdatedAt()

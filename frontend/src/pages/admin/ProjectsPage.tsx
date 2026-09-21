@@ -363,7 +363,7 @@ export default function ProjectsPage() {
             {filtered.map((r) => (
               <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/40">
                 <td className="px-4 py-2"><IdCell id={r.id} /></td>
-                <td className="px-4 py-2 font-medium">{r.name}</td>
+                <td className="px-4 py-2">{r.name}</td>
                 <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{tenantName(r.tenant_id) || '-'}</td>
                 <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{templateName(r.template_id) || '-'}</td>
                 <td className="px-4 py-2 font-mono text-xs">{r.application_id ? shortId(r.application_id) : '-'}</td>

@@ -28,11 +28,13 @@ const (
 
 // Entry 是一条配置键值。
 type Entry struct {
-	Section   Section         `json:"section"`
-	Key       string          `json:"key"`
-	Value     json.RawMessage `json:"value"`
-	Version   int             `json:"version"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	Section Section         `json:"section"`
+	Key     string          `json:"key"`
+	Value   json.RawMessage `json:"value"`
+	Version int             `json:"version"`
+	// CreatedAt 是该键首次建立时间，upsert 更新时不变。
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // HistoryEntry 是 settings_history 的一条历史版本。
