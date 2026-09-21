@@ -269,7 +269,9 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	// 该身份同时写入数据平面访问日志（gateway_instance 字段），故在 HA 之外也需可用。
 	instanceID := cfg.HA.InstanceID
 	if instanceID == "" {
-		instanceID = uuid.NewString()[:8]
+		// 复用 pkg.ShortID（去连字符后取 12 位），与容器/Compose 短 ID 约定统一；
+		// 直接对 UUID 串 [:12] 会把第 9 位的连字符带进来。
+		instanceID = pkg.ShortID(uuid.NewString())
 	}
 	nodeName, _ := os.Hostname()
 	var coord *ha.Coordinator
@@ -480,6 +482,20 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 	accessLog := logs.NewAccessLog(5000)
 	errLog := logs.NewErrLog(2000)
+	// 可信代理：仅对白名单来源采信 X-Forwarded-For / X-Real-IP。配置畸形时 fail closed
+	// （视为无可信代理，转发头一律忽略），不让错误配置意外放大伪造面。
+	var proxyTrust *proxy.ProxyTrust
+	if len(cfg.Security.TrustedProxies) > 0 {
+		t, terr := proxy.NewProxyTrust(cfg.Security.TrustedProxies)
+		if terr != nil {
+			logger.Warn("trusted_proxies invalid, forwarding headers will be ignored",
+				zap.String("err", terr.Error()))
+		} else {
+			proxyTrust = t
+			logger.Info("trusted proxies configured",
+				zap.Int("entries", len(cfg.Security.TrustedProxies)))
+		}
+	}
 	// ACME http-01 挑战代答（仅启用 ACME 时注入；nil 表示不拦截）。
 	var acmeResponder gateway.ChallengeResponder
 	if acmeChallenges != nil {
@@ -510,6 +526,7 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 		ACMEChallenge:       acmeResponder,
 		GatewayInstance:     instanceID,
 		Node:                nodeName,
+		Trust:               proxyTrust,
 	})
 	dpErrCh := dp.Start()
 

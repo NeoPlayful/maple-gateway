@@ -42,6 +42,8 @@ type Config struct {
 	// 写入每条日志，供多实例下定位是哪台网关处理的）。
 	GatewayInstance string
 	Node            string
+	// Trust 是可信代理判定集，仅对受信来源采信转发头；nil 表示无可信代理（默认）。
+	Trust *ProxyTrust
 }
 
 // Proxy 是数据平面反向代理。
@@ -56,6 +58,7 @@ type Proxy struct {
 	enforceSNIHostMatch bool
 	gatewayInstance     string
 	node                string
+	trust               *ProxyTrust
 }
 
 // New 构造 Proxy。transport 为空时使用默认配置。
@@ -80,6 +83,7 @@ func New(cfg Config) *Proxy {
 		enforceSNIHostMatch: cfg.EnforceSNIHostMatch,
 		gatewayInstance:     cfg.GatewayInstance,
 		node:                cfg.Node,
+		trust:               cfg.Trust,
 	}
 	p.director = &httputil.ReverseProxy{
 		Transport:     transport,
@@ -211,6 +215,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	respStatus = rec.status
 	if p.access != nil {
+		realIP, xff, realIPHeader := p.clientFields(r)
 		p.access.Append(logs.AccessEntry{
 			Timestamp:       time.Now(),
 			Host:            host,
@@ -226,8 +231,21 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Upstream:        target.Host,
 			GatewayInstance: p.gatewayInstance,
 			Node:            p.node,
+			RouteName:       target.RouteName,
+			RealClientIP:    realIP,
+			XForwardedFor:   xff,
+			XRealIP:         realIPHeader,
 		})
 	}
+}
+
+// clientFields 汇总客户端来源日志字段：仅当对端可信时采信转发头，否则转发头留空，
+// 避免把客户端可伪造的值写入日志。client_ip（socket 对端）始终由调用方单独填入。
+func (p *Proxy) clientFields(r *http.Request) (realIP, xff, realIPHeader string) {
+	if p.trust == nil || !p.trust.trustedPeer(r.RemoteAddr) {
+		return "", "", ""
+	}
+	return p.trust.realClientIP(r), truncateField(rawXFF(r)), truncateField(r.Header.Get("X-Real-IP"))
 }
 
 func normalizeHostLabel(host string) string {
@@ -334,7 +352,7 @@ func (p *Proxy) rewrite(pr *httputil.ProxyRequest) {
 		return
 	}
 	pr.SetURL(mustParse(target.URL()))
-	applyForwardedHeaders(pr.Out.Header, pr.In.RemoteAddr, pr.In.TLS != nil)
+	p.trust.applyForwardedHeaders(pr.Out.Header, pr.In.RemoteAddr, pr.In.TLS != nil)
 	// 主机头默认透传原始 Host（S6 提供按策略重写）。
 	pr.Out.Host = pr.In.Host
 }
@@ -416,9 +434,12 @@ func (p *Proxy) appendErr(r *http.Request, target *router.Target, requestID stri
 		return
 	}
 	upstream := ""
+	routeName := ""
 	if target != nil {
 		upstream = target.Host
+		routeName = target.RouteName
 	}
+	realIP, xff, realIPHeader := p.clientFields(r)
 	p.errLog.Append(logs.ErrEntry{
 		Timestamp:       time.Now(),
 		Host:            normalizeHostLabel(r.Host),
@@ -434,6 +455,10 @@ func (p *Proxy) appendErr(r *http.Request, target *router.Target, requestID stri
 		Upstream:        upstream,
 		GatewayInstance: p.gatewayInstance,
 		Node:            p.node,
+		RouteName:       routeName,
+		RealClientIP:    realIP,
+		XForwardedFor:   xff,
+		XRealIP:         realIPHeader,
 	})
 }
 
