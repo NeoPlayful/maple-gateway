@@ -55,6 +55,15 @@ redis:
   url: "redis://localhost:6379"
   prefix: maple                # 业务 key 命名空间前缀（与 .env MAPLE_REDIS_PREFIX 对齐）
 
+# 多实例 HA：注册 gateway_instances + Leader 竞逐（Redis 锁优先，DB lease 兜底）。
+# instance_id 为空时按 instance_state_file / 主机名派生，跨重启稳定；建议生产显式配置。
+ha:
+  enabled: false
+  instance_id: ""              # 显式指定则优先；空则按下列派生
+  instance_state_file: ""      # 状态文件路径；空则不启用文件持久化，退回主机名派生
+  heartbeat: 5s
+  lease_ttl: 15s
+
 logging:
   level: info
   pretty: true

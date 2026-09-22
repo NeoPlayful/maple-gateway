@@ -41,7 +41,6 @@ import (
 	"github.com/NeoPlayful/maple-gateway/server/pkg"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -265,14 +264,10 @@ func run(configPath, routesPath string, migrate, showExample bool) error {
 	}
 
 	// 多实例 HA：本进程在 gateway_instances 注册 + 心跳；启用协调时竞逐 Leader
-	// （Redis 锁优先，断连降级 DB lease）。实例 ID 缺省自动生成，进程内保持稳定。
-	// 该身份同时写入数据平面访问日志（gateway_instance 字段），故在 HA 之外也需可用。
-	instanceID := cfg.HA.InstanceID
-	if instanceID == "" {
-		// 复用 pkg.ShortID（去连字符后取 12 位），与容器/Compose 短 ID 约定统一；
-		// 直接对 UUID 串 [:12] 会把第 9 位的连字符带进来。
-		instanceID = pkg.ShortID(uuid.NewString())
-	}
+	// （Redis 锁优先，断连降级 DB lease）。实例 ID 按 配置 > 状态文件 > 主机名派生 解析，
+	// 跨重启稳定（详见 ha.ResolveID）。该身份同时写入数据平面访问日志（gateway_instance 字段），
+	// 故在 HA 之外也需可用。
+	instanceID := ha.ResolveID(cfg.HA.InstanceID, cfg.HA.InstanceStateFile, logger)
 	nodeName, _ := os.Hostname()
 	var coord *ha.Coordinator
 	if db != nil {

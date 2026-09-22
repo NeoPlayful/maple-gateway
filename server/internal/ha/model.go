@@ -31,7 +31,7 @@ const (
 // Instance 描述一个运行中的 Gateway 进程实例。
 type Instance struct {
 	ID         uuid.UUID  `json:"id"`
-	InstanceID string     `json:"instance_id"` // 启动时生成/配置，重启稳定标识
+	InstanceID string     `json:"instance_id"` // 配置指定时跨重启稳定；未配置时按状态文件/主机名派生
 	Addr       string     `json:"addr"`        // 管理面监听地址（协调/诊断用）
 	Hostname   string     `json:"hostname"`
 	Status     Status     `json:"status"`
