@@ -51,7 +51,8 @@ security:
 # ---- Phase 4 ----
 ha:
   enabled: false                     # 多实例 HA：注册 gateway_instances + Leader 竞逐（Redis 锁优先，DB lease 兜底）
-  instance_id: ""                    # 唯一实例 ID；空则启动自动生成
+  instance_id: ""                    # 显式实例 ID；空则按 instance_state_file / 主机名派生（生产建议显式配置）
+  instance_state_file: ""            # 状态文件路径；空则不启用文件持久化，退回主机名派生
   heartbeat: 5s
   lease_ttl: 15s
 

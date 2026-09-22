@@ -148,9 +148,12 @@ type CanaryAutoConfig struct {
 // HAConfig 是本 Gateway 进程的多实例协调配置。
 type HAConfig struct {
 	Enabled    bool          `yaml:"enabled"`     // 是否参与 Leader 竞逐/多实例协调
-	InstanceID string        `yaml:"instance_id"` // 唯一实例标识；空则自动生成
+	InstanceID string        `yaml:"instance_id"` // 唯一实例标识；空则按状态文件/主机名派生（见 instance_state_file）
 	Heartbeat  time.Duration `yaml:"heartbeat"`   // 心跳周期
 	LeaseTTL   time.Duration `yaml:"lease_ttl"`   // lease 时长
+	// InstanceStateFile 实例 ID 状态文件路径。instance_id 为空时启用：文件存在则复用其中的 ID
+	// （跨重启稳定），不存在则生成并原子落盘。为空则不启用文件持久化，退回主机名派生。
+	InstanceStateFile string `yaml:"instance_state_file"`
 }
 
 // TLSConfig 是数据平面 TLS 接入模式配置（Phase 5 Direct TLS）。
@@ -337,6 +340,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MAPLE_HA_INSTANCE_ID"); v != "" {
 		c.HA.InstanceID = v
+	}
+	if v := os.Getenv("MAPLE_HA_INSTANCE_STATE_FILE"); v != "" {
+		c.HA.InstanceStateFile = v
 	}
 	if v := os.Getenv("MAPLE_CANARY_AUTO_ENABLED"); v != "" {
 		c.CanaryAuto.Enabled = parseBool(v, c.CanaryAuto.Enabled)
